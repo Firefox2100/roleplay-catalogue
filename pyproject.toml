@@ -1,0 +1,60 @@
+[build-system]
+requires = ["setuptools>=77.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "roleplay-catalogue"
+authors = [
+  { name="Firefox2100", email="patrick@firefox2100.co.uk" },
+]
+description = "A python web service that works as a gallery and catalogue for roleplay content"
+readme = "README.md"
+requires-python = ">=3.12"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+]
+license = "GPL-3.0-or-later"
+license-files = ["LICENSE"]
+dependencies = [
+    "argon2-cffi~=25.1.0",
+    "fastapi~=0.141.1",
+    "itsdangerous~=2.2.0",
+    "pillow~=12.3.0",
+    "pydantic~=2.13.4",
+    "pydantic-settings~=2.15.0",
+    "pymongo~=4.17.0",
+    "python-multipart~=0.0.32",
+    "uvicorn~=0.52.3",
+]
+dynamic = [
+    "version"
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest~=9.1.1",
+    "pytest-asyncio~=1.4.0",
+    "pytest-cov~=7.1.0",
+    "httpx~=0.28.1",
+    "pylint~=4.0.6",
+    "testcontainers~=4.15.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/Firefox2100/roleplay-catalogue"
+Repository = "https://github.com/Firefox2100/roleplay-catalogue.git"
+Issues = "https://github.com/Firefox2100/roleplay-catalogue/issues"
+
+[tool.setuptools.dynamic]
+version = {attr = "roleplay_catalogue.__version__"}
+
+[tool.pytest]
+asyncio_mode = "auto"
+log_file = "audit.log"
+log_file_level = "DEBUG"
+log_file_mode = "a"
