@@ -307,6 +307,7 @@
 .detail-version-actions { display: flex; gap: 9px; align-items: center; }
 .detail-version-actions select { min-width: 150px; height: 42px; padding: 0 12px; border: 1px solid var(--line-strong); border-radius: 10px; background: white; }
 .detail-version-actions .save-button, .image-editor-heading a.save-button { min-height: 42px; padding: 0 18px; display: inline-flex; align-items: center; border-radius: 10px; color: white; background: linear-gradient(135deg, var(--brand), var(--brand-dark)); font-weight: 750; text-decoration: none; }
+.detail-version-actions button { min-height: 42px; padding: 0 14px; border: 1px solid var(--line-strong); border-radius: 10px; color: var(--ink); background: var(--surface); font-weight: 700; cursor: pointer; }
 .detail-cover { cursor: default; }
 .detail-metadata, .detail-content { align-content: start; }
 .detail-field { min-width: 0; }

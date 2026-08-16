@@ -183,3 +183,14 @@ export function versionDownloadUrl(versionId) {
 export function versionCoverUrl(versionId) {
   return `/api/images/covers/versions/${versionId}`
 }
+
+export async function createSignedDownloadUrl(versionId) {
+  return (await request(`/api/versions/${versionId}/signed-download`)).json()
+}
+
+export async function forkCharacterVersion(versionId) {
+  return (await request(`/api/versions/${versionId}/fork`, {
+    method: 'POST',
+    headers: await csrfHeaders(),
+  })).json()
+}

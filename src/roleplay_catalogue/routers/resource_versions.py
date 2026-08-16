@@ -11,9 +11,11 @@ from PIL import Image, PngImagePlugin
 from pydantic import Field, field_validator
 
 from roleplay_catalogue.models import CommonModel, ResourceType, ResourceVersion, ResourceVisibility
+from roleplay_catalogue.models import Resource, ResourceMetadata, ResourceVersionReference
 from roleplay_catalogue.models.roleplay_resource.resource import utc_now
 from roleplay_catalogue.models.roleplay_resource.silly_tavern import SillyTavernCardV3
 from .resource_utils import get_data_repository, get_owned_resource, get_readable_version
+from .images import create_image_resource
 from .utils import AuthenticatedUserDependency, DatabaseDependency, OptionalAuthenticatedUserDependency, StorageDependency
 
 
@@ -33,6 +35,11 @@ class PublishResourceRequest(CommonModel):
 
 class VersionVisibilityRequest(CommonModel):
     visibility: ResourceVisibility
+
+
+class SignedDownloadResponse(CommonModel):
+    url: str
+    expires_in: int = Field(..., alias='expiresIn')
 
 
 def attachment_header(file_name: str) -> str:
@@ -68,6 +75,23 @@ async def build_character_artifact(*, database: DatabaseDependency,
         raise HTTPException(status.HTTP_409_CONFLICT, 'Cover image content is missing')
     cover = await read_storage_object(storage, image_document.object_key)
     return await to_thread(package_card_as_png, cover, card_json), 'image/png', '.png'
+
+
+async def resolve_download_asset(version: ResourceVersion,
+                                 database: DatabaseDependency,
+                                 ) -> tuple[str, str, str, int | None]:
+    if version.artifact_object_key:
+        return (
+            version.artifact_object_key,
+            version.artifact_content_type or 'application/octet-stream',
+            version.artifact_file_name or f'{version.metadata.name}.{version.version}',
+            version.artifact_byte_size,
+        )
+    if version.resource_type == ResourceType.IMAGE:
+        document = await database.image_data.get(version.data_id)
+        if document:
+            return document.object_key, document.content_type, f'{version.metadata.name}.png', document.byte_size
+    raise HTTPException(status.HTTP_404_NOT_FOUND, 'Release artifact not found')
 
 
 @resource_version_router.get('/draft/{resource_id}/download')
@@ -204,26 +228,121 @@ async def get_resource_version_data(version_id: str, database: DatabaseDependenc
     return document
 
 
+@resource_version_router.get('/{version_id}/signed-download', response_model=SignedDownloadResponse)
+async def create_signed_download(version_id: str, database: DatabaseDependency,
+                                 storage: StorageDependency,
+                                 user: OptionalAuthenticatedUserDependency) -> SignedDownloadResponse:
+    version = await get_readable_version(database, version_id, user)
+    key, _content_type, file_name, _byte_size = await resolve_download_asset(version, database)
+    return SignedDownloadResponse(
+        url=await storage.create_signed_download_url(key, file_name),
+        expiresIn=storage.signed_url_expiry,
+    )
+
+
+@resource_version_router.post('/{version_id}/fork', response_model=Resource,
+                              status_code=status.HTTP_201_CREATED)
+async def fork_character_version(version_id: str, database: DatabaseDependency,
+                                 storage: StorageDependency,
+                                 user: AuthenticatedUserDependency) -> Resource:
+    version = await get_readable_version(database, version_id, user)
+    if version.resource_type != ResourceType.SILLY_TAVERN_CHARACTER:
+        raise HTTPException(status.HTTP_409_CONFLICT, 'Only character releases can be forked')
+    source = await database.resource.get(version.resource_id)
+    snapshot = await database.silly_tavern_character_data.get(version.data_id)
+    if not source or not snapshot or snapshot.resource_version_id != version.id:
+        raise HTTPException(status.HTTP_409_CONFLICT, 'Release snapshot is invalid')
+
+    fork_name = f'Forked from {version.metadata.name}'
+    cover_image_resource_id = version.cover_image_resource_id
+    created_cover = None
+    if cover_image_resource_id:
+        source_cover = await database.resource.get(cover_image_resource_id)
+        if not source_cover or source_cover.resource_type != ResourceType.IMAGE:
+            raise HTTPException(status.HTTP_409_CONFLICT, 'Release cover image is missing')
+        if source_cover.author_id != user.id:
+            image_version = await database.resource_version.get_latest(source_cover.id)
+            image_document = (
+                await database.image_data.get(image_version.data_id) if image_version else None
+            )
+            if not image_document:
+                raise HTTPException(status.HTTP_409_CONFLICT, 'Release cover image is missing')
+            existing_owned_cover = None
+            for candidate in await database.image_data.list_by_sha256(image_document.sha256):
+                candidate_resource = await database.resource.get(candidate.resource_id)
+                if candidate_resource and candidate_resource.author_id == user.id:
+                    existing_owned_cover = candidate_resource
+                    break
+            if existing_owned_cover:
+                cover_image_resource_id = existing_owned_cover.id
+            else:
+                cover_bytes = await read_storage_object(storage, image_document.object_key)
+                created_cover = await create_image_resource(
+                    name=f'Cover image for {fork_name}',
+                    description='',
+                    visibility=ResourceVisibility.PRIVATE,
+                    tags=[],
+                    source=cover_bytes,
+                    user=user,
+                    database=database,
+                    storage=storage,
+                )
+                cover_image_resource_id = created_cover.id
+
+    now = utc_now()
+    draft = snapshot.model_copy(update={
+        'id': str(uuid4()),
+        'resource_id': '',
+        'resource_version_id': None,
+        'created_at': now,
+        'updated_at': now,
+    })
+    fork = Resource(
+        resourceType=ResourceType.SILLY_TAVERN_CHARACTER,
+        authorId=user.id,
+        metadata=ResourceMetadata(
+            name=fork_name,
+            description=version.metadata.description,
+            visibility=ResourceVisibility.PRIVATE,
+            tags=version.metadata.tags,
+        ),
+        draftDataId=draft.id,
+        coverImageResourceId=cover_image_resource_id,
+        forkedFrom=ResourceVersionReference(
+            resourceId=version.resource_id,
+            versionId=version.id,
+        ),
+    )
+    draft = draft.model_copy(update={'resource_id': fork.id})
+    try:
+        await database.resource.create(fork)
+        try:
+            await database.silly_tavern_character_data.create(draft)
+        except Exception:
+            await database.resource.delete(fork.id)
+            raise
+        return fork
+    except Exception:
+        if created_cover:
+            image_version = await database.resource_version.get_latest(created_cover.id)
+            image_document = (
+                await database.image_data.get(image_version.data_id) if image_version else None
+            )
+            if image_document:
+                await storage.remove(image_document.object_key)
+                await database.image_data.delete(image_document.id)
+            if image_version:
+                await database.resource_version.delete(image_version.id)
+            await database.resource.delete(created_cover.id)
+        raise
+
+
 @resource_version_router.get('/{version_id}/download')
 async def download_resource_version(version_id: str, database: DatabaseDependency,
                                     storage: StorageDependency,
                                     user: OptionalAuthenticatedUserDependency):
     version = await get_readable_version(database, version_id, user)
-    if version.artifact_object_key:
-        key = version.artifact_object_key
-        content_type = version.artifact_content_type or 'application/octet-stream'
-        file_name = version.artifact_file_name or f'{version.metadata.name}.{version.version}'
-        byte_size = version.artifact_byte_size
-    elif version.resource_type == ResourceType.IMAGE:
-        document = await database.image_data.get(version.data_id)
-        if not document:
-            raise HTTPException(status.HTTP_404_NOT_FOUND, 'Image data not found')
-        key = document.object_key
-        content_type = document.content_type
-        file_name = f'{version.metadata.name}.png'
-        byte_size = document.byte_size
-    else:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, 'Release artifact not found')
+    key, content_type, file_name, byte_size = await resolve_download_asset(version, database)
     headers = {'Content-Disposition': attachment_header(file_name)}
     if byte_size is not None:
         headers['Content-Length'] = str(byte_size)

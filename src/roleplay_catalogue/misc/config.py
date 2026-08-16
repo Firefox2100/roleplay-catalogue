@@ -61,6 +61,12 @@ class Settings(BaseSettings):
         'roleplay-catalogue',
         description='Bucket used for uploaded assets.'
     )
+    s3_signed_url_expiry: int = Field(
+        120,
+        ge=1,
+        le=604_800,
+        description='Lifetime of direct S3 download links in seconds.',
+    )
     image_max_bytes: int = Field(
         20 * 1024 * 1024,
         description='Maximum accepted source image size in bytes.'

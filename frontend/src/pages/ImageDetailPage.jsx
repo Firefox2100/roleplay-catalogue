@@ -1,8 +1,12 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useParams } from 'react-router-dom'
-import { getResource, imageContentUrl, listResourceVersions, versionDownloadUrl } from '../api/resources.js'
+import {
+  createSignedDownloadUrl, getResource, imageContentUrl,
+  listResourceVersions, versionDownloadUrl,
+} from '../api/resources.js'
 import { ResourceImage } from '../components/ResourceImage.jsx'
+import { copyText } from '../utils/clipboard.js'
 
 
 export function ImageDetailPage() {
@@ -11,6 +15,18 @@ export function ImageDetailPage() {
   const [resource, setResource] = useState(null)
   const [version, setVersion] = useState(null)
   const [error, setError] = useState('')
+  const [message, setMessage] = useState('')
+
+  async function copyDownloadLink() {
+    setError('')
+    try {
+      const result = await createSignedDownloadUrl(version.id)
+      await copyText(result.url)
+      setMessage(t('details.linkCopied', { seconds: result.expiresIn }))
+    } catch {
+      setError(t('details.copyFailed'))
+    }
+  }
 
   useEffect(() => {
     let active = true
@@ -34,10 +50,14 @@ export function ImageDetailPage() {
         <header className="image-editor-heading">
           <div><span className="eyebrow">{t('details.publishedImage')}</span>
             <h1>{version.metadata.name}</h1></div>
-          <a className="save-button" href={versionDownloadUrl(version.id)} download>
-            {t('details.download')}
-          </a>
+          <div className="detail-version-actions">
+            <a className="save-button" href={versionDownloadUrl(version.id)} download>
+              {t('details.download')}
+            </a>
+            <button type="button" onClick={copyDownloadLink}>{t('details.copyLink')}</button>
+          </div>
         </header>
+        {message && <p className="editor-message success" role="status">{message}</p>}
         <div className="image-editor-layout">
           <ResourceImage className="image-editor-preview" src={imageContentUrl(resourceId)}
             alt={version.metadata.name} />

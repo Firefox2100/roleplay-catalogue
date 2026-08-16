@@ -34,6 +34,9 @@ class MemoryS3Client:
     async def delete_object(self, Bucket, Key):
         self.objects.pop((Bucket, Key), None)
 
+    async def generate_presigned_url(self, operation, Params, ExpiresIn):
+        return f'https://storage.test/{Params["Key"]}?expires={ExpiresIn}'
+
 
 async def test_storage_upload_fetch_and_remove() -> None:
     client = MemoryS3Client()
@@ -48,3 +51,14 @@ async def test_storage_upload_fetch_and_remove() -> None:
 
     await storage.remove('images/example.png')
     assert client.objects == {}
+
+
+async def test_storage_creates_expiring_signed_download_url() -> None:
+    storage = StorageService(
+        client=MemoryS3Client(), bucket='assets', signed_url_expiry=45,
+    )
+
+    url = await storage.create_signed_download_url('releases/card.json', 'My card.json')
+
+    assert url == 'https://storage.test/releases/card.json?expires=45'
+    assert storage.signed_url_expiry == 45

@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useParams } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import {
-  getResource, getResourceVersionData, listResourceVersions,
+  createSignedDownloadUrl, forkCharacterVersion, getResource, getResourceVersionData, listResourceVersions,
   versionCoverUrl, versionDownloadUrl,
 } from '../api/resources.js'
 import { ResourceImage } from '../components/ResourceImage.jsx'
+import { useAuth } from '../auth/useAuth.js'
+import { copyText } from '../utils/clipboard.js'
 
 
 function TextField({ label, value }) {
@@ -27,12 +30,17 @@ function TextList({ label, values }) {
 export function CharacterDetailPage() {
   const { t } = useTranslation()
   const { resourceId } = useParams()
+  const navigate = useNavigate()
+  const location = useLocation()
+  const { user } = useAuth()
   const [resource, setResource] = useState(null)
   const [versions, setVersions] = useState([])
   const [selectedId, setSelectedId] = useState('')
   const [releaseDocument, setReleaseDocument] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState('')
+  const [actionMessage, setActionMessage] = useState('')
+  const [isForking, setIsForking] = useState(false)
 
   useEffect(() => {
     let active = true
@@ -72,6 +80,33 @@ export function CharacterDetailPage() {
   if (isLoading || !resource || !data || !version) {
     return <div className="page-loading" role="status">{t('details.loading')}</div>
   }
+  async function copyDownloadLink() {
+    setError('')
+    try {
+      const result = await createSignedDownloadUrl(selectedId)
+      await copyText(result.url)
+      setActionMessage(t('details.linkCopied', { seconds: result.expiresIn }))
+    } catch {
+      setError(t('details.copyFailed'))
+    }
+  }
+
+  async function forkVersion() {
+    if (!user) {
+      navigate('/login', { state: { from: location.pathname } })
+      return
+    }
+    setError('')
+    setIsForking(true)
+    try {
+      const fork = await forkCharacterVersion(selectedId)
+      navigate(`/resources/${fork.id}/edit`, { state: { resource: fork } })
+    } catch {
+      setError(t('details.forkFailed'))
+      setIsForking(false)
+    }
+  }
+
   const book = data.character_book
   return (
     <article className="character-editor-page character-detail-page">
@@ -92,8 +127,13 @@ export function CharacterDetailPage() {
             <a className="save-button" href={versionDownloadUrl(selectedId)} download>
               {t('details.download')}
             </a>
+            <button type="button" onClick={copyDownloadLink}>{t('details.copyLink')}</button>
+            <button type="button" disabled={isForking} onClick={forkVersion}>
+              {isForking ? t('details.forking') : t('details.fork')}
+            </button>
           </div>
         </header>
+        {actionMessage && <p className="editor-message success" role="status">{actionMessage}</p>}
         <section className="resource-metadata-editor detail-metadata">
           <h2>{t('editor.resourceMetadata')}</h2>
           <TextField label={t('resource.description')} value={version.metadata.description} />

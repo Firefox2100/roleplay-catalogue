@@ -17,6 +17,9 @@ USER = User(
     email='author@example.com',
     passwordHash='hash',
 )
+OTHER_USER = User(
+    id='other-user-id', username='other', email='other@example.com', passwordHash='hash',
+)
 
 
 class MemoryResourceRepository:
@@ -150,6 +153,7 @@ class MemoryDatabaseService:
 class MemoryStorageService:
     def __init__(self):
         self.objects: dict[str, tuple[bytes, str]] = {}
+        self.signed_url_expiry = 120
 
     async def upload(self, key: str, data: bytes, content_type: str) -> None:
         self.objects[key] = (data, content_type)
@@ -163,9 +167,16 @@ class MemoryStorageService:
     async def fetch(self, key: str):
         yield self.objects[key][0]
 
+    async def create_signed_download_url(self, key: str, file_name: str) -> str:
+        return f'https://storage.test/{key}?name={file_name}'
+
 
 async def authenticated_user() -> User:
     return USER
+
+
+async def other_authenticated_user() -> User:
+    return OTHER_USER
 
 
 async def get_csrf_headers(client: AsyncClient) -> dict[str, str]:
@@ -261,6 +272,21 @@ async def test_character_draft_can_be_added_updated_and_published() -> None:
         assert response.content == storage.objects[artifact_key][0]
         assert "Updated%20draft.json" in response.headers['content-disposition']
 
+        response = await client.get(f'/versions/{version_id}/signed-download')
+        assert response.status_code == 200
+        assert response.json()['expiresIn'] == 120
+        assert response.json()['url'].startswith('https://storage.test/releases/')
+
+        response = await client.post(f'/versions/{version_id}/fork', headers=headers)
+        assert response.status_code == 201
+        fork = response.json()
+        assert fork['metadata']['name'] == 'Forked from Example character'
+        assert fork['metadata']['visibility'] == 'private'
+        assert fork['forkedFrom'] == {'resourceId': resource_id, 'versionId': version_id, 'instance': None}
+        fork_draft = database.silly_tavern_character_data.documents[fork['draftDataId']]
+        assert fork_draft.resource_version_id is None
+        assert fork_draft.data.name == 'Updated draft'
+
         response = await client.get(f'/versions/draft/{resource_id}/download')
         assert response.status_code == 200
         assert response.json()['data']['name'] == 'Updated draft'
@@ -295,6 +321,37 @@ async def test_resource_data_is_validated_for_its_resource_type() -> None:
             json={'data': {'name': 'Not image metadata'}},
         )
         assert response.status_code == 422
+
+
+async def test_character_fork_requires_access_to_the_release() -> None:
+    database = MemoryDatabaseService()
+    storage = MemoryStorageService()
+    resource = Resource(
+        id='private-source', resourceType=ResourceType.SILLY_TAVERN_CHARACTER,
+        authorId=USER.id, metadata={'name': 'Private source', 'visibility': 'private'},
+    )
+    await database.resource.create(resource)
+    app.dependency_overrides[get_database_service] = lambda: database
+    app.dependency_overrides[get_storage_service] = lambda: storage
+    app.dependency_overrides[authenticate_user] = authenticated_user
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url='http://test') as client:
+        headers = await get_csrf_headers(client)
+        response = await client.put(
+            f'/resources/{resource.id}/data', headers=headers, json={'data': {'name': 'Secret'}},
+        )
+        assert response.status_code == 200
+        response = await client.post(
+            f'/versions/{resource.id}', headers=headers, json={'version': 'private release'},
+        )
+        assert response.status_code == 201
+        version_id = response.json()['id']
+
+        app.dependency_overrides[authenticate_user] = other_authenticated_user
+        response = await client.post(f'/versions/{version_id}/fork', headers=headers)
+
+    assert response.status_code == 404
+    assert len(database.resource.documents) == 1
 
 
 async def test_resource_listing_filters_by_type_tags_and_author_username() -> None:

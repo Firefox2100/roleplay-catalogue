@@ -61,7 +61,11 @@ async def lifespan(application: FastAPI):
             aws_access_key_id=CONFIG.s3_access_key_id,
             aws_secret_access_key=CONFIG.s3_secret_access_key,
     ) as storage_client:
-        storage_service = StorageService(storage_client, CONFIG.s3_bucket)
+        storage_service = StorageService(
+            storage_client,
+            CONFIG.s3_bucket,
+            CONFIG.s3_signed_url_expiry,
+        )
         auth_component = AuthComponent(
             database=database_service,
             mailing=mailing_service,
