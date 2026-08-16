@@ -48,7 +48,7 @@ class SillyTavernCardV2BookEntry(BaseModel):
                     "will be skipped.",
     )
 
-    id: Optional[int] = Field(
+    id: Optional[int | str] = Field(
         None,
         description="The ID of the book entry",
     )

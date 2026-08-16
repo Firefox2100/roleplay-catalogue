@@ -254,11 +254,11 @@
 .editor-field-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 17px 18px; }
 .editor-field-grid .wide-field { grid-column: 1 / -1; }
 .character-editor label, .repeatable-field legend { display: grid; gap: 7px; color: var(--ink); font-size: 13px; font-weight: 700; }
-.character-editor input:not([type="checkbox"]), .character-editor textarea { width: 100%; padding: 11px 13px; border: 1px solid var(--line-strong); border-radius: 9px; outline: none; background: white; color: var(--ink); font: inherit; font-weight: 400; }
-.character-editor input:not([type="checkbox"]) { height: 44px; }
+.character-editor input:not([type="checkbox"]), .character-editor textarea, .character-editor select { width: 100%; padding: 11px 13px; border: 1px solid var(--line-strong); border-radius: 9px; outline: none; background: white; color: var(--ink); font: inherit; font-weight: 400; }
+.character-editor input:not([type="checkbox"]), .character-editor select { height: 44px; }
 .character-editor .tag-editor-input input { min-width: 150px; height: 34px; margin: 0; padding: 0 6px; border: 0; box-shadow: none; }
 .character-editor textarea { resize: vertical; line-height: 1.5; }
-.character-editor input:focus, .character-editor textarea:focus { border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); }
+.character-editor input:focus, .character-editor textarea:focus, .character-editor select:focus { border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); }
 .resource-metadata-editor, .editor-content-fields, .embedded-lorebook, .release-history { margin-top: 24px; padding: 28px; display: grid; gap: 20px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); }
 .resource-metadata-editor h2 { margin: 0 0 6px; font-family: Georgia, "Times New Roman", serif; font-size: 23px; font-weight: 600; }
 .resource-tag-field > label { margin-bottom: 7px; }

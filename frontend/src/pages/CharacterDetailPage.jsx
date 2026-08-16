@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useParams } from 'react-router-dom'
 import { useLocation, useNavigate } from 'react-router-dom'
 import {
-  createSignedDownloadUrl, forkCharacterVersion, getResource, getResourceVersionData, listResourceVersions,
+  createSignedDownloadUrl, forkResourceVersion, getResource, getResourceVersionData, listResourceVersions,
   versionCoverUrl, versionDownloadUrl,
 } from '../api/resources.js'
 import { ResourceImage } from '../components/ResourceImage.jsx'
@@ -99,7 +99,7 @@ export function CharacterDetailPage() {
     setError('')
     setIsForking(true)
     try {
-      const fork = await forkCharacterVersion(selectedId)
+      const fork = await forkResourceVersion(selectedId)
       navigate(`/resources/${fork.id}/edit`, { state: { resource: fork } })
     } catch {
       setError(t('details.forkFailed'))

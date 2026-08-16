@@ -13,7 +13,10 @@ from pydantic import Field, field_validator
 from roleplay_catalogue.models import CommonModel, ResourceType, ResourceVersion, ResourceVisibility
 from roleplay_catalogue.models import Resource, ResourceMetadata, ResourceVersionReference
 from roleplay_catalogue.models.roleplay_resource.resource import utc_now
-from roleplay_catalogue.models.roleplay_resource.silly_tavern import SillyTavernCardV3
+from roleplay_catalogue.models.roleplay_resource.silly_tavern import (
+    SillyTavernCardV3,
+    SillyTavernLorebookV3,
+)
 from .resource_utils import get_data_repository, get_owned_resource, get_readable_version
 from .images import create_image_resource
 from .utils import AuthenticatedUserDependency, DatabaseDependency, OptionalAuthenticatedUserDependency, StorageDependency
@@ -95,29 +98,46 @@ async def resolve_download_asset(version: ResourceVersion,
 
 
 @resource_version_router.get('/draft/{resource_id}/download')
-async def export_character_draft(resource_id: str, database: DatabaseDependency,
-                                 storage: StorageDependency,
-                                 user: AuthenticatedUserDependency) -> Response:
-    resource = await get_owned_resource(
-        database, resource_id, user, ResourceType.SILLY_TAVERN_CHARACTER,
-    )
+async def export_resource_draft(resource_id: str, database: DatabaseDependency,
+                                storage: StorageDependency,
+                                user: AuthenticatedUserDependency) -> Response:
+    resource = await get_owned_resource(database, resource_id, user)
+    if resource.resource_type not in (
+            ResourceType.SILLY_TAVERN_CHARACTER,
+            ResourceType.SILLY_TAVERN_LOREBOOK,
+    ):
+        raise HTTPException(status.HTTP_409_CONFLICT, 'Resource type cannot be exported')
     if not resource.draft_data_id:
         raise HTTPException(status.HTTP_409_CONFLICT, 'Resource has no draft data')
-    draft = await database.silly_tavern_character_data.get(resource.draft_data_id)
-    author = await database.user.get(resource.author_id)
-    if not draft or draft.resource_version_id or not author:
+    repository = get_data_repository(database, resource.resource_type)
+    draft = await repository.get(resource.draft_data_id)
+    if not draft or draft.resource_version_id:
         raise HTTPException(status.HTTP_409_CONFLICT, 'Resource draft data is invalid')
-    data = draft.data.model_copy(update={
-        'description': resource.metadata.description,
-        'tags': list(resource.metadata.tags),
-        'creator': draft.data.creator or author.username,
-    })
-    card = SillyTavernCardV3(spec='chara_card_v3', spec_version='3.0', data=data)
-    artifact, content_type, extension = await build_character_artifact(
-        database=database, storage=storage, card=card,
-        cover_image_resource_id=resource.cover_image_resource_id,
-    )
-    file_name = f'{data.name or resource.metadata.name}.draft{extension}'
+    if resource.resource_type == ResourceType.SILLY_TAVERN_CHARACTER:
+        author = await database.user.get(resource.author_id)
+        if not author:
+            raise HTTPException(status.HTTP_409_CONFLICT, 'Resource author no longer exists')
+        data = draft.data.model_copy(update={
+            'description': resource.metadata.description,
+            'tags': list(resource.metadata.tags),
+            'creator': draft.data.creator or author.username,
+        })
+        card = SillyTavernCardV3(spec='chara_card_v3', spec_version='3.0', data=data)
+        artifact, content_type, extension = await build_character_artifact(
+            database=database, storage=storage, card=card,
+            cover_image_resource_id=resource.cover_image_resource_id,
+        )
+    else:
+        data = draft.data.model_copy(update={
+            'name': resource.metadata.name,
+            'description': resource.metadata.description,
+        })
+        artifact = SillyTavernLorebookV3(
+            spec='lorebook_v3', data=data,
+        ).model_dump_json(exclude_none=True).encode('utf-8')
+        content_type, extension = 'application/json', '.json'
+    export_name = data.name if resource.resource_type == ResourceType.SILLY_TAVERN_CHARACTER else resource.metadata.name
+    file_name = f'{export_name or resource.metadata.name}.draft{extension}'
     return Response(
         artifact,
         media_type=content_type,
@@ -131,7 +151,10 @@ async def publish_resource(resource_id: str, payload: PublishResourceRequest,
                            database: DatabaseDependency, storage: StorageDependency,
                            user: AuthenticatedUserDependency) -> ResourceVersion:
     resource = await get_owned_resource(database, resource_id, user)
-    if resource.resource_type != ResourceType.SILLY_TAVERN_CHARACTER:
+    if resource.resource_type not in (
+            ResourceType.SILLY_TAVERN_CHARACTER,
+            ResourceType.SILLY_TAVERN_LOREBOOK,
+    ):
         raise HTTPException(status.HTTP_409_CONFLICT, 'This resource type cannot be published yet')
     if not resource.draft_data_id:
         raise HTTPException(status.HTTP_409_CONFLICT, 'Resource has no draft data')
@@ -139,25 +162,41 @@ async def publish_resource(resource_id: str, payload: PublishResourceRequest,
     draft = await repository.get(resource.draft_data_id)
     if not draft or draft.resource_version_id:
         raise HTTPException(status.HTTP_409_CONFLICT, 'Resource draft data is invalid')
-    author = await database.user.get(resource.author_id)
-    if not author:
-        raise HTTPException(status.HTTP_409_CONFLICT, 'Resource author no longer exists')
-
     latest = await database.resource_version.get_latest(resource.id)
     version_id = str(uuid4())
-    snapshot_data = draft.data.model_copy(update={
-        'description': resource.metadata.description,
-        'tags': list(resource.metadata.tags),
-        'creator': draft.data.creator or author.username,
-        'character_version': draft.data.character_version or payload.version,
-    })
-    card = SillyTavernCardV3(spec='chara_card_v3', spec_version='3.0', data=snapshot_data)
-    artifact, content_type, extension = await build_character_artifact(
-        database=database, storage=storage, card=card,
-        cover_image_resource_id=resource.cover_image_resource_id,
-    )
+    if resource.resource_type == ResourceType.SILLY_TAVERN_CHARACTER:
+        author = await database.user.get(resource.author_id)
+        if not author:
+            raise HTTPException(status.HTTP_409_CONFLICT, 'Resource author no longer exists')
+        snapshot_data = draft.data.model_copy(update={
+            'description': resource.metadata.description,
+            'tags': list(resource.metadata.tags),
+            'creator': draft.data.creator or author.username,
+            'character_version': draft.data.character_version or payload.version,
+        })
+        card = SillyTavernCardV3(
+            spec='chara_card_v3', spec_version='3.0', data=snapshot_data,
+        )
+        artifact, content_type, extension = await build_character_artifact(
+            database=database, storage=storage, card=card,
+            cover_image_resource_id=resource.cover_image_resource_id,
+        )
+    else:
+        snapshot_data = draft.data.model_copy(update={
+            'name': resource.metadata.name,
+            'description': resource.metadata.description,
+        })
+        artifact = SillyTavernLorebookV3(
+            spec='lorebook_v3', data=snapshot_data,
+        ).model_dump_json(exclude_none=True).encode('utf-8')
+        content_type, extension = 'application/json', '.json'
     object_key = f'releases/{resource.id}/{version_id}{extension}'
-    file_name = f'{snapshot_data.name or resource.metadata.name}{extension}'
+    artifact_name = (
+        snapshot_data.name
+        if resource.resource_type == ResourceType.SILLY_TAVERN_CHARACTER
+        else resource.metadata.name
+    )
+    file_name = f'{artifact_name or resource.metadata.name}{extension}'
     snapshot = draft.model_copy(update={
         'id': str(uuid4()), 'resource_version_id': version_id,
         'created_at': utc_now(), 'updated_at': utc_now(), 'data': snapshot_data,
@@ -242,14 +281,18 @@ async def create_signed_download(version_id: str, database: DatabaseDependency,
 
 @resource_version_router.post('/{version_id}/fork', response_model=Resource,
                               status_code=status.HTTP_201_CREATED)
-async def fork_character_version(version_id: str, database: DatabaseDependency,
-                                 storage: StorageDependency,
-                                 user: AuthenticatedUserDependency) -> Resource:
+async def fork_resource_version(version_id: str, database: DatabaseDependency,
+                                storage: StorageDependency,
+                                user: AuthenticatedUserDependency) -> Resource:
     version = await get_readable_version(database, version_id, user)
-    if version.resource_type != ResourceType.SILLY_TAVERN_CHARACTER:
-        raise HTTPException(status.HTTP_409_CONFLICT, 'Only character releases can be forked')
+    if version.resource_type not in (
+            ResourceType.SILLY_TAVERN_CHARACTER,
+            ResourceType.SILLY_TAVERN_LOREBOOK,
+    ):
+        raise HTTPException(status.HTTP_409_CONFLICT, 'This release type cannot be forked')
     source = await database.resource.get(version.resource_id)
-    snapshot = await database.silly_tavern_character_data.get(version.data_id)
+    repository = get_data_repository(database, version.resource_type)
+    snapshot = await repository.get(version.data_id)
     if not source or not snapshot or snapshot.resource_version_id != version.id:
         raise HTTPException(status.HTTP_409_CONFLICT, 'Release snapshot is invalid')
 
@@ -298,7 +341,7 @@ async def fork_character_version(version_id: str, database: DatabaseDependency,
         'updated_at': now,
     })
     fork = Resource(
-        resourceType=ResourceType.SILLY_TAVERN_CHARACTER,
+        resourceType=version.resource_type,
         authorId=user.id,
         metadata=ResourceMetadata(
             name=fork_name,
@@ -317,7 +360,7 @@ async def fork_character_version(version_id: str, database: DatabaseDependency,
     try:
         await database.resource.create(fork)
         try:
-            await database.silly_tavern_character_data.create(draft)
+            await repository.create(draft)
         except Exception:
             await database.resource.delete(fork.id)
             raise

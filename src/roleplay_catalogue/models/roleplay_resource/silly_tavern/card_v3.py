@@ -85,3 +85,11 @@ class SillyTavernCardV3(BaseModel):
         ...,
         description="The tavern card data",
     )
+
+
+class SillyTavernLorebookV3(BaseModel):
+    spec: Literal["lorebook_v3"]
+    data: SillyTavernCardV3LoreBook = Field(
+        ...,
+        description="Standalone Character Card V3 lorebook payload",
+    )

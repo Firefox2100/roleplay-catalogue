@@ -7,8 +7,10 @@ from PIL.PngImagePlugin import PngInfo
 
 from roleplay_catalogue.routers.card_imports import (
     extract_card_from_png,
+    extract_lorebook_from_png,
     merge_missing,
     parse_card_json,
+    parse_lorebook_json,
 )
 
 
@@ -68,3 +70,47 @@ def test_merge_fills_blanks_and_appends_only_exactly_new_list_items() -> None:
     assert merged['first_mes'] == 'Imported greeting'
     assert merged['alternate_greetings'] == ['Same', {'text': 'structured'}, 'New']
     assert merged['character_book']['entries'][-1]['content'] == 'New'
+
+
+def lorebook_payload() -> dict:
+    return {
+        'spec': 'lorebook_v3',
+        'data': {
+            'name': 'Imported lore',
+            'description': 'World background',
+            'extensions': {},
+            'entries': [{
+                'keys': ['kingdom'],
+                'content': 'A distant kingdom.',
+                'extensions': {},
+                'enabled': True,
+                'insertion_order': 10,
+                'use_regex': False,
+                'constant': False,
+            }],
+        },
+    }
+
+
+def test_lorebook_json_identifier_distinguishes_standalone_and_character_card() -> None:
+    standalone = parse_lorebook_json(dumps(lorebook_payload()).encode())
+    character = card_payload()
+    character['data']['character_book'] = lorebook_payload()['data']
+    embedded = parse_lorebook_json(dumps(character).encode())
+
+    assert standalone.entries[0].content == 'A distant kingdom.'
+    assert embedded.entries == standalone.entries
+
+
+def test_lorebook_is_extracted_from_png_character_without_using_image_data() -> None:
+    character = card_payload()
+    character['data']['character_book'] = lorebook_payload()['data']
+    metadata = PngInfo()
+    metadata.add_text('ccv3', b64encode(dumps(character).encode()).decode())
+    png = BytesIO()
+    Image.new('RGB', (4, 4), 'orange').save(png, format='PNG', pnginfo=metadata)
+
+    lorebook = extract_lorebook_from_png(png.getvalue())
+
+    assert lorebook.name == 'Imported lore'
+    assert lorebook.entries[0].keys == ['kingdom']

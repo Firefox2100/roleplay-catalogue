@@ -15,8 +15,9 @@ const RESOURCE_TABS = [
 function PersonalResourceCard({ resource }) {
   const { t } = useTranslation()
   const isCharacter = resource.resourceType === 'sillytavern/character'
+  const isLorebook = resource.resourceType === 'sillytavern/lorebook'
   const isImage = resource.resourceType === 'core/image'
-  const isEditable = isCharacter || isImage
+  const isEditable = isCharacter || isLorebook || isImage
   const imageUrl = resourceImageUrl(resource)
   const content = (
     <article className={`catalogue-card ${isEditable ? 'editable' : 'unavailable'}`}>
@@ -38,7 +39,7 @@ function PersonalResourceCard({ resource }) {
   if (!isEditable) return content
   const editorPath = isImage
     ? `/images/${resource.id}/edit`
-    : `/resources/${resource.id}/edit`
+    : isLorebook ? `/lorebooks/${resource.id}/edit` : `/resources/${resource.id}/edit`
   return (
     <Link className="my-resource-link" to={editorPath}
       state={{ resource }} aria-label={t('myResources.editResource', { name: resource.metadata.name })}>

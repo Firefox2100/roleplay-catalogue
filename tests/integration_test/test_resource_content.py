@@ -323,6 +323,73 @@ async def test_resource_data_is_validated_for_its_resource_type() -> None:
         assert response.status_code == 422
 
 
+async def test_lorebook_import_export_publish_and_fork() -> None:
+    database = MemoryDatabaseService()
+    storage = MemoryStorageService()
+    app.dependency_overrides[get_database_service] = lambda: database
+    app.dependency_overrides[get_storage_service] = lambda: storage
+    app.dependency_overrides[authenticate_user] = authenticated_user
+    lorebook_json = b'''{
+      "spec": "lorebook_v3",
+      "data": {
+        "name": "Imported title",
+        "description": "Imported lore description",
+        "extensions": {},
+        "entries": [{
+          "keys": ["castle"], "content": "An ancient castle.", "extensions": {},
+          "enabled": true, "insertion_order": 5, "use_regex": false, "constant": false
+        }]
+      }
+    }'''
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url='http://test') as client:
+        headers = await get_csrf_headers(client)
+        response = await client.post('/resources', headers=headers, json={
+            'resourceType': 'sillytavern/lorebook', 'name': 'Castle lore',
+            'description': '', 'visibility': 'public', 'tags': ['fantasy'],
+        })
+        assert response.status_code == 201
+        resource_id = response.json()['id']
+
+        response = await client.post(
+            f'/resources/{resource_id}/import-lorebook', headers=headers,
+            files={'file': ('lore.json', lorebook_json, 'application/json')},
+        )
+        assert response.status_code == 200
+        assert response.json()['draft']['data']['entries'][0]['content'] == 'An ancient castle.'
+        assert response.json()['resource']['metadata']['description'] == 'Imported lore description'
+
+        response = await client.get(f'/versions/draft/{resource_id}/download')
+        assert response.status_code == 200
+        assert response.json()['spec'] == 'lorebook_v3'
+        assert response.json()['data']['name'] == 'Castle lore'
+        assert response.headers['content-type'].startswith('application/json')
+
+        response = await client.post(
+            f'/versions/{resource_id}', headers=headers, json={'version': 'first edition'},
+        )
+        assert response.status_code == 201
+        version = response.json()
+        assert version['artifactContentType'] == 'application/json'
+        assert version['artifactFileName'] == 'Castle lore.json'
+        assert version['coverImageResourceId'] is None
+        snapshot = database.silly_tavern_lorebook_data.documents[version['dataId']]
+        assert snapshot.data.name == 'Castle lore'
+        assert snapshot.data.description == 'Imported lore description'
+
+        artifact = storage.objects[version['artifactObjectKey']][0]
+        assert b'"spec":"lorebook_v3"' in artifact
+
+        response = await client.post(f'/versions/{version["id"]}/fork', headers=headers)
+        assert response.status_code == 201
+        fork = response.json()
+        assert fork['resourceType'] == 'sillytavern/lorebook'
+        assert fork['metadata']['name'] == 'Forked from Castle lore'
+        fork_draft = database.silly_tavern_lorebook_data.documents[fork['draftDataId']]
+        assert fork_draft.resource_version_id is None
+        assert fork_draft.data.entries[0].keys == ['castle']
+
+
 async def test_character_fork_requires_access_to_the_release() -> None:
     database = MemoryDatabaseService()
     storage = MemoryStorageService()

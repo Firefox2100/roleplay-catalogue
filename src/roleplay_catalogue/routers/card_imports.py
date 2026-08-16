@@ -15,8 +15,11 @@ from roleplay_catalogue.models.roleplay_resource.resource import utc_now
 from roleplay_catalogue.models.roleplay_resource.silly_tavern import (
     SillyTavernCardV2,
     SillyTavernCardV3,
+    SillyTavernCardV3LoreBook,
     SillyTavernCharacterData,
     SillyTavernCharacterDataDocument,
+    SillyTavernLorebookDataDocument,
+    SillyTavernLorebookV3,
 )
 from .images import create_image_resource
 from .resource_utils import get_owned_resource
@@ -29,6 +32,11 @@ card_import_router = APIRouter(prefix='/resources', tags=['Card Import'])
 class CardImportResponse(CommonModel):
     resource: Resource
     draft: SillyTavernCharacterDataDocument
+
+
+class LorebookImportResponse(CommonModel):
+    resource: Resource
+    draft: SillyTavernLorebookDataDocument
 
 
 def parse_card_json(payload: bytes) -> SillyTavernCharacterData:
@@ -65,6 +73,33 @@ def extract_card_from_png(payload: bytes) -> SillyTavernCharacterData:
         except (Base64Error, ValueError):
             continue
     raise ValueError('PNG does not contain a valid V2 or V3 character card')
+
+
+def parse_lorebook_json(payload: bytes) -> SillyTavernCardV3LoreBook:
+    try:
+        decoded = loads(payload.decode('utf-8-sig'))
+    except (UnicodeDecodeError, JSONDecodeError) as error:
+        raise ValueError('Lorebook JSON is not valid UTF-8 JSON') from error
+
+    identifier = decoded.get('spec') if isinstance(decoded, dict) else None
+    try:
+        if identifier == 'lorebook_v3':
+            return SillyTavernLorebookV3.model_validate(decoded).data
+        if identifier in ('chara_card_v2', 'chara_card_v3'):
+            card = parse_card_json(payload)
+            if card.character_book is None:
+                raise ValueError('Character card does not contain an embedded lorebook')
+            return SillyTavernCardV3LoreBook.model_validate(card.character_book.model_dump())
+    except ValidationError as error:
+        raise ValueError('JSON does not contain a valid V3 lorebook') from error
+    raise ValueError('JSON must identify a V3 lorebook or V2/V3 character card')
+
+
+def extract_lorebook_from_png(payload: bytes) -> SillyTavernCardV3LoreBook:
+    card = extract_card_from_png(payload)
+    if card.character_book is None:
+        raise ValueError('Character card does not contain an embedded lorebook')
+    return SillyTavernCardV3LoreBook.model_validate(card.character_book.model_dump())
 
 
 def merge_missing(current: Any, incoming: Any) -> Any:
@@ -164,3 +199,66 @@ async def import_character_card(resource_id: str,
         'updated_at': utc_now(),
     }))
     return CardImportResponse(resource=updated_resource, draft=draft)
+
+
+@card_import_router.post('/{resource_id}/import-lorebook', response_model=LorebookImportResponse)
+async def import_lorebook(resource_id: str,
+                          user: AuthenticatedUserDependency,
+                          database: DatabaseDependency,
+                          file: UploadFile = File(...),
+                          ) -> LorebookImportResponse:
+    resource = await get_owned_resource(
+        database, resource_id, user, ResourceType.SILLY_TAVERN_LOREBOOK,
+    )
+    payload = await file.read(CONFIG.image_max_bytes + 1)
+    if len(payload) > CONFIG.image_max_bytes:
+        raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, 'Lorebook file is too large')
+
+    suffix = Path(file.filename or '').suffix.casefold()
+    try:
+        if suffix == '.json':
+            imported = parse_lorebook_json(payload)
+        elif suffix == '.png':
+            imported = extract_lorebook_from_png(payload)
+        else:
+            raise ValueError('Only JSON lorebooks and JSON/PNG character cards are supported')
+    except ValueError as error:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(error)) from error
+
+    existing = (
+        await database.silly_tavern_lorebook_data.get(resource.draft_data_id)
+        if resource.draft_data_id else None
+    )
+    current_data = existing.data.model_dump() if existing else {}
+    imported_data = imported.model_dump()
+    merged_payload = merge_missing(current_data, imported_data)
+    imported_description = imported.description or ''
+    merged_payload.update({'name': None, 'description': None})
+    try:
+        merged_data = SillyTavernCardV3LoreBook.model_validate(merged_payload)
+    except ValidationError as error:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            'Imported lorebook could not be merged into the current V3 draft',
+        ) from error
+
+    if existing:
+        draft = await database.silly_tavern_lorebook_data.update(existing.model_copy(update={
+            'data': merged_data,
+            'updated_at': utc_now(),
+        }))
+    else:
+        draft = await database.silly_tavern_lorebook_data.create(
+            SillyTavernLorebookDataDocument(resourceId=resource.id, data=merged_data),
+        )
+    updated_resource = await database.resource.update(resource.model_copy(update={
+        'draft_data_id': draft.id,
+        'metadata': ResourceMetadata(
+            name=resource.metadata.name,
+            description=resource.metadata.description or imported_description,
+            visibility=resource.metadata.visibility,
+            tags=resource.metadata.tags,
+        ),
+        'updated_at': utc_now(),
+    }))
+    return LorebookImportResponse(resource=updated_resource, draft=draft)

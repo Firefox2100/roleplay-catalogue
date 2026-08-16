@@ -184,9 +184,12 @@ async def upload_character_cover(character_resource_id: str,
                                  database: DatabaseDependency,
                                  storage: StorageDependency,
                                  ) -> Resource:
-    character = await get_owned_resource(
-        database, character_resource_id, user, ResourceType.SILLY_TAVERN_CHARACTER,
-    )
+    character = await get_owned_resource(database, character_resource_id, user)
+    if character.resource_type not in (
+            ResourceType.SILLY_TAVERN_CHARACTER,
+            ResourceType.SILLY_TAVERN_LOREBOOK,
+    ):
+        raise HTTPException(status.HTTP_409_CONFLICT, 'Resource type does not support covers')
     image = await create_image_resource(
         name=f'Cover image for {character.metadata.name}',
         description='',
@@ -210,9 +213,12 @@ async def select_character_cover(character_resource_id: str,
                                  user: AuthenticatedUserDependency,
                                  database: DatabaseDependency,
                                  ) -> Resource:
-    character = await get_owned_resource(
-        database, character_resource_id, user, ResourceType.SILLY_TAVERN_CHARACTER,
-    )
+    character = await get_owned_resource(database, character_resource_id, user)
+    if character.resource_type not in (
+            ResourceType.SILLY_TAVERN_CHARACTER,
+            ResourceType.SILLY_TAVERN_LOREBOOK,
+    ):
+        raise HTTPException(status.HTTP_409_CONFLICT, 'Resource type does not support covers')
     image = await get_owned_resource(
         database, payload.image_resource_id, user, ResourceType.IMAGE,
     )

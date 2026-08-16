@@ -48,8 +48,12 @@ export function CreateResourcePage() {
       const resource = resourceType === 'core/image'
         ? await uploadImageResource({ name, description, visibility, tags, file: imageFile })
         : await createResource({ resourceType, name, description, visibility, tags })
-      if (resource.resourceType === 'sillytavern/character') {
-        navigate(`/resources/${resource.id}/edit`, { replace: true, state: { resource } })
+      if (resource.resourceType === 'sillytavern/character' ||
+          resource.resourceType === 'sillytavern/lorebook') {
+        const editorPath = resource.resourceType === 'sillytavern/lorebook'
+          ? `/lorebooks/${resource.id}/edit`
+          : `/resources/${resource.id}/edit`
+        navigate(editorPath, { replace: true, state: { resource } })
         return
       }
       setCreatedResource(resource)

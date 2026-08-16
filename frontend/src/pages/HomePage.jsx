@@ -19,7 +19,9 @@ function ResourceCard({ resource, onSelectAuthor }) {
   const imageUrl = resourceImageUrl(resource)
   const detailPath = resource.resourceType === 'core/image'
     ? `/images/${resource.id}`
-    : resource.resourceType === 'sillytavern/character' ? `/characters/${resource.id}` : ''
+    : resource.resourceType === 'sillytavern/character'
+      ? `/characters/${resource.id}`
+      : resource.resourceType === 'sillytavern/lorebook' ? `/lorebooks/${resource.id}` : ''
 
   return (
     <article className={`catalogue-card${detailPath ? ' clickable' : ''}`}

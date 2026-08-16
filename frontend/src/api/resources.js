@@ -126,6 +126,14 @@ export async function importCharacterCard(resourceId, file) {
   })).json()
 }
 
+export async function importLorebook(resourceId, file) {
+  const form = new FormData()
+  form.append('file', file)
+  return (await request(`/api/resources/${resourceId}/import-lorebook`, {
+    method: 'POST', headers: await csrfHeaders(), body: form,
+  })).json()
+}
+
 export async function getResource(resourceId) {
   return (await request(`/api/resources/${resourceId}`)).json()
 }
@@ -188,7 +196,7 @@ export async function createSignedDownloadUrl(versionId) {
   return (await request(`/api/versions/${versionId}/signed-download`)).json()
 }
 
-export async function forkCharacterVersion(versionId) {
+export async function forkResourceVersion(versionId) {
   return (await request(`/api/versions/${versionId}/fork`, {
     method: 'POST',
     headers: await csrfHeaders(),
