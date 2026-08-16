@@ -28,6 +28,10 @@ class ResourceDataRepository(Generic[DataDocument]):
         cursor = self._collection.find({'resourceId': resource_id}, {'_id': 0})
         return [self._model.model_validate(document) async for document in cursor]
 
+    async def list_by_sha256(self, digest: str) -> list[DataDocument]:
+        cursor = self._collection.find({'sha256': digest}, {'_id': 0})
+        return [self._model.model_validate(document) async for document in cursor]
+
     async def update(self, data: DataDocument) -> DataDocument:
         await self._collection.replace_one(
             {'id': getattr(data, 'id')},

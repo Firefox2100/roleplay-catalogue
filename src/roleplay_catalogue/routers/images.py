@@ -66,14 +66,29 @@ async def create_image_resource(*,
                                 description: str,
                                 visibility: ResourceVisibility,
                                 tags: list[str],
-                                file: UploadFile,
+                                file: UploadFile | None = None,
+                                source: bytes | None = None,
                                 user: AuthenticatedUserDependency,
                                 database: DatabaseDependency,
                                 storage: StorageDependency,
                                 ) -> Resource:
     if not name.strip():
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, 'Image name must not be blank')
-    png, width, height = await read_and_convert_image(file)
+    if source is None:
+        if file is None:
+            raise ValueError('An image file or source bytes are required')
+        png, width, height = await read_and_convert_image(file)
+    else:
+        try:
+            png, width, height = await to_thread(convert_to_clean_png, source)
+        except ValueError as error:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(error)) from error
+    digest = sha256(png).hexdigest()
+    for existing_document in await database.image_data.list_by_sha256(digest):
+        existing_resource = await database.resource.get(existing_document.resource_id)
+        if existing_resource and existing_resource.author_id == user.id:
+            return existing_resource
+
     resource = Resource(
         resourceType=ResourceType.IMAGE,
         authorId=user.id,
@@ -92,7 +107,7 @@ async def create_image_resource(*,
         objectKey=object_key,
         contentType='image/png',
         byteSize=len(png),
-        sha256=sha256(png).hexdigest(),
+        sha256=digest,
         width=width,
         height=height,
     )

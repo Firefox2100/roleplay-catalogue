@@ -83,6 +83,7 @@ class DatabaseService:
         ):
             await self._db[collection_name].create_index('id', unique=True)
             await self._db[collection_name].create_index('resourceId')
+        await self._db['image_data'].create_index('sha256')
 
     async def close(self) -> None:
         await self._client.close()

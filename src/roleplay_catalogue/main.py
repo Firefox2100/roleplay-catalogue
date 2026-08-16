@@ -13,6 +13,7 @@ from roleplay_catalogue.services import DatabaseService, MailingService, Storage
 from roleplay_catalogue.components import AuthComponent
 from roleplay_catalogue.routers import (
     auth_router,
+    card_import_router,
     image_data_router,
     image_router,
     resource_router,
@@ -107,6 +108,7 @@ app.add_middleware(
 )
 
 app.include_router(auth_router)
+app.include_router(card_import_router)
 app.include_router(resource_router)
 app.include_router(resource_version_router)
 app.include_router(silly_tavern_character_data_router)

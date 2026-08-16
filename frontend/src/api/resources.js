@@ -103,6 +103,14 @@ export function imageContentUrl(imageResourceId) {
   return `/api/images/${imageResourceId}/content`
 }
 
+export async function importCharacterCard(resourceId, file) {
+  const form = new FormData()
+  form.append('file', file)
+  return (await request(`/api/resources/${resourceId}/import-card`, {
+    method: 'POST', headers: await csrfHeaders(), body: form,
+  })).json()
+}
+
 export async function getResource(resourceId) {
   return (await request(`/api/resources/${resourceId}`)).json()
 }

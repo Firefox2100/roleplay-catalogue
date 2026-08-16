@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Navigate, useLocation, useParams } from 'react-router-dom'
 import {
-  getResource, getResourceData, imageContentUrl, listResources, saveResourceData,
+  getResource, getResourceData, imageContentUrl, importCharacterCard, listResources, saveResourceData,
   selectCharacterCover, updateResource, uploadCharacterCover,
 } from '../api/resources.js'
 import { useAuth } from '../auth/useAuth.js'
@@ -65,6 +65,7 @@ export function CharacterEditorPage() {
   const [availableImages, setAvailableImages] = useState([])
   const [isCoverPickerOpen, setIsCoverPickerOpen] = useState(false)
   const [isUploadingImage, setIsUploadingImage] = useState(false)
+  const [isImportingCard, setIsImportingCard] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [saveState, setSaveState] = useState('')
@@ -246,6 +247,21 @@ export function CharacterEditorPage() {
     }
   }
 
+  async function importCard(event) {
+    const file = event.target.files?.[0]
+    if (!file) return
+    setIsImportingCard(true)
+    setError('')
+    try {
+      await importCharacterCard(resourceId, file)
+      window.location.reload()
+    } catch {
+      setError(t('editor.cardImportFailed'))
+      setIsImportingCard(false)
+      event.target.value = ''
+    }
+  }
+
   return (
     <section className="character-editor-page">
       <form className="character-editor" onSubmit={saveDraft}>
@@ -256,13 +272,16 @@ export function CharacterEditorPage() {
           </div>
           <div className="editor-actions">
             <button type="button" disabled title={t('editor.notAvailable')}>{t('editor.publish')}</button>
-            <button type="button" onClick={() => cardInput.current?.click()}>{t('editor.upload')}</button>
+            <button type="button" disabled={isImportingCard}
+              onClick={() => cardInput.current?.click()}>
+              {isImportingCard ? t('editor.importing') : t('editor.upload')}
+            </button>
             <button type="button" disabled title={t('editor.notAvailable')}>{t('editor.export')}</button>
             <button className="save-button" type="submit" disabled={isSaving}>
               {isSaving ? t('editor.saving') : t('editor.save')}
             </button>
             <input ref={cardInput} className="visually-hidden" type="file"
-              accept=".json,.png,application/json,image/png" />
+              accept=".json,.png,application/json,image/png" onChange={importCard} />
           </div>
         </div>
 
