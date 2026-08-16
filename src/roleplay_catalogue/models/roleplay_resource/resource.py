@@ -1,26 +1,14 @@
 from datetime import datetime, timezone
-from enum import StrEnum
 from uuid import uuid4
 
 from pydantic import ConfigDict, Field
 
 from roleplay_catalogue.models.common import CommonModel
+from roleplay_catalogue.misc import ResourceType, ResourceVisibility
 
 
 def utc_now() -> datetime:
     return datetime.now(timezone.utc)
-
-
-class ResourceType(StrEnum):
-    SILLY_TAVERN_CHARACTER = 'sillytavern/character'
-    SILLY_TAVERN_LOREBOOK = 'sillytavern/lorebook'
-    IMAGE = 'core/image'
-
-
-class ResourceVisibility(StrEnum):
-    PUBLIC = 'public'
-    AUTHENTICATED = 'authenticated'
-    PRIVATE = 'private'
 
 
 class ResourceMetadata(CommonModel):

@@ -30,6 +30,11 @@ class UserRepository:
         document = await self._collection.find_one({'email': email}, {'_id': 0})
         return User.model_validate(document) if document else None
 
+    async def get_many(self, user_ids: set[str]) -> dict[str, User]:
+        cursor = self._collection.find({'id': {'$in': list(user_ids)}}, {'_id': 0})
+        users = [User.model_validate(document) async for document in cursor]
+        return {user.id: user for user in users}
+
     async def create(self, user: User) -> User:
         await self._collection.insert_one(user.model_dump(mode='json', by_alias=True))
         return user

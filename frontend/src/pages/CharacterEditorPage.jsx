@@ -2,11 +2,12 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Navigate, useLocation, useParams } from 'react-router-dom'
 import {
-  getResource, getResourceData, imageContentUrl, importCharacterCard, listResources, saveResourceData,
+  getResource, getResourceData, importCharacterCard, listResources, saveResourceData,
   selectCharacterCover, updateResource, uploadCharacterCover,
 } from '../api/resources.js'
 import { useAuth } from '../auth/useAuth.js'
 import { TagEditor } from '../components/TagEditor.jsx'
+import { ResourceImage } from '../components/ResourceImage.jsx'
 
 const EMPTY_CARD = {
   name: '', creator: '', character_version: '', nickname: '', tags: '',
@@ -60,7 +61,6 @@ export function CharacterEditorPage() {
   const [card, setCard] = useState(EMPTY_CARD)
   const [book, setBook] = useState(EMPTY_BOOK)
   const [loreEntries, setLoreEntries] = useState([])
-  const [imagePreview, setImagePreview] = useState('')
   const [coverImageId, setCoverImageId] = useState(resource?.coverImageResourceId ?? '')
   const [availableImages, setAvailableImages] = useState([])
   const [isCoverPickerOpen, setIsCoverPickerOpen] = useState(false)
@@ -223,7 +223,6 @@ export function CharacterEditorPage() {
     try {
       const image = await uploadCharacterCover(resourceId, file)
       setCoverImageId(image.id)
-      setImagePreview(imageContentUrl(image.id))
       setAvailableImages((images) => [image, ...images])
       setIsCoverPickerOpen(false)
     } catch {
@@ -240,7 +239,6 @@ export function CharacterEditorPage() {
       const updatedResource = await selectCharacterCover(resourceId, image.id)
       setResource(updatedResource)
       setCoverImageId(image.id)
-      setImagePreview(imageContentUrl(image.id))
       setIsCoverPickerOpen(false)
     } catch {
       setError(t('editor.imageSelectionFailed'))
@@ -313,7 +311,7 @@ export function CharacterEditorPage() {
         <div className="editor-summary">
           <button className="character-image-picker" type="button"
             onClick={() => setIsCoverPickerOpen(true)}>
-            {coverImageId ? <img src={imagePreview || imageContentUrl(coverImageId)} alt="" /> : (
+            {coverImageId ? <ResourceImage imageResourceId={coverImageId} /> : (
               <><span aria-hidden="true">＋</span><strong>{t('editor.addImage')}</strong><small>{t('editor.imageHelp')}</small></>
             )}
           </button>
@@ -419,7 +417,7 @@ export function CharacterEditorPage() {
                 <div className="existing-image-grid">
                   {availableImages.map((image) => (
                     <button key={image.id} type="button" onClick={() => chooseExistingCover(image)}>
-                      <img src={imageContentUrl(image.id)} alt="" />
+                      <ResourceImage imageResourceId={image.id} />
                       <span>{image.metadata.name}</span>
                     </button>
                   ))}

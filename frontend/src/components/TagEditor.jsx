@@ -2,17 +2,17 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { suggestResourceTags } from '../api/resources.js'
 
-export function TagEditor({ id, value, onChange }) {
+export function TagEditor({ id, value, onChange, allowCreate = true, showPopular = false }) {
   const { t } = useTranslation()
   const [input, setInput] = useState('')
   const [suggestions, setSuggestions] = useState([])
   const [isFocused, setIsFocused] = useState(false)
 
   useEffect(() => {
-    if (!input.trim()) return undefined
+    if (!input.trim() && !showPopular) return undefined
     let active = true
     const timeout = setTimeout(() => {
-      suggestResourceTags(input.trim())
+      suggestResourceTags(input.trim(), input.trim() ? 10 : 5)
         .then((items) => { if (active) setSuggestions(items) })
         .catch(() => { if (active) setSuggestions([]) })
     }, 150)
@@ -20,7 +20,7 @@ export function TagEditor({ id, value, onChange }) {
       active = false
       clearTimeout(timeout)
     }
-  }, [input])
+  }, [input, showPopular])
 
   function addTag(tag) {
     const normalised = tag.trim()
@@ -55,13 +55,14 @@ export function TagEditor({ id, value, onChange }) {
           onChange={(event) => setInput(event.target.value)} onKeyDown={handleKeyDown}
           onFocus={() => setIsFocused(true)} onBlur={() => setTimeout(() => setIsFocused(false), 120)} />
       </div>
-      {isFocused && input.trim() && (
+      {isFocused && (input.trim() || showPopular) && (
         <div className="tag-suggestions" role="listbox">
           {suggestions.map((tag) => (
             <button key={tag} type="button" role="option" onMouseDown={(event) => event.preventDefault()}
               onClick={() => addTag(tag)}>{tag}</button>
           ))}
-          {!suggestions.some((tag) => tag.toLocaleLowerCase() === input.trim().toLocaleLowerCase()) && (
+          {allowCreate && input.trim() &&
+            !suggestions.some((tag) => tag.toLocaleLowerCase() === input.trim().toLocaleLowerCase()) && (
             <button type="button" className="create-tag-option"
               onMouseDown={(event) => event.preventDefault()} onClick={() => addTag(input)}>
               {t('tags.create', { tag: input.trim() })}

@@ -77,6 +77,10 @@ class ResourceDataUpsertRequest(CommonModel):
     )
 
 
+class ResourceListItem(Resource):
+    author_username: str = Field(..., alias='authorUsername')
+
+
 ResourceDataResponse = (
     SillyTavernCharacterDataDocument |
     SillyTavernLorebookDataDocument |
@@ -139,7 +143,7 @@ async def create_resource(payload: ResourceCreateRequest,
     return await database.resource.create(resource)
 
 
-@resource_router.get('', response_model=list[Resource])
+@resource_router.get('', response_model=list[ResourceListItem])
 async def list_resources(database: DatabaseDependency,
                          user: OptionalAuthenticatedUserDependency,
                          offset: int = Query(0, ge=0),
@@ -151,7 +155,7 @@ async def list_resources(database: DatabaseDependency,
                          tags: list[str] | None = Query(None),
                          author: str | None = Query(None, min_length=1, max_length=100),
                          published_only: bool = Query(False, alias='publishedOnly'),
-                         ) -> list[Resource]:
+                         ) -> list[ResourceListItem]:
     author_id = None
     if author:
         author_user = await database.user.get_by_username(author.strip())
@@ -165,7 +169,7 @@ async def list_resources(database: DatabaseDependency,
     published_resource_ids = None
     if published_only:
         published_resource_ids = await database.resource_version.list_published_resource_ids()
-    return await database.resource.list_visible(
+    resources = await database.resource.list_visible(
         user.id if user else None,
         offset,
         limit,
@@ -174,6 +178,11 @@ async def list_resources(database: DatabaseDependency,
         author_id=author_id,
         published_resource_ids=published_resource_ids,
     )
+    users = await database.user.get_many({resource.author_id for resource in resources})
+    return [ResourceListItem(
+        **resource.model_dump(by_alias=True),
+        authorUsername=users[resource.author_id].username,
+    ) for resource in resources if resource.author_id in users]
 
 
 @resource_router.get('/tags', response_model=list[str])

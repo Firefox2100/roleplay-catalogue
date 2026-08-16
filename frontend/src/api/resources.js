@@ -47,8 +47,8 @@ export async function listResources({ resourceType, tags = [], author = '', limi
   return (await request(`/api/resources${suffix}`)).json()
 }
 
-export async function suggestResourceTags(search) {
-  const query = new URLSearchParams({ search })
+export async function suggestResourceTags(search, limit = 10) {
+  const query = new URLSearchParams({ search, limit })
   return (await request(`/api/resources/tags?${query}`)).json()
 }
 
@@ -101,6 +101,20 @@ export async function selectCharacterCover(resourceId, imageResourceId) {
 
 export function imageContentUrl(imageResourceId) {
   return `/api/images/${imageResourceId}/content`
+}
+
+export function resourceImageUrl(resource) {
+  if (resource.resourceType === 'core/image') return imageContentUrl(resource.id)
+  if (resource.coverImageResourceId) return `/api/images/covers/resources/${resource.id}`
+  return null
+}
+
+export async function updateImageMetadata(resourceId, metadata) {
+  return (await request(`/api/images/${resourceId}/metadata`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...await csrfHeaders() },
+    body: JSON.stringify(metadata),
+  })).json()
 }
 
 export async function importCharacterCard(resourceId, file) {

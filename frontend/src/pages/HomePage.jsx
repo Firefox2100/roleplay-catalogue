@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { listResources } from '../api/resources.js'
+import { listResources, resourceImageUrl } from '../api/resources.js'
+import { ResourceImage } from '../components/ResourceImage.jsx'
+import { TagEditor } from '../components/TagEditor.jsx'
 
 const RESOURCE_TABS = [
   { value: '', label: 'all' },
@@ -9,16 +11,25 @@ const RESOURCE_TABS = [
   { value: 'core/image', label: 'images' },
 ]
 
-function ResourceCard({ resource }) {
+function ResourceCard({ resource, onSelectAuthor }) {
   const { t } = useTranslation()
   const description = resource.metadata.description || t('home.noDescription')
+  const imageUrl = resourceImageUrl(resource)
 
   return (
     <article className="catalogue-card" tabIndex="0">
-      <div className="resource-cover-placeholder" aria-label={t('home.imagePlaceholder')}>
-        <span aria-hidden="true">◇</span>
-      </div>
+      {imageUrl ? (
+        <ResourceImage className="resource-grid-image" src={imageUrl} />
+      ) : (
+        <div className="resource-cover-placeholder" aria-label={t('home.imagePlaceholder')}>
+          <span aria-hidden="true">◇</span>
+        </div>
+      )}
       <h2>{resource.metadata.name}</h2>
+      <button className="resource-author" type="button"
+        onClick={() => onSelectAuthor(resource.authorUsername)}>
+        {resource.authorUsername}
+      </button>
       <div className="resource-description-tooltip" role="tooltip">{description}</div>
     </article>
   )
@@ -27,8 +38,7 @@ function ResourceCard({ resource }) {
 export function HomePage() {
   const { t } = useTranslation()
   const [selectedType, setSelectedType] = useState('')
-  const [tagInput, setTagInput] = useState('')
-  const [authorInput, setAuthorInput] = useState('')
+  const [selectedTags, setSelectedTags] = useState([])
   const [filters, setFilters] = useState({ tags: [], author: '' })
   const [search, setSearch] = useState('')
   const [resources, setResources] = useState([])
@@ -49,17 +59,28 @@ export function HomePage() {
     setIsLoading(true)
     setError('')
     setFilters({
-      tags: tagInput.split(',').map((tag) => tag.trim()).filter(Boolean),
-      author: authorInput.trim(),
+      tags: selectedTags,
+      author: filters.author,
     })
   }
 
   function clearFilters() {
     setIsLoading(true)
     setError('')
-    setTagInput('')
-    setAuthorInput('')
+    setSelectedTags([])
     setFilters({ tags: [], author: '' })
+  }
+
+  function selectAuthor(author) {
+    setIsLoading(true)
+    setError('')
+    setFilters((current) => ({ ...current, author }))
+  }
+
+  function clearAuthor() {
+    setIsLoading(true)
+    setError('')
+    setFilters((current) => ({ ...current, author: '' }))
   }
 
   function selectType(resourceType) {
@@ -87,14 +108,15 @@ export function HomePage() {
           <h2 id="filter-heading">{t('home.filters')}</h2>
           <form onSubmit={applyFilters}>
             <label htmlFor="filter-tags">{t('resource.tags')}</label>
-            <input id="filter-tags" value={tagInput}
-              onChange={(event) => setTagInput(event.target.value)}
-              placeholder={t('home.tagsPlaceholder')} />
-            <p className="field-help">{t('home.tagsHelp')}</p>
-            <label htmlFor="filter-author">{t('home.author')}</label>
-            <input id="filter-author" value={authorInput}
-              onChange={(event) => setAuthorInput(event.target.value)}
-              placeholder={t('home.authorPlaceholder')} />
+            <TagEditor id="filter-tags" value={selectedTags} onChange={setSelectedTags}
+              allowCreate={false} showPopular />
+            {filters.author && (
+              <div className="active-filter">
+                <span>{t('home.authorFilter', { author: filters.author })}</span>
+                <button type="button" aria-label={t('home.removeAuthorFilter')}
+                  onClick={clearAuthor}>×</button>
+              </div>
+            )}
             <button className="filter-button" type="submit">{t('home.applyFilters')}</button>
             <button className="clear-filter-button" type="button" onClick={clearFilters}>
               {t('home.clearFilters')}
@@ -120,7 +142,9 @@ export function HomePage() {
             </div>
           ) : (
             <div className="resource-grid">
-              {resources.map((resource) => <ResourceCard key={resource.id} resource={resource} />)}
+              {resources.map((resource) => (
+                <ResourceCard key={resource.id} resource={resource} onSelectAuthor={selectAuthor} />
+              ))}
             </div>
           )}
         </div>

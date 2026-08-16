@@ -65,12 +65,19 @@ class MemoryUserRepository:
     async def get_by_username(self, username: str):
         return next((user for user in self.documents.values() if user.username == username), None)
 
+    async def get_many(self, user_ids: set[str]):
+        return {user_id: self.documents[user_id] for user_id in user_ids if user_id in self.documents}
+
 
 class MemoryVersionRepository:
     def __init__(self):
         self.documents: dict[str, ResourceVersion] = {}
 
     async def create(self, version: ResourceVersion) -> ResourceVersion:
+        self.documents[version.id] = version
+        return version
+
+    async def update(self, version: ResourceVersion) -> ResourceVersion:
         self.documents[version.id] = version
         return version
 
@@ -271,3 +278,36 @@ async def test_resource_listing_filters_by_type_tags_and_author_username() -> No
 
         response = await client.get('/resources/tags', params={'search': 'port'})
         assert response.json() == ['portrait']
+
+
+async def test_image_metadata_and_sole_version_are_updated_together() -> None:
+    database = MemoryDatabaseService()
+    image = Resource(
+        id='editable-image', resourceType=ResourceType.IMAGE, authorId=USER.id,
+        metadata={'name': 'Original image', 'visibility': 'private'},
+    )
+    version = ResourceVersion(
+        id='image-version', resourceId=image.id, resourceType=ResourceType.IMAGE,
+        versionNumber=1, dataId='image-data', metadata=image.metadata, publishedById=USER.id,
+    )
+    await database.resource.create(image)
+    await database.resource_version.create(version)
+    app.dependency_overrides[get_database_service] = lambda: database
+    app.dependency_overrides[authenticate_user] = authenticated_user
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url='http://test') as client:
+        headers = await get_csrf_headers(client)
+        response = await client.put(
+            f'/images/{image.id}/metadata',
+            headers=headers,
+            json={
+                'name': 'Renamed image',
+                'description': 'Updated description',
+                'visibility': 'public',
+                'tags': ['cover'],
+            },
+        )
+
+    assert response.status_code == 200
+    assert response.json()['metadata']['visibility'] == 'public'
+    assert database.resource_version.documents[version.id].metadata.name == 'Renamed image'

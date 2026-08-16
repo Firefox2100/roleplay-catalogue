@@ -13,6 +13,13 @@ class ResourceVersionRepository:
         await self._collection.insert_one(version.model_dump(mode='json', by_alias=True))
         return version
 
+    async def update(self, version: ResourceVersion) -> ResourceVersion:
+        await self._collection.replace_one(
+            {'id': version.id},
+            version.model_dump(mode='json', by_alias=True),
+        )
+        return version
+
     async def get(self, version_id: str) -> ResourceVersion | None:
         document = await self._collection.find_one({'id': version_id}, {'_id': 0})
         return ResourceVersion.model_validate(document) if document else None

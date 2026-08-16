@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, Navigate, useLocation } from 'react-router-dom'
-import { listResources } from '../api/resources.js'
+import { listResources, resourceImageUrl } from '../api/resources.js'
 import { useAuth } from '../auth/useAuth.js'
+import { ResourceImage } from '../components/ResourceImage.jsx'
 
 const RESOURCE_TABS = [
   { value: '', label: 'all' },
@@ -13,12 +14,19 @@ const RESOURCE_TABS = [
 
 function PersonalResourceCard({ resource }) {
   const { t } = useTranslation()
-  const isEditable = resource.resourceType === 'sillytavern/character'
+  const isCharacter = resource.resourceType === 'sillytavern/character'
+  const isImage = resource.resourceType === 'core/image'
+  const isEditable = isCharacter || isImage
+  const imageUrl = resourceImageUrl(resource)
   const content = (
     <article className={`catalogue-card ${isEditable ? 'editable' : 'unavailable'}`}>
-      <div className="resource-cover-placeholder" aria-label={t('home.imagePlaceholder')}>
-        <span aria-hidden="true">◇</span>
-      </div>
+      {imageUrl ? (
+        <ResourceImage className="resource-grid-image" src={imageUrl} />
+      ) : (
+        <div className="resource-cover-placeholder" aria-label={t('home.imagePlaceholder')}>
+          <span aria-hidden="true">◇</span>
+        </div>
+      )}
       <h2>{resource.metadata.name}</h2>
       {!isEditable && <small className="not-editable-label">{t('myResources.editorComingSoon')}</small>}
       <div className="resource-description-tooltip" role="tooltip">
@@ -28,8 +36,11 @@ function PersonalResourceCard({ resource }) {
   )
 
   if (!isEditable) return content
+  const editorPath = isImage
+    ? `/images/${resource.id}/edit`
+    : `/resources/${resource.id}/edit`
   return (
-    <Link className="my-resource-link" to={`/resources/${resource.id}/edit`}
+    <Link className="my-resource-link" to={editorPath}
       state={{ resource }} aria-label={t('myResources.editResource', { name: resource.metadata.name })}>
       {content}
     </Link>

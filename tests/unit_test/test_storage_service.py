@@ -28,6 +28,9 @@ class MemoryS3Client:
     async def get_object(self, Bucket, Key):
         return {'Body': MemoryBody(self.objects[(Bucket, Key)][0])}
 
+    async def head_object(self, Bucket, Key):
+        return {'ContentLength': len(self.objects[(Bucket, Key)][0])}
+
     async def delete_object(self, Bucket, Key):
         self.objects.pop((Bucket, Key), None)
 
@@ -37,6 +40,7 @@ async def test_storage_upload_fetch_and_remove() -> None:
     storage = StorageService(client=client, bucket='assets')
 
     await storage.upload('images/example.png', b'png-data', 'image/png')
+    await storage.wait_until_available('images/example.png')
     chunks = [chunk async for chunk in storage.fetch('images/example.png', chunk_size=3)]
 
     assert b''.join(chunks) == b'png-data'
