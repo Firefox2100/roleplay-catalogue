@@ -1,1 +1,6 @@
 from .auth import auth_router
+from .image_data import image_data_router
+from .resources import resource_router
+from .resource_versions import resource_version_router
+from .silly_tavern_character_data import silly_tavern_character_data_router
+from .silly_tavern_lorebook_data import silly_tavern_lorebook_data_router

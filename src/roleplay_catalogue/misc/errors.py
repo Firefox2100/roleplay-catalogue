@@ -23,3 +23,19 @@ class UserCredentialMismatch(RoleplayCatalogueException):
                  status_code: int = 401,
                  ):
         super().__init__(message, status_code)
+
+
+class UserAlreadyExists(RoleplayCatalogueException):
+    def __init__(self,
+                 message: str,
+                 status_code: int = 409,
+                 ):
+        super().__init__(message, status_code)
+
+
+class InvalidActivationToken(RoleplayCatalogueException):
+    def __init__(self,
+                 message: str = 'Invalid or expired activation token',
+                 status_code: int = 400,
+                 ):
+        super().__init__(message, status_code)

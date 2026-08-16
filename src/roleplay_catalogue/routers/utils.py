@@ -3,7 +3,7 @@ from fastapi import Depends, HTTPException, Request, status
 
 from roleplay_catalogue.components import AuthComponent
 from roleplay_catalogue.models import User
-from roleplay_catalogue.services import DatabaseService
+from roleplay_catalogue.services import DatabaseService, MailingService
 
 
 def get_auth_component(request: Request) -> AuthComponent:
@@ -12,6 +12,10 @@ def get_auth_component(request: Request) -> AuthComponent:
 
 def get_database_service(request: Request) -> DatabaseService:
     return request.app.state.database_service
+
+
+def get_mailing_service(request: Request) -> MailingService:
+    return request.app.state.mailing_service
 
 
 AuthDependency = Annotated[
@@ -23,6 +27,12 @@ AuthDependency = Annotated[
 DatabaseDependency = Annotated[
     DatabaseService,
     Depends(get_database_service)
+]
+
+
+MailingDependency = Annotated[
+    MailingService,
+    Depends(get_mailing_service),
 ]
 
 
@@ -50,4 +60,23 @@ async def authenticate_user(request: Request,
 AuthenticatedUserDependency = Annotated[
     User,
     Depends(authenticate_user),
+]
+
+
+async def optionally_authenticate_user(request: Request,
+                                       database: DatabaseDependency,
+                                       ) -> User | None:
+    user_id = request.session.get('user_id')
+    if not user_id:
+        return None
+
+    user = await database.user.get(user_id)
+    if not user:
+        request.session.clear()
+    return user
+
+
+OptionalAuthenticatedUserDependency = Annotated[
+    User | None,
+    Depends(optionally_authenticate_user),
 ]

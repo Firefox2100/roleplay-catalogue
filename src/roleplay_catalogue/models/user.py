@@ -1,7 +1,7 @@
 from uuid import uuid4
 from pydantic import Field
 
-from roleplay_catalogue.misc import UserRole
+from roleplay_catalogue.misc import UserRole, UserStatus
 from .common import CommonModel
 
 
@@ -26,4 +26,8 @@ class User(CommonModel):
     role: UserRole = Field(
         UserRole.USER,
         description='User role',
+    )
+    status: UserStatus = Field(
+        UserStatus.ACTIVE,
+        description='Account activation and access status',
     )

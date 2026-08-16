@@ -26,6 +26,28 @@ class UserRepository:
 
         return None
 
+    async def get_by_email(self, email: str) -> User | None:
+        document = await self._collection.find_one({'email': email}, {'_id': 0})
+        return User.model_validate(document) if document else None
+
+    async def create(self, user: User) -> User:
+        await self._collection.insert_one(user.model_dump(mode='json', by_alias=True))
+        return user
+
+    async def has_any(self) -> bool:
+        return await self._collection.find_one({}, {'_id': 1}) is not None
+
+    async def update(self, user: User) -> User:
+        await self._collection.replace_one(
+            {'id': user.id},
+            user.model_dump(mode='json', by_alias=True),
+        )
+        return user
+
+    async def delete(self, user_id: str) -> bool:
+        result = await self._collection.delete_one({'id': user_id})
+        return result.deleted_count == 1
+
     async def list(self) -> list[User]:
         cursor = self._collection.find({}, {'_id': 0})
 

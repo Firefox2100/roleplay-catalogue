@@ -36,6 +36,47 @@ class Settings(BaseSettings):
         'roleplay-catalogue',
         description='Database name for the local server.'
     )
+    mongodb_direct_connection: bool = Field(
+        False,
+        description='Whether to ignore the cluster discovery and connect to the target host directly'
+    )
+
+    smtp_host: str = Field(
+        '127.0.0.1',
+        description='SMTP server hostname.'
+    )
+    smtp_port: int = Field(
+        1025,
+        description='SMTP server port.'
+    )
+    smtp_username: str | None = Field(
+        None,
+        description='Optional SMTP authentication username.'
+    )
+    smtp_password: str | None = Field(
+        None,
+        description='Optional SMTP authentication password.'
+    )
+    smtp_use_tls: bool = Field(
+        False,
+        description='Connect to SMTP using TLS from the start.'
+    )
+    smtp_start_tls: bool | None = Field(
+        None,
+        description='Whether to upgrade the SMTP connection using STARTTLS.'
+    )
+    smtp_sender: str = Field(
+        'no-reply@localhost',
+        description='From address used for outgoing email.'
+    )
+    public_base_url: str = Field(
+        'http://127.0.0.1:5173',
+        description='Public base URL used to build links in outgoing email.'
+    )
+    activation_token_max_age: int = Field(
+        60 * 60 * 24,
+        description='Activation token lifetime in seconds.'
+    )
     session_secret: str = Field(
         default_factory=lambda: token_urlsafe(32),
         description='Secret used to sign session cookies. Set this explicitly in production.'

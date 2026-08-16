@@ -1,12 +1,20 @@
 from secrets import token_urlsafe
 
 from fastapi import APIRouter, HTTPException, Request, Response, status
+from fastapi.responses import RedirectResponse
 from pydantic import Field
 
-from roleplay_catalogue.misc import UserCredentialMismatch, UserNotFound
+from roleplay_catalogue.misc import (
+    InvalidActivationToken,
+    UserAlreadyExists,
+    UserCredentialMismatch,
+    UserNotFound,
+    UserRole,
+    UserStatus,
+)
 from roleplay_catalogue.models import CommonModel
 from roleplay_catalogue.middleware import CSRF_SESSION_KEY
-from .utils import AuthDependency
+from .utils import AuthDependency, AuthenticatedUserDependency
 
 
 auth_router = APIRouter(
@@ -18,6 +26,20 @@ auth_router = APIRouter(
 class LoginRequest(CommonModel):
     username: str = Field(..., description='Username')
     password: str = Field(..., description='Password')
+
+
+class RegistrationRequest(CommonModel):
+    username: str = Field(..., min_length=1, max_length=100, description='Username')
+    email: str = Field(..., min_length=3, max_length=320, description='Email address')
+    password: str = Field(..., min_length=8, max_length=1024, description='Password')
+
+
+class CurrentUserResponse(CommonModel):
+    id: str
+    username: str
+    email: str
+    role: UserRole
+    status: UserStatus
 
 
 @auth_router.post('/login')
@@ -51,6 +73,46 @@ async def get_csrf_token(request: Request) -> dict[str, str]:
         request.session[CSRF_SESSION_KEY] = token
 
     return {'csrfToken': token}
+
+
+@auth_router.get('/me', response_model=CurrentUserResponse)
+async def get_current_user(user: AuthenticatedUserDependency) -> CurrentUserResponse:
+    return CurrentUserResponse.model_validate(user.model_dump())
+
+
+@auth_router.post('/register', status_code=status.HTTP_202_ACCEPTED)
+async def register_user(registration_request: RegistrationRequest,
+                        auth: AuthDependency,
+                        ) -> None:
+    try:
+        await auth.register_user(
+            username=registration_request.username,
+            email=registration_request.email,
+            password=registration_request.password,
+        )
+    except UserAlreadyExists as error:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail='Username or email address is already registered',
+        ) from error
+
+
+@auth_router.get('/activation', response_class=RedirectResponse)
+async def activate_user(username: str,
+                        token: str,
+                        auth: AuthDependency,
+                        ) -> RedirectResponse:
+    try:
+        await auth.activate_user(username=username, token=token)
+    except InvalidActivationToken:
+        return RedirectResponse(
+            url='/login?activation=invalid',
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
+    return RedirectResponse(
+        url='/login?activation=success',
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
 
 
 @auth_router.post('/logout', status_code=status.HTTP_204_NO_CONTENT)
