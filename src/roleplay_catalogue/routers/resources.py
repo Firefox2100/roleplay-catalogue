@@ -198,12 +198,19 @@ async def suggest_resource_tags(database: DatabaseDependency,
     )
 
 
-@resource_router.get('/{resource_id}', response_model=Resource)
+@resource_router.get('/{resource_id}', response_model=ResourceListItem)
 async def get_resource(resource_id: str,
                        database: DatabaseDependency,
                        user: OptionalAuthenticatedUserDependency,
-                       ) -> Resource:
-    return await get_readable_resource(database, resource_id, user)
+                       ) -> ResourceListItem:
+    resource = await get_readable_resource(database, resource_id, user)
+    author = await database.user.get(resource.author_id)
+    if not author:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, 'Resource author not found')
+    return ResourceListItem(
+        **resource.model_dump(by_alias=True),
+        authorUsername=author.username,
+    )
 
 
 @resource_router.get('/{resource_id}/data', response_model=ResourceDataResponse)

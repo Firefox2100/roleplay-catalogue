@@ -8,6 +8,8 @@ import { CreateResourcePage } from './pages/CreateResourcePage.jsx'
 import { CharacterEditorPage } from './pages/CharacterEditorPage.jsx'
 import { MyResourcesPage } from './pages/MyResourcesPage.jsx'
 import { ImageEditorPage } from './pages/ImageEditorPage.jsx'
+import { CharacterDetailPage } from './pages/CharacterDetailPage.jsx'
+import { ImageDetailPage } from './pages/ImageDetailPage.jsx'
 import './App.css'
 
 function App() {
@@ -22,6 +24,8 @@ function App() {
           <Route path="resources/mine" element={<MyResourcesPage />} />
           <Route path="resources/:resourceId/edit" element={<CharacterEditorPage />} />
           <Route path="images/:resourceId/edit" element={<ImageEditorPage />} />
+          <Route path="characters/:resourceId" element={<CharacterDetailPage />} />
+          <Route path="images/:resourceId" element={<ImageDetailPage />} />
           <Route path="*" element={<HomePage />} />
         </Route>
       </Routes>

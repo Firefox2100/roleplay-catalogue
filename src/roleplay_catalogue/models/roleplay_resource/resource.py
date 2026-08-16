@@ -130,6 +130,12 @@ class ResourceVersion(CommonModel):
         description='Monotonically increasing version number within the resource',
         alias='versionNumber',
     )
+    version: str = Field(
+        '1',
+        min_length=1,
+        max_length=100,
+        description='User supplied release label, preferably a semantic version',
+    )
     data_id: str = Field(
         ...,
         description='Immutable snapshot in the type-specific data collection',
@@ -144,6 +150,15 @@ class ResourceVersion(CommonModel):
         ...,
         description='Metadata snapshot taken at publication time',
     )
+    visibility: ResourceVisibility = Field(
+        ResourceVisibility.PRIVATE,
+        description='Mutable access level for this otherwise immutable release',
+    )
+    artifact_object_key: str | None = Field(None, alias='artifactObjectKey')
+    artifact_content_type: str | None = Field(None, alias='artifactContentType')
+    artifact_file_name: str | None = Field(None, alias='artifactFileName')
+    artifact_byte_size: int | None = Field(None, ge=0, alias='artifactByteSize')
+    artifact_sha256: str | None = Field(None, alias='artifactSha256')
     published_by_id: str = Field(
         ...,
         description='User who published this version',

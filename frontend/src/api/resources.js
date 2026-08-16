@@ -146,3 +146,39 @@ export async function saveResourceData(resourceId, data) {
   })
   return response.json()
 }
+
+export async function publishResource(resourceId, version) {
+  return (await request(`/api/versions/${resourceId}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...await csrfHeaders() },
+    body: JSON.stringify({ version }),
+  })).json()
+}
+
+export async function listResourceVersions(resourceId) {
+  return (await request(`/api/versions/resource/${resourceId}`)).json()
+}
+
+export async function updateVersionVisibility(versionId, visibility) {
+  return (await request(`/api/versions/${versionId}/visibility`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...await csrfHeaders() },
+    body: JSON.stringify({ visibility }),
+  })).json()
+}
+
+export async function getResourceVersionData(versionId) {
+  return (await request(`/api/versions/${versionId}/data`)).json()
+}
+
+export function draftDownloadUrl(resourceId) {
+  return `/api/versions/draft/${resourceId}/download`
+}
+
+export function versionDownloadUrl(versionId) {
+  return `/api/versions/${versionId}/download`
+}
+
+export function versionCoverUrl(versionId) {
+  return `/api/images/covers/versions/${versionId}`
+}

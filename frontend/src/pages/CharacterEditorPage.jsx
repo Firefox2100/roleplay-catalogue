@@ -2,8 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Navigate, useLocation, useParams } from 'react-router-dom'
 import {
-  getResource, getResourceData, importCharacterCard, listResources, saveResourceData,
-  selectCharacterCover, updateResource, uploadCharacterCover,
+  draftDownloadUrl, getResource, getResourceData, importCharacterCard, listResources, saveResourceData,
+  listResourceVersions, publishResource, selectCharacterCover, updateResource,
+  updateVersionVisibility, uploadCharacterCover,
 } from '../api/resources.js'
 import { useAuth } from '../auth/useAuth.js'
 import { TagEditor } from '../components/TagEditor.jsx'
@@ -68,6 +69,11 @@ export function CharacterEditorPage() {
   const [isImportingCard, setIsImportingCard] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
+  const [versions, setVersions] = useState([])
+  const [isPublishOpen, setIsPublishOpen] = useState(false)
+  const [releaseVersion, setReleaseVersion] = useState('')
+  const [isPublishing, setIsPublishing] = useState(false)
+  const [isExporting, setIsExporting] = useState(false)
   const [saveState, setSaveState] = useState('')
   const [error, setError] = useState('')
 
@@ -140,6 +146,15 @@ export function CharacterEditorPage() {
   }, [user])
 
   useEffect(() => {
+    if (!user) return undefined
+    let active = true
+    listResourceVersions(resourceId)
+      .then((loadedVersions) => { if (active) setVersions(loadedVersions) })
+      .catch(() => {})
+    return () => { active = false }
+  }, [resourceId, user])
+
+  useEffect(() => {
     document.title = `${resource?.metadata.name ?? t('editor.title')} · ${t('app.title')}`
     return () => { document.title = t('app.title') }
   }, [resource, t])
@@ -172,11 +187,7 @@ export function CharacterEditorPage() {
     return value === '' || value === null ? null : Number(value)
   }
 
-  async function saveDraft(event) {
-    event.preventDefault()
-    setError('')
-    setSaveState('')
-    setIsSaving(true)
+  function makeDraftData() {
     const hasBook = loreEntries.length > 0 || book.name || book.description
     const characterBook = hasBook ? {
       name: book.name || null,
@@ -196,22 +207,83 @@ export function CharacterEditorPage() {
         return savedEntry
       }),
     } : null
+    return {
+      ...card,
+      description: '',
+      tags: [],
+      nickname: card.nickname || null,
+      character_book: characterBook,
+    }
+  }
+
+  async function persistDraft() {
+    const updatedResource = await updateResource(resourceId, resourceFields)
+    setResource(updatedResource)
+    await saveResourceData(resourceId, makeDraftData())
+  }
+
+  async function saveDraft(event) {
+    event.preventDefault()
+    setError('')
+    setSaveState('')
+    setIsSaving(true)
     try {
-      const updatedResource = await updateResource(resourceId, resourceFields)
-      setResource(updatedResource)
-      await saveResourceData(resourceId, {
-        ...card,
-        creator: '',
-        description: '',
-        tags: [],
-        nickname: card.nickname || null,
-        character_book: characterBook,
-      })
+      await persistDraft()
       setSaveState(t('editor.saved'))
     } catch (requestError) {
       setError(requestError.status === 422 ? t('editor.validationFailed') : t('editor.saveFailed'))
     } finally {
       setIsSaving(false)
+    }
+  }
+
+  async function publishCurrentDraft() {
+    if (!releaseVersion.trim()) return
+    setError('')
+    setSaveState('')
+    setIsPublishing(true)
+    try {
+      await persistDraft()
+      const published = await publishResource(resourceId, releaseVersion.trim())
+      setVersions((current) => [published, ...current])
+      setIsPublishOpen(false)
+      setReleaseVersion('')
+      setSaveState(t('editor.published'))
+    } catch (requestError) {
+      setError(requestError.status === 422 ? t('editor.validationFailed') : t('editor.publishFailed'))
+    } finally {
+      setIsPublishing(false)
+    }
+  }
+
+  async function changeVersionVisibility(versionId, visibility) {
+    try {
+      const updated = await updateVersionVisibility(versionId, visibility)
+      setVersions((current) => current.map((version) => (
+        version.id === versionId ? updated : version
+      )))
+    } catch {
+      setError(t('editor.visibilityUpdateFailed'))
+    }
+  }
+
+  async function exportDraft() {
+    setError('')
+    setSaveState('')
+    setIsExporting(true)
+    try {
+      await persistDraft()
+      const link = window.document.createElement('a')
+      link.href = draftDownloadUrl(resourceId)
+      link.download = ''
+      window.document.body.appendChild(link)
+      link.click()
+      link.remove()
+      setSaveState(t('editor.saved'))
+    } catch (requestError) {
+      setError(requestError.status === 422 ? t('editor.validationFailed') : t('editor.saveFailed'))
+    } finally {
+      setIsExporting(false)
     }
   }
 
@@ -269,12 +341,15 @@ export function CharacterEditorPage() {
             <h1>{resource?.metadata.name}</h1>
           </div>
           <div className="editor-actions">
-            <button type="button" disabled title={t('editor.notAvailable')}>{t('editor.publish')}</button>
+            <button type="button" disabled={isPublishing}
+              onClick={() => setIsPublishOpen(true)}>{t('editor.publish')}</button>
             <button type="button" disabled={isImportingCard}
               onClick={() => cardInput.current?.click()}>
               {isImportingCard ? t('editor.importing') : t('editor.upload')}
             </button>
-            <button type="button" disabled title={t('editor.notAvailable')}>{t('editor.export')}</button>
+            <button type="button" disabled={isExporting} onClick={exportDraft}>
+              {isExporting ? t('editor.exporting') : t('editor.export')}
+            </button>
             <button className="save-button" type="submit" disabled={isSaving}>
               {isSaving ? t('editor.saving') : t('editor.save')}
             </button>
@@ -396,6 +471,61 @@ export function CharacterEditorPage() {
             ))}
           </div>
         </section>
+
+        <section className="release-history">
+          <div className="section-heading">
+            <div><h2>{t('editor.releases')}</h2><p>{t('editor.releasesHelp')}</p></div>
+          </div>
+          {versions.length === 0 ? <p className="empty-releases">{t('editor.noReleases')}</p> : (
+            <div className="release-grid">
+              {versions.map((version) => (
+                <article className="release-tile" key={version.id}>
+                  <div className="release-cover">
+                    {version.coverImageResourceId
+                      ? <ResourceImage imageResourceId={version.coverImageResourceId} />
+                      : <span aria-hidden="true">◇</span>}
+                  </div>
+                  <div>
+                    <strong>{version.version}</strong>
+                    <small>{t('editor.releaseNumber', { number: version.versionNumber })}</small>
+                  </div>
+                  <select value={version.visibility} aria-label={t('resource.visibility')}
+                    onChange={(event) => changeVersionVisibility(version.id, event.target.value)}>
+                    <option value="private">{t('resource.visibilities.private')}</option>
+                    <option value="authenticated">{t('resource.visibilities.authenticated')}</option>
+                    <option value="public">{t('resource.visibilities.public')}</option>
+                  </select>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+
+        {isPublishOpen && (
+          <div className="cover-picker-backdrop" role="presentation"
+            onMouseDown={() => !isPublishing && setIsPublishOpen(false)}>
+            <section className="publish-dialog" role="dialog" aria-modal="true"
+              aria-labelledby="publish-dialog-title" onMouseDown={(event) => event.stopPropagation()}>
+              <div className="cover-picker-heading">
+                <div><h2 id="publish-dialog-title">{t('editor.publishTitle')}</h2>
+                  <p>{t('editor.publishHelp')}</p></div>
+                <button type="button" disabled={isPublishing}
+                  onClick={() => setIsPublishOpen(false)}>×</button>
+              </div>
+              <label>{t('editor.releaseVersion')}
+                <input autoFocus value={releaseVersion} maxLength={100} placeholder="v1.0.0"
+                  onChange={(event) => setReleaseVersion(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') { event.preventDefault(); publishCurrentDraft() }
+                  }} />
+              </label>
+              <button className="save-button" type="button"
+                disabled={isPublishing || !releaseVersion.trim()} onClick={publishCurrentDraft}>
+                {isPublishing ? t('editor.publishing') : t('editor.publish')}
+              </button>
+            </section>
+          </div>
+        )}
 
         {isCoverPickerOpen && (
           <div className="cover-picker-backdrop" role="presentation"

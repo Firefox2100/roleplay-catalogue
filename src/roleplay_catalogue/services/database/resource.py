@@ -98,3 +98,9 @@ class ResourceRepository:
     async def delete(self, resource_id: str) -> bool:
         result = await self._collection.delete_one({'id': resource_id})
         return result.deleted_count == 1
+
+    async def clear_cover_reference(self, image_resource_id: str) -> None:
+        await self._collection.update_many(
+            {'coverImageResourceId': image_resource_id},
+            {'$set': {'coverImageResourceId': None}},
+        )

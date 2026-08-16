@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useNavigate } from 'react-router-dom'
 import { listResources, resourceImageUrl } from '../api/resources.js'
 import { ResourceImage } from '../components/ResourceImage.jsx'
 import { TagEditor } from '../components/TagEditor.jsx'
@@ -13,11 +14,20 @@ const RESOURCE_TABS = [
 
 function ResourceCard({ resource, onSelectAuthor }) {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const description = resource.metadata.description || t('home.noDescription')
   const imageUrl = resourceImageUrl(resource)
+  const detailPath = resource.resourceType === 'core/image'
+    ? `/images/${resource.id}`
+    : resource.resourceType === 'sillytavern/character' ? `/characters/${resource.id}` : ''
 
   return (
-    <article className="catalogue-card" tabIndex="0">
+    <article className={`catalogue-card${detailPath ? ' clickable' : ''}`}
+      tabIndex={detailPath ? '0' : undefined} role={detailPath ? 'link' : undefined}
+      onClick={() => detailPath && navigate(detailPath)}
+      onKeyDown={(event) => {
+        if (detailPath && (event.key === 'Enter' || event.key === ' ')) event.currentTarget.click()
+      }}>
       {imageUrl ? (
         <ResourceImage className="resource-grid-image" src={imageUrl} />
       ) : (
@@ -27,7 +37,7 @@ function ResourceCard({ resource, onSelectAuthor }) {
       )}
       <h2>{resource.metadata.name}</h2>
       <button className="resource-author" type="button"
-        onClick={() => onSelectAuthor(resource.authorUsername)}>
+        onClick={(event) => { event.stopPropagation(); onSelectAuthor(resource.authorUsername) }}>
         {resource.authorUsername}
       </button>
       <div className="resource-description-tooltip" role="tooltip">{description}</div>

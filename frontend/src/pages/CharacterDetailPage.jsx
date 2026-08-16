@@ -1,0 +1,142 @@
+import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import { useParams } from 'react-router-dom'
+import {
+  getResource, getResourceVersionData, listResourceVersions,
+  versionCoverUrl, versionDownloadUrl,
+} from '../api/resources.js'
+import { ResourceImage } from '../components/ResourceImage.jsx'
+
+
+function TextField({ label, value }) {
+  if (value === undefined || value === null || value === '') return null
+  return <section className="detail-field"><h3>{label}</h3><p>{value}</p></section>
+}
+
+
+function TextList({ label, values }) {
+  if (!values?.length) return null
+  return (
+    <section className="detail-field"><h3>{label}</h3>
+      <div className="detail-list">{values.map((value, index) => <p key={index}>{value}</p>)}</div>
+    </section>
+  )
+}
+
+
+export function CharacterDetailPage() {
+  const { t } = useTranslation()
+  const { resourceId } = useParams()
+  const [resource, setResource] = useState(null)
+  const [versions, setVersions] = useState([])
+  const [selectedId, setSelectedId] = useState('')
+  const [releaseDocument, setReleaseDocument] = useState(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    let active = true
+    Promise.all([getResource(resourceId), listResourceVersions(resourceId)])
+      .then(([loadedResource, loadedVersions]) => {
+        if (!active) return
+        if (loadedResource.resourceType !== 'sillytavern/character' || !loadedVersions.length) {
+          throw new Error('Published character not found')
+        }
+        setResource(loadedResource)
+        setVersions(loadedVersions)
+        setSelectedId(loadedVersions[0]?.id ?? '')
+      })
+      .catch(() => { if (active) { setError(t('details.loadFailed')); setIsLoading(false) } })
+    return () => { active = false }
+  }, [resourceId, t])
+
+  useEffect(() => {
+    if (!selectedId) return undefined
+    let active = true
+    getResourceVersionData(selectedId)
+      .then((loaded) => { if (active) setReleaseDocument(loaded) })
+      .catch(() => { if (active) setError(t('details.loadFailed')) })
+      .finally(() => { if (active) setIsLoading(false) })
+    return () => { active = false }
+  }, [selectedId, t])
+
+  const version = versions.find((item) => item.id === selectedId)
+  const data = releaseDocument?.data
+  useEffect(() => {
+    if (!resource) return undefined
+    document.title = `${resource.metadata.name} · ${t('app.title')}`
+    return () => { document.title = t('app.title') }
+  }, [resource, t])
+
+  if (error) return <div className="page-loading error" role="alert">{error}</div>
+  if (isLoading || !resource || !data || !version) {
+    return <div className="page-loading" role="status">{t('details.loading')}</div>
+  }
+  const book = data.character_book
+  return (
+    <article className="character-editor-page character-detail-page">
+      <div className="character-editor">
+        <header className="editor-toolbar">
+          <div><span className="eyebrow">{t('details.publishedCharacter')}</span>
+            <h1>{version.metadata.name}</h1></div>
+          <div className="detail-version-actions">
+            <select value={selectedId} aria-label={t('details.selectVersion')}
+              onChange={(event) => {
+                setReleaseDocument(null)
+                setSelectedId(event.target.value)
+              }}>
+              {versions.map((item) => <option key={item.id} value={item.id}>
+                {item.version} · {new Date(item.publishedAt).toLocaleDateString()}
+              </option>)}
+            </select>
+            <a className="save-button" href={versionDownloadUrl(selectedId)} download>
+              {t('details.download')}
+            </a>
+          </div>
+        </header>
+        <section className="resource-metadata-editor detail-metadata">
+          <h2>{t('editor.resourceMetadata')}</h2>
+          <TextField label={t('resource.description')} value={version.metadata.description} />
+          {!!version.metadata.tags?.length && <div className="detail-tags">
+            {version.metadata.tags.map((tag) => <span key={tag}>{tag}</span>)}</div>}
+          <TextField label={t('details.author')} value={resource.authorUsername} />
+        </section>
+        <div className="editor-summary">
+          <div className="character-image-picker detail-cover">
+            {version.coverImageResourceId
+              ? <ResourceImage src={versionCoverUrl(version.id)} alt={version.metadata.name} />
+              : <span aria-hidden="true">◇</span>}
+          </div>
+          <div className="card-metadata-fields detail-metadata">
+            <h2>{t('editor.cardMetadata')}</h2>
+            <TextField label={t('editor.name')} value={data.name} />
+            <TextField label={t('editor.version')} value={data.character_version} />
+            <TextField label={t('editor.nickname')} value={data.nickname} />
+            <TextField label={t('details.creator')} value={data.creator} />
+          </div>
+        </div>
+        <section className="editor-content-fields detail-content">
+          <h2>{t('editor.characterContent')}</h2>
+          {['personality', 'scenario', 'first_mes', 'mes_example', 'creator_notes',
+            'system_prompt', 'post_history_instructions'].map((field) => (
+              <TextField key={field} label={t(`editor.fields.${field}`)} value={data[field]} />
+          ))}
+          <TextList label={t('editor.alternateGreetings')} values={data.alternate_greetings} />
+          <TextList label={t('editor.groupGreetings')} values={data.group_only_greetings} />
+        </section>
+        {book && (book.name || book.description || book.entries?.length > 0) && (
+          <section className="embedded-lorebook detail-content">
+            <h2>{t('editor.lorebook')}</h2>
+            <TextField label={t('editor.lorebookName')} value={book.name} />
+            <TextField label={t('resource.description')} value={book.description} />
+            {book.entries?.map((entry, index) => <article className="lore-entry" key={index}>
+              <h3>{entry.name || t('editor.loreEntry', { number: index + 1 })}</h3>
+              <TextField label={t('editor.keywords')} value={entry.keys?.join(', ')} />
+              <TextField label={t('editor.entryContent')} value={entry.content} />
+            </article>)}
+          </section>
+        )}
+      </div>
+    </article>
+  )
+}

@@ -75,6 +75,7 @@ class DatabaseService:
             [('resourceId', 1), ('versionNumber', -1)],
             unique=True,
         )
+        await self._db['resource_versions'].create_index('coverImageResourceId')
 
         for collection_name in (
                 'sillytavern_character_data',

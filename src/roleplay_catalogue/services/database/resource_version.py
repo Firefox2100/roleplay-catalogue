@@ -51,3 +51,13 @@ class ResourceVersionRepository:
 
     async def list_published_resource_ids(self) -> list[str]:
         return await self._collection.distinct('resourceId')
+
+    async def list_by_cover(self, image_resource_id: str) -> list[ResourceVersion]:
+        cursor = self._collection.find(
+            {'coverImageResourceId': image_resource_id}, {'_id': 0},
+        )
+        return [ResourceVersion.model_validate(document) async for document in cursor]
+
+    async def delete(self, version_id: str) -> bool:
+        result = await self._collection.delete_one({'id': version_id})
+        return result.deleted_count == 1

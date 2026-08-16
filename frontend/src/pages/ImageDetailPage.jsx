@@ -1,0 +1,55 @@
+import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import { useParams } from 'react-router-dom'
+import { getResource, imageContentUrl, listResourceVersions, versionDownloadUrl } from '../api/resources.js'
+import { ResourceImage } from '../components/ResourceImage.jsx'
+
+
+export function ImageDetailPage() {
+  const { t } = useTranslation()
+  const { resourceId } = useParams()
+  const [resource, setResource] = useState(null)
+  const [version, setVersion] = useState(null)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    let active = true
+    Promise.all([getResource(resourceId), listResourceVersions(resourceId)])
+      .then(([loadedResource, versions]) => {
+        if (!active) return
+        if (loadedResource.resourceType !== 'core/image' || !versions.length) {
+          throw new Error('Published image not found')
+        }
+        setResource(loadedResource)
+        setVersion(versions[0] ?? null)
+      }).catch(() => { if (active) setError(t('details.loadFailed')) })
+    return () => { active = false }
+  }, [resourceId, t])
+
+  if (error) return <div className="page-loading error" role="alert">{error}</div>
+  if (!resource || !version) return <div className="page-loading">{t('details.loading')}</div>
+  return (
+    <article className="image-editor-page">
+      <div className="image-editor-card">
+        <header className="image-editor-heading">
+          <div><span className="eyebrow">{t('details.publishedImage')}</span>
+            <h1>{version.metadata.name}</h1></div>
+          <a className="save-button" href={versionDownloadUrl(version.id)} download>
+            {t('details.download')}
+          </a>
+        </header>
+        <div className="image-editor-layout">
+          <ResourceImage className="image-editor-preview" src={imageContentUrl(resourceId)}
+            alt={version.metadata.name} />
+          <div className="image-detail-metadata">
+            {version.metadata.description && <section><h2>{t('resource.description')}</h2>
+              <p>{version.metadata.description}</p></section>}
+            <section><h2>{t('details.author')}</h2><p>{resource.authorUsername}</p></section>
+            {!!version.metadata.tags?.length && <div className="detail-tags">
+              {version.metadata.tags.map((tag) => <span key={tag}>{tag}</span>)}</div>}
+          </div>
+        </div>
+      </div>
+    </article>
+  )
+}

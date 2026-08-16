@@ -4,7 +4,11 @@ from httpx import ASGITransport, AsyncClient
 
 from roleplay_catalogue.main import app
 from roleplay_catalogue.models import Resource, ResourceType, ResourceVersion, User
-from roleplay_catalogue.routers.utils import authenticate_user, get_database_service
+from roleplay_catalogue.routers.utils import (
+    authenticate_user,
+    get_database_service,
+    get_storage_service,
+)
 
 
 USER = User(
@@ -88,6 +92,21 @@ class MemoryVersionRepository:
         ]
         return max(versions, key=lambda version: version.version_number) if versions else None
 
+    async def get(self, version_id: str) -> ResourceVersion | None:
+        return self.documents.get(version_id)
+
+    async def list_for_resource(self, resource_id: str, offset=0, limit=50):
+        versions = [version for version in self.documents.values()
+                    if version.resource_id == resource_id]
+        return sorted(versions, key=lambda version: version.version_number, reverse=True)[offset:offset + limit]
+
+    async def list_by_cover(self, image_resource_id: str):
+        return [version for version in self.documents.values()
+                if version.cover_image_resource_id == image_resource_id]
+
+    async def delete(self, version_id: str) -> bool:
+        return self.documents.pop(version_id, None) is not None
+
     async def list_published_resource_ids(self) -> list[str]:
         return list({version.resource_id for version in self.documents.values()})
 
@@ -121,6 +140,23 @@ class MemoryDatabaseService:
         self.image_data = MemoryDataRepository()
 
 
+class MemoryStorageService:
+    def __init__(self):
+        self.objects: dict[str, tuple[bytes, str]] = {}
+
+    async def upload(self, key: str, data: bytes, content_type: str) -> None:
+        self.objects[key] = (data, content_type)
+
+    async def wait_until_available(self, key: str) -> None:
+        assert key in self.objects
+
+    async def remove(self, key: str) -> None:
+        self.objects.pop(key, None)
+
+    async def fetch(self, key: str):
+        yield self.objects[key][0]
+
+
 async def authenticated_user() -> User:
     return USER
 
@@ -132,7 +168,9 @@ async def get_csrf_headers(client: AsyncClient) -> dict[str, str]:
 
 async def test_character_draft_can_be_added_updated_and_published() -> None:
     database = MemoryDatabaseService()
+    storage = MemoryStorageService()
     app.dependency_overrides[get_database_service] = lambda: database
+    app.dependency_overrides[get_storage_service] = lambda: storage
     app.dependency_overrides[authenticate_user] = authenticated_user
 
     async with AsyncClient(
@@ -147,6 +185,7 @@ async def test_character_draft_can_be_added_updated_and_published() -> None:
                 'resourceType': 'sillytavern/character',
                 'name': 'Example character',
                 'description': 'Catalogue description',
+                'visibility': 'public',
                 'tags': ['catalogue-tag'],
             },
         )
@@ -189,14 +228,36 @@ async def test_character_draft_can_be_added_updated_and_published() -> None:
             'Character-specific context'
         )
 
-        response = await client.post(f'/versions/{resource_id}', headers=headers)
+        response = await client.post(
+            f'/versions/{resource_id}', headers=headers, json={'version': 'v1.2.3'},
+        )
         assert response.status_code == 201
         assert response.json()['versionNumber'] == 1
+        assert response.json()['version'] == 'v1.2.3'
+        assert response.json()['artifactFileName'] == 'Updated draft.json'
         assert response.json()['dataId'] != draft_id
         snapshot = database.silly_tavern_character_data.documents[response.json()['dataId']]
         assert snapshot.data.creator == USER.username
         assert snapshot.data.description == 'Catalogue description'
         assert snapshot.data.tags == ['catalogue-tag']
+        assert snapshot.data.character_version == 'v1.2.3'
+        artifact_key = response.json()['artifactObjectKey']
+        assert storage.objects[artifact_key][1] == 'application/json'
+        version_id = response.json()['id']
+
+        response = await client.get(f'/versions/{version_id}/data')
+        assert response.status_code == 200
+        assert response.json()['data']['name'] == 'Updated draft'
+
+        response = await client.get(f'/versions/{version_id}/download')
+        assert response.status_code == 200
+        assert response.content == storage.objects[artifact_key][0]
+        assert "Updated%20draft.json" in response.headers['content-disposition']
+
+        response = await client.get(f'/versions/draft/{resource_id}/download')
+        assert response.status_code == 200
+        assert response.json()['data']['name'] == 'Updated draft'
+        assert "Updated%20draft.draft.json" in response.headers['content-disposition']
 
         response = await client.get(f'/resources/{resource_id}/data')
         assert response.status_code == 200

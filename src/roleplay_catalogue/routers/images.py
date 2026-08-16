@@ -19,7 +19,12 @@ from roleplay_catalogue.models import (
     ResourceVisibility,
 )
 from roleplay_catalogue.models.roleplay_resource.resource import utc_now
-from .resource_utils import get_owned_resource, get_readable_resource
+from .resource_utils import (
+    get_data_repository,
+    get_owned_resource,
+    get_readable_resource,
+    get_readable_version,
+)
 from .utils import (
     AuthenticatedUserDependency,
     DatabaseDependency,
@@ -123,8 +128,10 @@ async def create_image_resource(*,
         resourceId=resource.id,
         resourceType=ResourceType.IMAGE,
         versionNumber=1,
+        version='v1.0.0',
         dataId=document.id,
         metadata=resource.metadata,
+        visibility=resource.metadata.visibility,
         publishedById=user.id,
     )
 
@@ -239,8 +246,40 @@ async def update_image_metadata(image_resource_id: str,
         'metadata': metadata,
         'updated_at': utc_now(),
     }))
-    await database.resource_version.update(version.model_copy(update={'metadata': metadata}))
+    await database.resource_version.update(version.model_copy(update={
+        'metadata': metadata,
+        'visibility': metadata.visibility,
+    }))
     return updated
+
+
+@image_router.delete('/{image_resource_id}', status_code=status.HTTP_204_NO_CONTENT)
+async def delete_image_resource(image_resource_id: str,
+                                user: AuthenticatedUserDependency,
+                                database: DatabaseDependency,
+                                storage: StorageDependency,
+                                ) -> None:
+    image = await get_owned_resource(database, image_resource_id, user, ResourceType.IMAGE)
+
+    # Releases retain exact cover references, so removing the image removes every
+    # release which would otherwise become an incomplete immutable snapshot.
+    for version in await database.resource_version.list_by_cover(image.id):
+        if version.resource_type != ResourceType.IMAGE:
+            repository = get_data_repository(database, version.resource_type)
+            await repository.delete(version.data_id)
+        if version.artifact_object_key:
+            await storage.remove(version.artifact_object_key)
+        await database.resource_version.delete(version.id)
+
+    await database.resource.clear_cover_reference(image.id)
+    image_version = await database.resource_version.get_latest(image.id)
+    if image_version:
+        document = await database.image_data.get(image_version.data_id)
+        if document:
+            await storage.remove(document.object_key)
+            await database.image_data.delete(document.id)
+        await database.resource_version.delete(image_version.id)
+    await database.resource.delete(image.id)
 
 
 async def image_response(image: Resource,
@@ -268,6 +307,21 @@ async def fetch_resource_cover(resource_id: str,
     if not resource.cover_image_resource_id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, 'Resource has no cover image')
     image = await database.resource.get(resource.cover_image_resource_id)
+    if not image or image.resource_type != ResourceType.IMAGE:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, 'Cover image not found')
+    return await image_response(image, database, storage)
+
+
+@image_router.get('/covers/versions/{version_id}')
+async def fetch_version_cover(version_id: str,
+                              user: OptionalAuthenticatedUserDependency,
+                              database: DatabaseDependency,
+                              storage: StorageDependency,
+                              ) -> StreamingResponse:
+    version = await get_readable_version(database, version_id, user)
+    if not version.cover_image_resource_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, 'Release has no cover image')
+    image = await database.resource.get(version.cover_image_resource_id)
     if not image or image.resource_type != ResourceType.IMAGE:
         raise HTTPException(status.HTTP_404_NOT_FOUND, 'Cover image not found')
     return await image_response(image, database, storage)

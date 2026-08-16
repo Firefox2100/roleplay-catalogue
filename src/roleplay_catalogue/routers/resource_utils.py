@@ -2,7 +2,7 @@ from typing import Any
 
 from fastapi import HTTPException, status
 
-from roleplay_catalogue.models import Resource, ResourceType, ResourceVisibility, User
+from roleplay_catalogue.models import Resource, ResourceType, ResourceVersion, ResourceVisibility, User
 from roleplay_catalogue.services import DatabaseService
 
 
@@ -38,6 +38,25 @@ async def get_owned_resource(database: DatabaseService,
     if expected_type is not None and resource.resource_type != expected_type:
         raise HTTPException(status.HTTP_409_CONFLICT, 'Resource type does not match this endpoint')
     return resource
+
+
+async def get_readable_version(database: DatabaseService,
+                               version_id: str,
+                               user: User | None,
+                               ) -> ResourceVersion:
+    version = await database.resource_version.get(version_id)
+    if not version:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, 'Resource version not found')
+    resource = await database.resource.get(version.resource_id)
+    if not resource:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, 'Resource version not found')
+    if user and resource.author_id == user.id:
+        return version
+    if version.visibility == ResourceVisibility.PRIVATE:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, 'Resource version not found')
+    if version.visibility == ResourceVisibility.AUTHENTICATED and not user:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, 'Resource version not found')
+    return version
 
 
 def get_data_repository(database: DatabaseService,
