@@ -68,6 +68,8 @@ class DatabaseService:
         await self._db['resources'].create_index('id', unique=True)
         await self._db['resources'].create_index([('authorId', 1), ('updatedAt', -1)])
         await self._db['resources'].create_index([('metadata.visibility', 1), ('updatedAt', -1)])
+        await self._db['resources'].create_index([('resourceType', 1), ('updatedAt', -1)])
+        await self._db['resources'].create_index('metadata.tags')
         await self._db['resource_versions'].create_index('id', unique=True)
         await self._db['resource_versions'].create_index(
             [('resourceId', 1), ('versionNumber', -1)],

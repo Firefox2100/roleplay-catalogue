@@ -28,6 +28,8 @@ async def create_image_data(resource_id: str,
     resource = await get_owned_resource(database, resource_id, user, ResourceType.IMAGE)
     if resource.draft_data_id:
         raise HTTPException(status.HTTP_409_CONFLICT, 'Resource already has image data')
+    if await database.resource_version.exists_for_resource(resource.id):
+        raise HTTPException(status.HTTP_409_CONFLICT, 'Published image resources are immutable')
 
     document = ImageDataDocument(
         resourceId=resource.id,

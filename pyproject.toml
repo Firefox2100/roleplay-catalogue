@@ -21,6 +21,7 @@ classifiers = [
 license = "GPL-3.0-or-later"
 license-files = ["LICENSE"]
 dependencies = [
+    "aioboto3~=15.5.0",
     "aiosmtplib~=5.1.2",
     "argon2-cffi~=25.1.0",
     "fastapi~=0.141.1",

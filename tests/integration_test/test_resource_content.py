@@ -3,7 +3,7 @@ from typing import Any
 from httpx import ASGITransport, AsyncClient
 
 from roleplay_catalogue.main import app
-from roleplay_catalogue.models import Resource, ResourceVersion, User
+from roleplay_catalogue.models import Resource, ResourceType, ResourceVersion, User
 from roleplay_catalogue.routers.utils import authenticate_user, get_database_service
 
 
@@ -30,6 +30,41 @@ class MemoryResourceRepository:
         self.documents[resource.id] = resource
         return resource
 
+    async def list_visible(self, user_id, offset=0, limit=50, resource_type=None,
+                           tags=None, author_id=None, published_resource_ids=None):
+        resources = list(self.documents.values())
+        resources = [resource for resource in resources if (
+            resource.metadata.visibility.value == 'public' or resource.author_id == user_id
+        )]
+        if resource_type:
+            resources = [resource for resource in resources if resource.resource_type == resource_type]
+        if tags:
+            resources = [resource for resource in resources if set(tags) <= set(resource.metadata.tags)]
+        if author_id:
+            resources = [resource for resource in resources if resource.author_id == author_id]
+        if published_resource_ids is not None:
+            resources = [resource for resource in resources if resource.id in published_resource_ids]
+        return resources[offset:offset + limit]
+
+    async def suggest_tags(self, user_id, search, limit=10):
+        tags = {
+            tag for resource in self.documents.values()
+            for tag in resource.metadata.tags
+            if search.casefold() in tag.casefold()
+        }
+        return sorted(tags)[:limit]
+
+
+class MemoryUserRepository:
+    def __init__(self):
+        self.documents = {USER.id: USER}
+
+    async def get(self, user_id: str):
+        return self.documents.get(user_id)
+
+    async def get_by_username(self, username: str):
+        return next((user for user in self.documents.values() if user.username == username), None)
+
 
 class MemoryVersionRepository:
     def __init__(self):
@@ -45,6 +80,9 @@ class MemoryVersionRepository:
             if version.resource_id == resource_id
         ]
         return max(versions, key=lambda version: version.version_number) if versions else None
+
+    async def list_published_resource_ids(self) -> list[str]:
+        return list({version.resource_id for version in self.documents.values()})
 
 
 class MemoryDataRepository:
@@ -68,6 +106,7 @@ class MemoryDataRepository:
 
 class MemoryDatabaseService:
     def __init__(self):
+        self.user = MemoryUserRepository()
         self.resource = MemoryResourceRepository()
         self.resource_version = MemoryVersionRepository()
         self.silly_tavern_character_data = MemoryDataRepository()
@@ -100,6 +139,8 @@ async def test_character_draft_can_be_added_updated_and_published() -> None:
             json={
                 'resourceType': 'sillytavern/character',
                 'name': 'Example character',
+                'description': 'Catalogue description',
+                'tags': ['catalogue-tag'],
             },
         )
         assert response.status_code == 201
@@ -119,16 +160,36 @@ async def test_character_draft_can_be_added_updated_and_published() -> None:
         response = await client.put(
             f'/resources/{resource_id}/data',
             headers=headers,
-            json={'data': {'name': 'Updated draft'}},
+            json={'data': {
+                'name': 'Updated draft',
+                'character_book': {
+                    'name': 'Embedded lore',
+                    'entries': [{
+                        'keys': ['example'],
+                        'content': 'Character-specific context',
+                        'enabled': True,
+                        'insertion_order': 0,
+                        'use_regex': False,
+                        'constant': False,
+                    }],
+                },
+            }},
         )
         assert response.status_code == 200
         assert response.json()['id'] == draft_id
         assert response.json()['data']['name'] == 'Updated draft'
+        assert response.json()['data']['character_book']['entries'][0]['content'] == (
+            'Character-specific context'
+        )
 
         response = await client.post(f'/versions/{resource_id}', headers=headers)
         assert response.status_code == 201
         assert response.json()['versionNumber'] == 1
         assert response.json()['dataId'] != draft_id
+        snapshot = database.silly_tavern_character_data.documents[response.json()['dataId']]
+        assert snapshot.data.creator == USER.username
+        assert snapshot.data.description == 'Catalogue description'
+        assert snapshot.data.tags == ['catalogue-tag']
 
         response = await client.get(f'/resources/{resource_id}/data')
         assert response.status_code == 200
@@ -159,3 +220,54 @@ async def test_resource_data_is_validated_for_its_resource_type() -> None:
             json={'data': {'name': 'Not image metadata'}},
         )
         assert response.status_code == 422
+
+
+async def test_resource_listing_filters_by_type_tags_and_author_username() -> None:
+    database = MemoryDatabaseService()
+    matching = Resource(
+        id='matching-resource', resourceType=ResourceType.SILLY_TAVERN_CHARACTER,
+        authorId=USER.id,
+        metadata={'name': 'Matching', 'visibility': 'public', 'tags': ['fantasy', 'portrait']},
+    )
+    wrong_type = Resource(
+        id='wrong-type', resourceType=ResourceType.SILLY_TAVERN_LOREBOOK,
+        authorId=USER.id,
+        metadata={'name': 'Lorebook', 'visibility': 'public', 'tags': ['fantasy', 'portrait']},
+    )
+    private = Resource(
+        id='private-resource', resourceType=ResourceType.SILLY_TAVERN_CHARACTER,
+        authorId=USER.id,
+        metadata={'name': 'Private', 'visibility': 'private', 'tags': ['fantasy', 'portrait']},
+    )
+    for resource in (matching, wrong_type, private):
+        await database.resource.create(resource)
+    app.dependency_overrides[get_database_service] = lambda: database
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url='http://test') as client:
+        response = await client.get('/resources', params=[
+            ('resourceType', 'sillytavern/character'),
+            ('tags', 'fantasy'),
+            ('tags', 'portrait'),
+            ('author', USER.username),
+        ])
+
+    assert response.status_code == 200
+    assert [resource['id'] for resource in response.json()] == [matching.id]
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url='http://test') as client:
+        response = await client.get('/resources', params={'publishedOnly': 'true'})
+        assert response.json() == []
+
+        await database.resource_version.create(ResourceVersion(
+            resourceId=matching.id,
+            resourceType=matching.resource_type,
+            versionNumber=1,
+            dataId='snapshot-id',
+            metadata=matching.metadata,
+            publishedById=USER.id,
+        ))
+        response = await client.get('/resources', params={'publishedOnly': 'true'})
+        assert [resource['id'] for resource in response.json()] == [matching.id]
+
+        response = await client.get('/resources/tags', params={'search': 'port'})
+        assert response.json() == ['portrait']

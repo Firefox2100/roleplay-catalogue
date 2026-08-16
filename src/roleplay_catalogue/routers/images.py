@@ -1,0 +1,214 @@
+from asyncio import to_thread
+from hashlib import sha256
+from io import BytesIO
+from uuid import uuid4
+
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
+from fastapi.responses import StreamingResponse
+from PIL import Image, ImageOps, UnidentifiedImageError
+from pydantic import Field
+
+from roleplay_catalogue.misc import CONFIG
+from roleplay_catalogue.models import (
+    CommonModel,
+    ImageDataDocument,
+    Resource,
+    ResourceMetadata,
+    ResourceType,
+    ResourceVersion,
+    ResourceVisibility,
+)
+from roleplay_catalogue.models.roleplay_resource.resource import utc_now
+from .resource_utils import get_owned_resource, get_readable_resource
+from .utils import (
+    AuthenticatedUserDependency,
+    DatabaseDependency,
+    OptionalAuthenticatedUserDependency,
+    StorageDependency,
+)
+
+
+image_router = APIRouter(prefix='/images', tags=['Images'])
+
+
+class CoverImageRequest(CommonModel):
+    image_resource_id: str = Field(..., alias='imageResourceId')
+
+
+def convert_to_clean_png(source: bytes) -> tuple[bytes, int, int]:
+    try:
+        with Image.open(BytesIO(source)) as opened:
+            opened.seek(0)
+            image = ImageOps.exif_transpose(opened)
+            image.load()
+            has_alpha = image.mode in ('RGBA', 'LA') or 'transparency' in image.info
+            cleaned = image.convert('RGBA' if has_alpha else 'RGB')
+            width, height = cleaned.size
+            output = BytesIO()
+            cleaned.save(output, format='PNG', optimize=True)
+            return output.getvalue(), width, height
+    except (Image.DecompressionBombError, UnidentifiedImageError, OSError, ValueError) as error:
+        raise ValueError('Uploaded file is not a supported image') from error
+
+
+async def read_and_convert_image(file: UploadFile) -> tuple[bytes, int, int]:
+    source = await file.read(CONFIG.image_max_bytes + 1)
+    if len(source) > CONFIG.image_max_bytes:
+        raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, 'Image is too large')
+    try:
+        return await to_thread(convert_to_clean_png, source)
+    except ValueError as error:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(error)) from error
+
+
+async def create_image_resource(*,
+                                name: str,
+                                description: str,
+                                visibility: ResourceVisibility,
+                                tags: list[str],
+                                file: UploadFile,
+                                user: AuthenticatedUserDependency,
+                                database: DatabaseDependency,
+                                storage: StorageDependency,
+                                ) -> Resource:
+    if not name.strip():
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, 'Image name must not be blank')
+    png, width, height = await read_and_convert_image(file)
+    resource = Resource(
+        resourceType=ResourceType.IMAGE,
+        authorId=user.id,
+        metadata=ResourceMetadata(
+            name=name.strip(),
+            description=description.strip(),
+            visibility=visibility,
+            tags=tuple(tag.strip() for tag in tags if tag.strip()),
+        ),
+    )
+    version_id = str(uuid4())
+    object_key = f'images/{resource.id}.png'
+    document = ImageDataDocument(
+        resourceId=resource.id,
+        resourceVersionId=version_id,
+        objectKey=object_key,
+        contentType='image/png',
+        byteSize=len(png),
+        sha256=sha256(png).hexdigest(),
+        width=width,
+        height=height,
+    )
+    version = ResourceVersion(
+        id=version_id,
+        resourceId=resource.id,
+        resourceType=ResourceType.IMAGE,
+        versionNumber=1,
+        dataId=document.id,
+        metadata=resource.metadata,
+        publishedById=user.id,
+    )
+
+    await database.resource.create(resource)
+    uploaded = False
+    data_created = False
+    try:
+        await storage.upload(object_key, png, 'image/png')
+        uploaded = True
+        await database.image_data.create(document)
+        data_created = True
+        await database.resource_version.create(version)
+    except Exception:
+        if data_created:
+            await database.image_data.delete(document.id)
+        if uploaded:
+            await storage.remove(object_key)
+        await database.resource.delete(resource.id)
+        raise
+    return resource
+
+
+@image_router.post('', response_model=Resource, status_code=status.HTTP_201_CREATED)
+async def upload_image_resource(user: AuthenticatedUserDependency,
+                                database: DatabaseDependency,
+                                storage: StorageDependency,
+                                name: str = Form(..., min_length=1, max_length=200),
+                                description: str = Form('', max_length=10_000),
+                                visibility: ResourceVisibility = Form(ResourceVisibility.PRIVATE),
+                                tags: list[str] = Form(default_factory=list),
+                                file: UploadFile = File(...),
+                                ) -> Resource:
+    return await create_image_resource(
+        name=name,
+        description=description,
+        visibility=visibility,
+        tags=tags,
+        file=file,
+        user=user,
+        database=database,
+        storage=storage,
+    )
+
+
+@image_router.post('/covers/{character_resource_id}', response_model=Resource)
+async def upload_character_cover(character_resource_id: str,
+                                 file: UploadFile,
+                                 user: AuthenticatedUserDependency,
+                                 database: DatabaseDependency,
+                                 storage: StorageDependency,
+                                 ) -> Resource:
+    character = await get_owned_resource(
+        database, character_resource_id, user, ResourceType.SILLY_TAVERN_CHARACTER,
+    )
+    image = await create_image_resource(
+        name=f'Cover image for {character.metadata.name}',
+        description='',
+        visibility=character.metadata.visibility,
+        tags=[],
+        file=file,
+        user=user,
+        database=database,
+        storage=storage,
+    )
+    await database.resource.update(character.model_copy(update={
+        'cover_image_resource_id': image.id,
+        'updated_at': utc_now(),
+    }))
+    return image
+
+
+@image_router.put('/covers/{character_resource_id}', response_model=Resource)
+async def select_character_cover(character_resource_id: str,
+                                 payload: CoverImageRequest,
+                                 user: AuthenticatedUserDependency,
+                                 database: DatabaseDependency,
+                                 ) -> Resource:
+    character = await get_owned_resource(
+        database, character_resource_id, user, ResourceType.SILLY_TAVERN_CHARACTER,
+    )
+    image = await get_owned_resource(
+        database, payload.image_resource_id, user, ResourceType.IMAGE,
+    )
+    if not await database.resource_version.get_latest(image.id):
+        raise HTTPException(status.HTTP_409_CONFLICT, 'Image resource has no content')
+    return await database.resource.update(character.model_copy(update={
+        'cover_image_resource_id': image.id,
+        'updated_at': utc_now(),
+    }))
+
+
+@image_router.get('/{image_resource_id}/content')
+async def fetch_image(image_resource_id: str,
+                      user: OptionalAuthenticatedUserDependency,
+                      database: DatabaseDependency,
+                      storage: StorageDependency,
+                      ) -> StreamingResponse:
+    image = await get_readable_resource(database, image_resource_id, user)
+    if image.resource_type != ResourceType.IMAGE:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, 'Image not found')
+    version = await database.resource_version.get_latest(image.id)
+    document = await database.image_data.get(version.data_id) if version else None
+    if not document:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, 'Image not found')
+    return StreamingResponse(
+        storage.fetch(document.object_key),
+        media_type=document.content_type,
+        headers={'Content-Length': str(document.byte_size)},
+    )

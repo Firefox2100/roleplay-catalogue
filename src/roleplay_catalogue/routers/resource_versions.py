@@ -2,7 +2,7 @@ from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, Query, status
 
-from roleplay_catalogue.models import ResourceVersion
+from roleplay_catalogue.models import ResourceType, ResourceVersion
 from roleplay_catalogue.models.roleplay_resource.resource import utc_now
 from .resource_utils import get_data_repository, get_owned_resource, get_readable_resource
 from .utils import (
@@ -38,11 +38,22 @@ async def publish_resource(resource_id: str,
 
     latest = await database.resource_version.get_latest(resource.id)
     version_id = str(uuid4())
+    snapshot_data = draft.data
+    if resource.resource_type == ResourceType.SILLY_TAVERN_CHARACTER:
+        author = await database.user.get(resource.author_id)
+        if not author:
+            raise HTTPException(status.HTTP_409_CONFLICT, 'Resource author no longer exists')
+        snapshot_data = draft.data.model_copy(update={
+            'description': resource.metadata.description,
+            'tags': list(resource.metadata.tags),
+            'creator': author.username,
+        })
     snapshot = draft.model_copy(update={
         'id': str(uuid4()),
         'resource_version_id': version_id,
         'created_at': utc_now(),
         'updated_at': utc_now(),
+        'data': snapshot_data,
     })
     version = ResourceVersion(
         id=version_id,
@@ -50,6 +61,7 @@ async def publish_resource(resource_id: str,
         resourceType=resource.resource_type,
         versionNumber=latest.version_number + 1 if latest else 1,
         dataId=snapshot.id,
+        coverImageResourceId=resource.cover_image_resource_id,
         metadata=resource.metadata,
         publishedById=user.id,
         previousVersionId=latest.id if latest else None,

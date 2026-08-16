@@ -55,7 +55,19 @@ class ResourceCreateRequest(CommonModel):
 
 
 class ResourceUpdateRequest(CommonModel):
-    metadata: ResourceMetadata
+    model_config = ConfigDict(extra='forbid', serialize_by_alias=True)
+
+    name: str = Field(..., min_length=1, max_length=200)
+    description: str = Field('', max_length=10_000)
+    tags: list[str] = Field(default_factory=list, max_length=50)
+
+    @field_validator('name')
+    @classmethod
+    def name_must_not_be_blank(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError('Resource name must not be blank')
+        return value
 
 
 class ResourceDataUpsertRequest(CommonModel):
@@ -109,6 +121,11 @@ async def create_resource(payload: ResourceCreateRequest,
                           user: AuthenticatedUserDependency,
                           database: DatabaseDependency,
                           ) -> Resource:
+    if payload.resource_type == ResourceType.IMAGE:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            'Image resources must be created together with an uploaded file',
+        )
     resource = Resource(
         resourceType=payload.resource_type,
         authorId=user.id,
@@ -127,8 +144,49 @@ async def list_resources(database: DatabaseDependency,
                          user: OptionalAuthenticatedUserDependency,
                          offset: int = Query(0, ge=0),
                          limit: int = Query(50, ge=1, le=100),
+                         resource_type: ResourceType | None = Query(
+                             None,
+                             alias='resourceType',
+                         ),
+                         tags: list[str] | None = Query(None),
+                         author: str | None = Query(None, min_length=1, max_length=100),
+                         published_only: bool = Query(False, alias='publishedOnly'),
                          ) -> list[Resource]:
-    return await database.resource.list_visible(user.id if user else None, offset, limit)
+    author_id = None
+    if author:
+        author_user = await database.user.get_by_username(author.strip())
+        if not author_user:
+            return []
+        author_id = author_user.id
+
+    normalised_tags = list(dict.fromkeys(
+        tag.strip() for tag in (tags or []) if tag.strip()
+    ))
+    published_resource_ids = None
+    if published_only:
+        published_resource_ids = await database.resource_version.list_published_resource_ids()
+    return await database.resource.list_visible(
+        user.id if user else None,
+        offset,
+        limit,
+        resource_type=resource_type,
+        tags=normalised_tags,
+        author_id=author_id,
+        published_resource_ids=published_resource_ids,
+    )
+
+
+@resource_router.get('/tags', response_model=list[str])
+async def suggest_resource_tags(database: DatabaseDependency,
+                                user: OptionalAuthenticatedUserDependency,
+                                search: str = Query('', max_length=100),
+                                limit: int = Query(10, ge=1, le=25),
+                                ) -> list[str]:
+    return await database.resource.suggest_tags(
+        user.id if user else None,
+        search.strip(),
+        limit,
+    )
 
 
 @resource_router.get('/{resource_id}', response_model=Resource)
@@ -194,7 +252,12 @@ async def update_resource(resource_id: str,
                           ) -> Resource:
     resource = await get_owned_resource(database, resource_id, user)
     updated = resource.model_copy(update={
-        'metadata': payload.metadata,
+        'metadata': ResourceMetadata(
+            name=payload.name,
+            description=payload.description.strip(),
+            visibility=resource.metadata.visibility,
+            tags=tuple(tag.strip() for tag in payload.tags if tag.strip()),
+        ),
         'updated_at': utc_now(),
     })
     return await database.resource.update(updated)

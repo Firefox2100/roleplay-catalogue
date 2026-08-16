@@ -37,6 +37,26 @@ def test_resource_may_exist_without_draft_data() -> None:
     assert resource.created_at.tzinfo == timezone.utc
 
 
+def test_character_draft_and_version_can_reference_cover_image_resource() -> None:
+    resource = Resource(
+        resourceType='sillytavern/character',
+        authorId='user-id',
+        metadata=ResourceMetadata(name='Character'),
+        coverImageResourceId='image-resource-id',
+    )
+    version = ResourceVersion(
+        resourceId=resource.id,
+        resourceType=resource.resource_type,
+        versionNumber=1,
+        dataId='data-id',
+        metadata=resource.metadata,
+        publishedById='user-id',
+        coverImageResourceId=resource.cover_image_resource_id,
+    )
+
+    assert version.cover_image_resource_id == 'image-resource-id'
+
+
 def test_resource_types_are_enumerated() -> None:
     resource = Resource(
         resourceType='sillytavern/character',
@@ -72,18 +92,25 @@ def test_published_version_is_immutable() -> None:
         version.metadata.name = 'Changed name'
 
 
-def test_character_data_disallows_embedded_lorebook() -> None:
-    with pytest.raises(ValidationError, match='separate resources'):
-        SillyTavernCharacterData(
-            character_book={
-                'entries': [],
-            },
-        )
-
+def test_character_data_allows_embedded_lorebook() -> None:
     document = SillyTavernCharacterDataDocument(
         resourceId='resource-id',
-        data=SillyTavernCharacterData(name='Example character'),
+        data=SillyTavernCharacterData(
+            name='Example character',
+            character_book={
+                'name': 'Character-specific lore',
+                'entries': [{
+                    'keys': ['example'],
+                    'content': 'Embedded lore',
+                    'enabled': True,
+                    'insertion_order': 0,
+                    'use_regex': False,
+                    'constant': False,
+                }],
+            },
+        ),
     )
+    assert document.data.character_book.entries[0].content == 'Embedded lore'
     assert document.resource_version_id is None
 
 

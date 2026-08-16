@@ -5,6 +5,8 @@ import { HomePage } from './pages/HomePage.jsx'
 import { LoginPage } from './pages/LoginPage.jsx'
 import { RegisterPage } from './pages/RegisterPage.jsx'
 import { CreateResourcePage } from './pages/CreateResourcePage.jsx'
+import { CharacterEditorPage } from './pages/CharacterEditorPage.jsx'
+import { MyResourcesPage } from './pages/MyResourcesPage.jsx'
 import './App.css'
 
 function App() {
@@ -16,6 +18,8 @@ function App() {
           <Route path="login" element={<LoginPage />} />
           <Route path="register" element={<RegisterPage />} />
           <Route path="resources/new" element={<CreateResourcePage />} />
+          <Route path="resources/mine" element={<MyResourcesPage />} />
+          <Route path="resources/:resourceId/edit" element={<CharacterEditorPage />} />
           <Route path="*" element={<HomePage />} />
         </Route>
       </Routes>

@@ -41,3 +41,6 @@ class ResourceVersionRepository:
 
     async def exists_for_resource(self, resource_id: str) -> bool:
         return await self._collection.find_one({'resourceId': resource_id}, {'id': 1}) is not None
+
+    async def list_published_resource_ids(self) -> list[str]:
+        return await self._collection.distinct('resourceId')

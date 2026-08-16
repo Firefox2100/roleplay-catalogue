@@ -41,6 +41,31 @@ class Settings(BaseSettings):
         description='Whether to ignore the cluster discovery and connect to the target host directly'
     )
 
+    s3_endpoint_url: str | None = Field(
+        None,
+        description='Optional endpoint URL for S3-compatible object storage.'
+    )
+    s3_region: str = Field(
+        'us-east-1',
+        description='S3 region name.'
+    )
+    s3_access_key_id: str | None = Field(
+        None,
+        description='S3 access key ID.'
+    )
+    s3_secret_access_key: str | None = Field(
+        None,
+        description='S3 secret access key.'
+    )
+    s3_bucket: str = Field(
+        'roleplay-catalogue',
+        description='Bucket used for uploaded assets.'
+    )
+    image_max_bytes: int = Field(
+        20 * 1024 * 1024,
+        description='Maximum accepted source image size in bytes.'
+    )
+
     smtp_host: str = Field(
         '127.0.0.1',
         description='SMTP server hostname.'

@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+import aioboto3
 from aiosmtplib import SMTP
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
@@ -8,11 +9,12 @@ from pymongo.errors import DuplicateKeyError
 from starlette.middleware.sessions import SessionMiddleware
 
 from roleplay_catalogue.misc import CONFIG
-from roleplay_catalogue.services import DatabaseService, MailingService
+from roleplay_catalogue.services import DatabaseService, MailingService, StorageService
 from roleplay_catalogue.components import AuthComponent
 from roleplay_catalogue.routers import (
     auth_router,
     image_data_router,
+    image_router,
     resource_router,
     resource_version_router,
     silly_tavern_character_data_router,
@@ -50,24 +52,34 @@ async def lifespan(application: FastAPI):
         ),
     )
 
-    auth_component = AuthComponent(
-        database=database_service,
-        mailing=mailing_service,
-        public_base_url=CONFIG.public_base_url,
-        activation_token_max_age=CONFIG.activation_token_max_age,
-    )
+    session = aioboto3.Session()
+    async with session.client(
+            's3',
+            endpoint_url=CONFIG.s3_endpoint_url,
+            region_name=CONFIG.s3_region,
+            aws_access_key_id=CONFIG.s3_access_key_id,
+            aws_secret_access_key=CONFIG.s3_secret_access_key,
+    ) as storage_client:
+        storage_service = StorageService(storage_client, CONFIG.s3_bucket)
+        auth_component = AuthComponent(
+            database=database_service,
+            mailing=mailing_service,
+            public_base_url=CONFIG.public_base_url,
+            activation_token_max_age=CONFIG.activation_token_max_age,
+        )
 
-    application.state.database_service = database_service
-    application.state.mailing_service = mailing_service
-    application.state.auth_component = auth_component
+        application.state.database_service = database_service
+        application.state.mailing_service = mailing_service
+        application.state.storage_service = storage_service
+        application.state.auth_component = auth_component
 
-    try:
-        await database_service.initialize()
-        await smtp_client.connect()
-        yield
-    finally:
-        smtp_client.close()
-        await database_service.close()
+        try:
+            await database_service.initialize()
+            await smtp_client.connect()
+            yield
+        finally:
+            smtp_client.close()
+            await database_service.close()
 
 
 app = FastAPI(
@@ -100,6 +112,7 @@ app.include_router(resource_version_router)
 app.include_router(silly_tavern_character_data_router)
 app.include_router(silly_tavern_lorebook_data_router)
 app.include_router(image_data_router)
+app.include_router(image_router)
 
 
 if __name__ == '__main__':

@@ -1,6 +1,8 @@
+from re import escape
+
 from pymongo.asynchronous.database import AsyncDatabase
 
-from roleplay_catalogue.models import Resource, ResourceVisibility
+from roleplay_catalogue.models import Resource, ResourceType, ResourceVisibility
 
 
 class ResourceRepository:
@@ -21,21 +23,70 @@ class ResourceRepository:
                            user_id: str | None,
                            offset: int = 0,
                            limit: int = 50,
+                           resource_type: ResourceType | None = None,
+                           tags: list[str] | None = None,
+                           author_id: str | None = None,
+                           published_resource_ids: list[str] | None = None,
                            ) -> list[Resource]:
         visibility = [ResourceVisibility.PUBLIC.value]
         if user_id:
             visibility.append(ResourceVisibility.AUTHENTICATED.value)
-            query = {
+            visibility_query = {
                 '$or': [
                     {'metadata.visibility': {'$in': visibility}},
                     {'authorId': user_id},
                 ]
             }
         else:
-            query = {'metadata.visibility': ResourceVisibility.PUBLIC.value}
+            visibility_query = {'metadata.visibility': ResourceVisibility.PUBLIC.value}
 
-        cursor = self._collection.find(query, {'_id': 0}).skip(offset).limit(limit)
+        filters = [visibility_query]
+        if resource_type:
+            filters.append({'resourceType': resource_type.value})
+        if tags:
+            filters.append({'metadata.tags': {'$all': tags}})
+        if author_id:
+            filters.append({'authorId': author_id})
+        if published_resource_ids is not None:
+            filters.append({'id': {'$in': published_resource_ids}})
+        query = filters[0] if len(filters) == 1 else {'$and': filters}
+
+        cursor = (
+            self._collection.find(query, {'_id': 0})
+            .sort('updatedAt', -1)
+            .skip(offset)
+            .limit(limit)
+        )
         return [Resource.model_validate(document) async for document in cursor]
+
+    async def suggest_tags(self,
+                           user_id: str | None,
+                           search: str,
+                           limit: int = 10,
+                           ) -> list[str]:
+        visibility = [ResourceVisibility.PUBLIC.value]
+        if user_id:
+            visibility.append(ResourceVisibility.AUTHENTICATED.value)
+            visibility_query = {'$or': [
+                {'metadata.visibility': {'$in': visibility}},
+                {'authorId': user_id},
+            ]}
+        else:
+            visibility_query = {'metadata.visibility': ResourceVisibility.PUBLIC.value}
+
+        cursor = self._collection.aggregate([
+            {'$match': visibility_query},
+            {'$unwind': '$metadata.tags'},
+            {'$match': {'metadata.tags': {'$regex': escape(search), '$options': 'i'}}},
+            {'$group': {
+                '_id': {'$toLower': '$metadata.tags'},
+                'tag': {'$first': '$metadata.tags'},
+                'uses': {'$sum': 1},
+            }},
+            {'$sort': {'uses': -1, 'tag': 1}},
+            {'$limit': limit},
+        ])
+        return [document['tag'] async for document in cursor]
 
     async def update(self, resource: Resource) -> Resource:
         await self._collection.replace_one(

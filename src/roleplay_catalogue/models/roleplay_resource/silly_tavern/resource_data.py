@@ -1,16 +1,11 @@
-from pydantic import Field, model_validator
-from typing_extensions import Self
+from pydantic import Field
 
 from roleplay_catalogue.models.roleplay_resource.resource import ResourceDataDocument
 from .card_v3 import SillyTavernCardV3Data, SillyTavernCardV3LoreBook
 
 
 class SillyTavernCharacterData(SillyTavernCardV3Data):
-    @model_validator(mode='after')
-    def disallow_embedded_lorebook(self) -> Self:
-        if self.character_book is not None:
-            raise ValueError('Character lorebooks must be managed as separate resources')
-        return self
+    """Canonical V3 character data, including its optional embedded lorebook."""
 
 
 class SillyTavernCharacterDataDocument(ResourceDataDocument):

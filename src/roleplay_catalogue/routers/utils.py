@@ -3,7 +3,7 @@ from fastapi import Depends, HTTPException, Request, status
 
 from roleplay_catalogue.components import AuthComponent
 from roleplay_catalogue.models import User
-from roleplay_catalogue.services import DatabaseService, MailingService
+from roleplay_catalogue.services import DatabaseService, MailingService, StorageService
 
 
 def get_auth_component(request: Request) -> AuthComponent:
@@ -16,6 +16,10 @@ def get_database_service(request: Request) -> DatabaseService:
 
 def get_mailing_service(request: Request) -> MailingService:
     return request.app.state.mailing_service
+
+
+def get_storage_service(request: Request) -> StorageService:
+    return request.app.state.storage_service
 
 
 AuthDependency = Annotated[
@@ -33,6 +37,12 @@ DatabaseDependency = Annotated[
 MailingDependency = Annotated[
     MailingService,
     Depends(get_mailing_service),
+]
+
+
+StorageDependency = Annotated[
+    StorageService,
+    Depends(get_storage_service),
 ]
 
 

@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Link, Navigate, useLocation } from 'react-router-dom'
-import { createResource } from '../api/resources.js'
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
+import { createResource, uploadImageResource } from '../api/resources.js'
 import { useAuth } from '../auth/useAuth.js'
+import { TagEditor } from '../components/TagEditor.jsx'
 
 const RESOURCE_TYPES = [
   'sillytavern/character',
@@ -16,11 +17,13 @@ export function CreateResourcePage() {
   const { t } = useTranslation()
   const { user, isLoading } = useAuth()
   const location = useLocation()
+  const navigate = useNavigate()
   const [resourceType, setResourceType] = useState(RESOURCE_TYPES[0])
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [visibility, setVisibility] = useState(VISIBILITIES[0])
-  const [tags, setTags] = useState('')
+  const [tags, setTags] = useState([])
+  const [imageFile, setImageFile] = useState(null)
   const [createdResource, setCreatedResource] = useState(null)
   const [error, setError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -42,13 +45,13 @@ export function CreateResourcePage() {
     setError('')
     setIsSubmitting(true)
     try {
-      const resource = await createResource({
-        resourceType,
-        name,
-        description,
-        visibility,
-        tags: tags.split(',').map((tag) => tag.trim()).filter(Boolean),
-      })
+      const resource = resourceType === 'core/image'
+        ? await uploadImageResource({ name, description, visibility, tags, file: imageFile })
+        : await createResource({ resourceType, name, description, visibility, tags })
+      if (resource.resourceType === 'sillytavern/character') {
+        navigate(`/resources/${resource.id}/edit`, { replace: true, state: { resource } })
+        return
+      }
       setCreatedResource(resource)
     } catch (requestError) {
       setError(requestError.status === 401
@@ -62,7 +65,8 @@ export function CreateResourcePage() {
   function createAnother() {
     setName('')
     setDescription('')
-    setTags('')
+    setTags([])
+    setImageFile(null)
     setCreatedResource(null)
   }
 
@@ -116,6 +120,15 @@ export function CreateResourcePage() {
               </select>
               <p className="field-help">{t(`resource.typeHelp.${resourceType}`)}</p>
 
+              {resourceType === 'core/image' && (
+                <label className="image-upload-field" htmlFor="resource-image">
+                  {t('resource.imageFile')}
+                  <input id="resource-image" type="file" accept="image/*" required
+                    onChange={(event) => setImageFile(event.target.files?.[0] ?? null)} />
+                  <small>{imageFile?.name || t('resource.chooseImage')}</small>
+                </label>
+              )}
+
               <label htmlFor="resource-description">{t('resource.description')}</label>
               <textarea
                 id="resource-description"
@@ -138,13 +151,7 @@ export function CreateResourcePage() {
               <p className="field-help">{t(`resource.visibilityHelp.${visibility}`)}</p>
 
               <label htmlFor="resource-tags">{t('resource.tags')}</label>
-              <input
-                id="resource-tags"
-                value={tags}
-                onChange={(event) => setTags(event.target.value)}
-                placeholder={t('resource.tagsPlaceholder')}
-              />
-              <p className="field-help">{t('resource.tagsHelp')}</p>
+              <TagEditor id="resource-tags" value={tags} onChange={setTags} />
 
               {error && <p className="form-error" role="alert">{error}</p>}
               <button className="primary-button" type="submit" disabled={isSubmitting}>

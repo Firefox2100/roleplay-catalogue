@@ -94,6 +94,11 @@ class Resource(CommonModel):
         description='Current payload in the type-specific collection, if one exists',
         alias='draftDataId',
     )
+    cover_image_resource_id: str | None = Field(
+        None,
+        description='Immutable image resource used as the current draft cover',
+        alias='coverImageResourceId',
+    )
     forked_from: ResourceVersionReference | None = Field(
         None,
         description='Exact version from which this resource was forked',
@@ -141,6 +146,11 @@ class ResourceVersion(CommonModel):
         ...,
         description='Immutable snapshot in the type-specific data collection',
         alias='dataId',
+    )
+    cover_image_resource_id: str | None = Field(
+        None,
+        description='Image resource used as the cover when this version was published',
+        alias='coverImageResourceId',
     )
     metadata: ResourceMetadata = Field(
         ...,
