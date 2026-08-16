@@ -35,7 +35,8 @@ class MemoryResourceRepository:
         return resource
 
     async def list_visible(self, user_id, offset=0, limit=50, resource_type=None,
-                           tags=None, author_id=None, published_resource_ids=None):
+                           tags=None, author_id=None, published_resource_ids=None,
+                           search_string=None):
         resources = list(self.documents.values())
         resources = [resource for resource in resources if (
             resource.metadata.visibility.value == 'public' or resource.author_id == user_id
@@ -48,6 +49,12 @@ class MemoryResourceRepository:
             resources = [resource for resource in resources if resource.author_id == author_id]
         if published_resource_ids is not None:
             resources = [resource for resource in resources if resource.id in published_resource_ids]
+        if search_string:
+            phrase = search_string.casefold()
+            resources = [resource for resource in resources if (
+                phrase in resource.metadata.name.casefold() or
+                phrase in resource.metadata.description.casefold()
+            )]
         return resources[offset:offset + limit]
 
     async def suggest_tags(self, user_id, search, limit=10):
@@ -307,7 +314,12 @@ async def test_resource_listing_filters_by_type_tags_and_author_username() -> No
         authorId=USER.id,
         metadata={'name': 'Private', 'visibility': 'private', 'tags': ['fantasy', 'portrait']},
     )
-    for resource in (matching, wrong_type, private):
+    special_name = Resource(
+        id='special-name', resourceType=ResourceType.SILLY_TAVERN_CHARACTER,
+        authorId=USER.id,
+        metadata={'name': 'Mage [v2] hero', 'visibility': 'public', 'tags': ['magic']},
+    )
+    for resource in (matching, wrong_type, private, special_name):
         await database.resource.create(resource)
     app.dependency_overrides[get_database_service] = lambda: database
 
@@ -339,6 +351,9 @@ async def test_resource_listing_filters_by_type_tags_and_author_username() -> No
 
         response = await client.get('/resources/tags', params={'search': 'port'})
         assert response.json() == ['portrait']
+
+        response = await client.get('/resources', params={'search_string': '[v2] hero'})
+        assert [resource['id'] for resource in response.json()] == [special_name.id]
 
 
 async def test_image_metadata_and_sole_version_are_updated_together() -> None:

@@ -1,4 +1,4 @@
-from re import escape
+from re import IGNORECASE, compile, escape
 
 from pymongo.asynchronous.database import AsyncDatabase
 
@@ -27,6 +27,7 @@ class ResourceRepository:
                            tags: list[str] | None = None,
                            author_id: str | None = None,
                            published_resource_ids: list[str] | None = None,
+                           search_string: str | None = None,
                            ) -> list[Resource]:
         visibility = [ResourceVisibility.PUBLIC.value]
         if user_id:
@@ -49,6 +50,12 @@ class ResourceRepository:
             filters.append({'authorId': author_id})
         if published_resource_ids is not None:
             filters.append({'id': {'$in': published_resource_ids}})
+        if search_string:
+            literal_search = compile(escape(search_string), IGNORECASE)
+            filters.append({'$or': [
+                {'metadata.name': literal_search},
+                {'metadata.description': literal_search},
+            ]})
         query = filters[0] if len(filters) == 1 else {'$and': filters}
 
         cursor = (

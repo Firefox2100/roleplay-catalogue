@@ -11,7 +11,7 @@ const translations = {
     account: { myResources: 'My Resources' },
     tags: {
       placeholder: 'Type to find or create a tag', help: 'Press Enter or comma to add a new tag.',
-      create: 'Create “{{tag}}”', remove: 'Remove {{tag}}',
+      create: 'Create “{{tag}}”', remove: 'Remove {{tag}}', popular: 'Popular',
     },
     home: {
       label: 'Resource catalogue', resourceTypes: 'Resource types',
@@ -20,7 +20,7 @@ const translations = {
       authorFilter: 'Author: {{author}}', removeAuthorFilter: 'Remove author filter',
       tagsPlaceholder: 'fantasy, adventure', tagsHelp: 'Comma-separated; resources must match every tag.',
       applyFilters: 'Apply filters', clearFilters: 'Clear', searchPlaceholder: 'Search resources',
-      searchComingSoon: 'Search coming soon', loading: 'Loading resources…',
+      search: 'Search', loading: 'Loading resources…',
       loadFailed: 'Resources could not be loaded. Please try again.',
       emptyTitle: 'No resources found', emptyDescription: 'Try another type or clear your filters.',
       imagePlaceholder: 'Resource image placeholder', noDescription: 'No description provided.',
@@ -140,7 +140,7 @@ const translations = {
     account: { myResources: '我的资源' },
     tags: {
       placeholder: '输入以查找或创建标签', help: '按 Enter 或逗号添加新标签。',
-      create: '创建“{{tag}}”', remove: '删除 {{tag}}',
+      create: '创建“{{tag}}”', remove: '删除 {{tag}}', popular: '热门',
     },
     home: {
       label: '资源目录', resourceTypes: '资源类型',
@@ -149,7 +149,7 @@ const translations = {
       authorFilter: '作者：{{author}}', removeAuthorFilter: '移除作者筛选',
       tagsPlaceholder: '奇幻, 冒险', tagsHelp: '使用逗号分隔；资源必须包含全部标签。',
       applyFilters: '应用筛选', clearFilters: '清除', searchPlaceholder: '搜索资源',
-      searchComingSoon: '搜索功能即将推出', loading: '正在加载资源…',
+      search: '搜索', loading: '正在加载资源…',
       loadFailed: '无法加载资源，请重试。', emptyTitle: '没有找到资源',
       emptyDescription: '请尝试其他类型或清除筛选条件。', imagePlaceholder: '资源图片占位区域',
       noDescription: '暂无描述。',

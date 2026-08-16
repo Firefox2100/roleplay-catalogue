@@ -49,7 +49,7 @@ export function HomePage() {
   const { t } = useTranslation()
   const [selectedType, setSelectedType] = useState('')
   const [selectedTags, setSelectedTags] = useState([])
-  const [filters, setFilters] = useState({ tags: [], author: '' })
+  const [filters, setFilters] = useState({ tags: [], author: '', searchString: '' })
   const [search, setSearch] = useState('')
   const [resources, setResources] = useState([])
   const [isLoading, setIsLoading] = useState(true)
@@ -71,6 +71,7 @@ export function HomePage() {
     setFilters({
       tags: selectedTags,
       author: filters.author,
+      searchString: filters.searchString,
     })
   }
 
@@ -78,7 +79,8 @@ export function HomePage() {
     setIsLoading(true)
     setError('')
     setSelectedTags([])
-    setFilters({ tags: [], author: '' })
+    setSearch('')
+    setFilters({ tags: [], author: '', searchString: '' })
   }
 
   function selectAuthor(author) {
@@ -97,6 +99,13 @@ export function HomePage() {
     setIsLoading(true)
     setError('')
     setSelectedType(resourceType)
+  }
+
+  function submitSearch(event) {
+    event.preventDefault()
+    setIsLoading(true)
+    setError('')
+    setFilters((current) => ({ ...current, searchString: search.trim() }))
   }
 
   return (
@@ -135,12 +144,12 @@ export function HomePage() {
         </aside>
 
         <div className="catalogue-results">
-          <div className="catalogue-search">
+          <form className="catalogue-search" onSubmit={submitSearch}>
             <span aria-hidden="true">⌕</span>
             <input type="search" value={search} onChange={(event) => setSearch(event.target.value)}
               placeholder={t('home.searchPlaceholder')} aria-label={t('home.searchPlaceholder')} />
-            <small>{t('home.searchComingSoon')}</small>
-          </div>
+            <button type="submit">{t('home.search')}</button>
+          </form>
           {isLoading ? (
             <div className="catalogue-message" role="status">{t('home.loading')}</div>
           ) : error ? (

@@ -155,6 +155,7 @@ async def list_resources(database: DatabaseDependency,
                          tags: list[str] | None = Query(None),
                          author: str | None = Query(None, min_length=1, max_length=100),
                          published_only: bool = Query(False, alias='publishedOnly'),
+                         search_string: str | None = Query(None, max_length=200),
                          ) -> list[ResourceListItem]:
     author_id = None
     if author:
@@ -177,6 +178,7 @@ async def list_resources(database: DatabaseDependency,
         tags=normalised_tags,
         author_id=author_id,
         published_resource_ids=published_resource_ids,
+        search_string=search_string.strip() if search_string else None,
     )
     users = await database.user.get_many({resource.author_id for resource in resources})
     return [ResourceListItem(
