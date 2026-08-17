@@ -17,7 +17,12 @@ from roleplay_catalogue.misc import (
 )
 from roleplay_catalogue.models import CommonModel
 from roleplay_catalogue.middleware import CSRF_SESSION_KEY
-from .utils import AccountDependency, AuthDependency, AuthenticatedUserDependency
+from .utils import (
+    AccountDependency,
+    AuthDependency,
+    AuthenticatedUserDependency,
+    SessionAuthenticatedUserDependency,
+)
 
 
 auth_router = APIRouter(
@@ -192,7 +197,7 @@ async def confirm_password_reset(payload: PasswordResetConfirmRequest,
 
 @auth_router.post('/password', status_code=status.HTTP_204_NO_CONTENT)
 async def change_password(payload: PasswordChangeRequest,
-                          user: AuthenticatedUserDependency,
+                          user: SessionAuthenticatedUserDependency,
                           auth: AuthDependency) -> None:
     try:
         await auth.change_password(user, payload.current_password, payload.new_password)
@@ -201,7 +206,7 @@ async def change_password(payload: PasswordChangeRequest,
 
 
 @auth_router.get('/api-keys', response_model=list[ApiKeyResponse])
-async def list_api_keys(user: AuthenticatedUserDependency,
+async def list_api_keys(user: SessionAuthenticatedUserDependency,
                         auth: AuthDependency) -> list[ApiKeyResponse]:
     keys = await auth.list_api_keys(user)
     return [ApiKeyResponse.model_validate(key.model_dump()) for key in keys]
@@ -210,7 +215,7 @@ async def list_api_keys(user: AuthenticatedUserDependency,
 @auth_router.post('/api-keys', response_model=CreatedApiKeyResponse,
                   status_code=status.HTTP_201_CREATED)
 async def create_api_key(payload: ApiKeyCreateRequest,
-                         user: AuthenticatedUserDependency,
+                         user: SessionAuthenticatedUserDependency,
                          auth: AuthDependency) -> CreatedApiKeyResponse:
     name = payload.name.strip()
     if not name:
@@ -227,7 +232,7 @@ async def create_api_key(payload: ApiKeyCreateRequest,
 
 @auth_router.delete('/api-keys/{key_id}', status_code=status.HTTP_204_NO_CONTENT)
 async def revoke_api_key(key_id: str,
-                         user: AuthenticatedUserDependency,
+                         user: SessionAuthenticatedUserDependency,
                          auth: AuthDependency) -> None:
     if not await auth.revoke_api_key(user, key_id):
         raise HTTPException(status.HTTP_404_NOT_FOUND, 'API key not found')
@@ -236,7 +241,7 @@ async def revoke_api_key(key_id: str,
 @auth_router.delete('/account', status_code=status.HTTP_204_NO_CONTENT)
 async def delete_account(payload: AccountDeleteRequest,
                          request: Request,
-                         user: AuthenticatedUserDependency,
+                         user: SessionAuthenticatedUserDependency,
                          auth: AuthDependency,
                          accounts: AccountDependency) -> None:
     try:

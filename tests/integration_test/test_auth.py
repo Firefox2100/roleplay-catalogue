@@ -20,6 +20,11 @@ USER = User(
 
 
 class FakeAuthComponent:
+    async def authenticate_api_key(self, api_key: str) -> User:
+        if api_key != 'valid-api-key':
+            raise UserCredentialMismatch('Invalid credentials')
+        return USER
+
     async def authenticate_user(self,
                                 username: str,
                                 password: str,
@@ -53,6 +58,11 @@ class FakeDatabaseService:
 
 @app.get('/authenticated-user-test', include_in_schema=False)
 async def authenticated_user_test(user: User = Depends(authenticate_user)) -> dict[str, str]:
+    return {'id': user.id}
+
+
+@app.post('/authenticated-user-test', include_in_schema=False)
+async def mutate_as_authenticated_user(user: User = Depends(authenticate_user)) -> dict[str, str]:
     return {'id': user.id}
 
 
@@ -96,6 +106,29 @@ async def test_state_changing_requests_require_csrf_token() -> None:
             json={'username': 'alice', 'password': 'correct-password'},
         )
         assert response.status_code == 403
+
+
+async def test_api_key_authenticates_me_and_non_cookie_mutations() -> None:
+    async with get_client() as client:
+        headers = {'Authorization': 'Bearer valid-api-key'}
+
+        current_user = await client.get('/auth/me', headers=headers)
+        mutation = await client.post('/authenticated-user-test', headers=headers)
+
+        assert current_user.status_code == 200
+        assert current_user.json()['id'] == USER.id
+        assert mutation.status_code == 200
+        assert mutation.json() == {'id': USER.id}
+
+
+async def test_invalid_api_key_is_rejected() -> None:
+    async with get_client() as client:
+        response = await client.get(
+            '/auth/me',
+            headers={'Authorization': 'Bearer invalid-api-key'},
+        )
+
+        assert response.status_code == 401
 
 
 async def test_security_headers_are_added_without_hsts_by_default() -> None:

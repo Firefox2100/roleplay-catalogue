@@ -26,8 +26,15 @@ class CSRFMiddleware:
             await self._app(scope, receive, send)
             return
 
+        headers = Headers(scope=scope)
+        authorization = headers.get('authorization', '')
+        uses_bearer_auth = authorization.partition(' ')[0].casefold() == 'bearer'
+        if uses_bearer_auth and not scope['session'].get('user_id'):
+            await self._app(scope, receive, send)
+            return
+
         session_token = scope['session'].get(CSRF_SESSION_KEY)
-        request_token = Headers(scope=scope).get(CSRF_HEADER_NAME)
+        request_token = headers.get(CSRF_HEADER_NAME)
 
         if (not session_token or
                 not request_token or

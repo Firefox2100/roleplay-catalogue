@@ -70,6 +70,23 @@ export function TagEditor({ id, value, onChange, allowCreate = true, showPopular
           onChange={(event) => { setInput(event.target.value); setSuggestions([]) }}
           onKeyDown={handleKeyDown}
           onFocus={() => setIsFocused(true)} onBlur={() => setTimeout(() => setIsFocused(false), 120)} />
+        {isFocused && input.trim() && (
+          <div className="tag-suggestions" role="listbox">
+            {suggestions.filter((tag) => !value.some((selected) => (
+              selected.toLocaleLowerCase() === tag.toLocaleLowerCase()
+            ))).map((tag) => (
+              <button key={tag} type="button" role="option" onMouseDown={(event) => event.preventDefault()}
+                onClick={() => addTag(tag)}>{tag}</button>
+            ))}
+            {allowCreate && input.trim() &&
+              !suggestions.some((tag) => tag.toLocaleLowerCase() === input.trim().toLocaleLowerCase()) && (
+              <button type="button" className="create-tag-option"
+                onMouseDown={(event) => event.preventDefault()} onClick={() => addTag(input)}>
+                {t('tags.create', { tag: input.trim() })}
+              </button>
+            )}
+          </div>
+        )}
       </div>
       {showPopular && popularTags.length > 0 && (
         <div className="popular-tags" aria-label={t('tags.popular')}>
@@ -79,23 +96,6 @@ export function TagEditor({ id, value, onChange, allowCreate = true, showPopular
           ))).map((tag) => (
             <button key={tag} type="button" onClick={() => addTag(tag)}>{tag}</button>
           ))}
-        </div>
-      )}
-      {isFocused && input.trim() && (
-        <div className="tag-suggestions" role="listbox">
-          {suggestions.filter((tag) => !value.some((selected) => (
-            selected.toLocaleLowerCase() === tag.toLocaleLowerCase()
-          ))).map((tag) => (
-            <button key={tag} type="button" role="option" onMouseDown={(event) => event.preventDefault()}
-              onClick={() => addTag(tag)}>{tag}</button>
-          ))}
-          {allowCreate && input.trim() &&
-            !suggestions.some((tag) => tag.toLocaleLowerCase() === input.trim().toLocaleLowerCase()) && (
-            <button type="button" className="create-tag-option"
-              onMouseDown={(event) => event.preventDefault()} onClick={() => addTag(input)}>
-              {t('tags.create', { tag: input.trim() })}
-            </button>
-          )}
         </div>
       )}
       <p className="field-help">{t('tags.help')}</p>

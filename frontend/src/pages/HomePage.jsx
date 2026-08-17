@@ -42,6 +42,18 @@ function ResourceCard({ resource, onSelectAuthor }) {
         onClick={(event) => { event.stopPropagation(); onSelectAuthor(resource.authorUsername) }}>
         {resource.authorUsername}
       </button>
+      {resource.metadata.tags?.length > 0 && (
+        <div className="resource-card-tags" aria-label={t('resource.tags')}>
+          {resource.metadata.tags.slice(0, 3).map((tag) => (
+            <span key={tag} title={tag}>{tag}</span>
+          ))}
+          {resource.metadata.tags.length > 3 && (
+            <span title={resource.metadata.tags.slice(3).join(', ')}>
+              +{resource.metadata.tags.length - 3}
+            </span>
+          )}
+        </div>
+      )}
       <div className="resource-description-tooltip" role="tooltip">{description}</div>
     </article>
   )

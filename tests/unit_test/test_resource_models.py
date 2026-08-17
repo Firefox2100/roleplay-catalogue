@@ -114,6 +114,39 @@ def test_character_data_allows_embedded_lorebook() -> None:
     assert document.resource_version_id is None
 
 
+def test_character_data_preserves_typed_script_extensions() -> None:
+    data = SillyTavernCharacterData.model_validate({
+        'name': 'Scripted character',
+        'extensions': {
+            'regex_scripts': [{
+                'id': 'regex-id',
+                'scriptName': 'Strip markers',
+                'findRegex': '/<note>.*?<\\/note>/gs',
+                'replaceString': '',
+                'placement': [1, 2],
+                'runOnEdit': True,
+                'extensionSpecificOption': 'preserved',
+            }],
+            'tavern_helper': {
+                'scripts': [{
+                    'id': 'script-id',
+                    'name': 'State updater',
+                    'content': 'return;',
+                    'data': {'entrypoint': 'message_received'},
+                }],
+                'variables': {'enabled': True},
+            },
+            'another_client': {'value': 1},
+        },
+    })
+
+    payload = data.model_dump(mode='json', by_alias=True)
+    assert payload['extensions']['regex_scripts'][0]['scriptName'] == 'Strip markers'
+    assert payload['extensions']['regex_scripts'][0]['extensionSpecificOption'] == 'preserved'
+    assert payload['extensions']['tavern_helper']['scripts'][0]['content'] == 'return;'
+    assert payload['extensions']['another_client'] == {'value': 1}
+
+
 def test_image_data_is_content_addressed_and_immutable() -> None:
     image = ImageDataDocument(
         resourceId='resource-id',

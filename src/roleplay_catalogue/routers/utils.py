@@ -58,9 +58,24 @@ AccountDependency = Annotated[
 ]
 
 
+api_key_bearer = HTTPBearer(auto_error=False)
+
+
 async def authenticate_user(request: Request,
                             database: DatabaseDependency,
+                            auth: AuthDependency,
+                            credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(api_key_bearer)],
                             ) -> User:
+    if credentials and credentials.scheme.casefold() == 'bearer':
+        try:
+            return await auth.authenticate_api_key(credentials.credentials)
+        except UserCredentialMismatch as error:
+            raise HTTPException(
+                status.HTTP_401_UNAUTHORIZED,
+                'Invalid or expired API key',
+                headers={'WWW-Authenticate': 'Bearer'},
+            ) from error
+
     user_id = request.session.get('user_id')
     if not user_id:
         raise HTTPException(
@@ -85,9 +100,40 @@ AuthenticatedUserDependency = Annotated[
 ]
 
 
+async def authenticate_session_user(request: Request,
+                                    database: DatabaseDependency,
+                                    ) -> User:
+    user_id = request.session.get('user_id')
+    if not user_id:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, 'Authentication required')
+    user = await database.user.get(user_id)
+    if not user:
+        request.session.clear()
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, 'Authentication required')
+    return user
+
+
+SessionAuthenticatedUserDependency = Annotated[
+    User,
+    Depends(authenticate_session_user),
+]
+
+
 async def optionally_authenticate_user(request: Request,
                                        database: DatabaseDependency,
+                                       auth: AuthDependency,
+                                       credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(api_key_bearer)],
                                        ) -> User | None:
+    if credentials and credentials.scheme.casefold() == 'bearer':
+        try:
+            return await auth.authenticate_api_key(credentials.credentials)
+        except UserCredentialMismatch as error:
+            raise HTTPException(
+                status.HTTP_401_UNAUTHORIZED,
+                'Invalid or expired API key',
+                headers={'WWW-Authenticate': 'Bearer'},
+            ) from error
+
     user_id = request.session.get('user_id')
     if not user_id:
         return None
@@ -102,9 +148,6 @@ OptionalAuthenticatedUserDependency = Annotated[
     User | None,
     Depends(optionally_authenticate_user),
 ]
-
-
-api_key_bearer = HTTPBearer(auto_error=False)
 
 
 async def authenticate_api_key(

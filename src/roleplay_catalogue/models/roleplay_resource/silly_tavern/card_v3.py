@@ -1,7 +1,59 @@
-from typing import Literal, Optional
-from pydantic import BaseModel, Field
+from typing import Any, Literal, Optional
+from pydantic import BaseModel, ConfigDict, Field
 
 from .card_v2 import SillyTavernCardV2BookEntry, SillyTavernCardV2CharacterBook, SillyTavernCardV2Data
+
+
+class SillyTavernRegexScript(BaseModel):
+    model_config = ConfigDict(extra='allow', populate_by_name=True)
+
+    id: str | int = ''
+    script_name: str = Field('', alias='scriptName')
+    find_regex: str = Field('', alias='findRegex')
+    replace_string: str = Field('', alias='replaceString')
+    trim_strings: list[str] = Field(default_factory=list, alias='trimStrings')
+    placement: list[int] = Field(default_factory=list)
+    disabled: bool = False
+    markdown_only: bool = Field(False, alias='markdownOnly')
+    prompt_only: bool = Field(False, alias='promptOnly')
+    run_on_edit: bool = Field(False, alias='runOnEdit')
+    substitute_regex: int | bool = Field(0, alias='substituteRegex')
+    min_depth: int | None = Field(None, alias='minDepth')
+    max_depth: int | None = Field(None, alias='maxDepth')
+
+
+class SillyTavernScriptButton(BaseModel):
+    model_config = ConfigDict(extra='allow')
+
+    enabled: bool = False
+    buttons: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class SillyTavernCharacterScript(BaseModel):
+    model_config = ConfigDict(extra='allow')
+
+    type: str = 'script'
+    enabled: bool = True
+    name: str = ''
+    id: str | int = ''
+    content: str = ''
+    info: str = ''
+    button: SillyTavernScriptButton = Field(default_factory=SillyTavernScriptButton)
+    data: dict[str, Any] = Field(default_factory=dict)
+
+
+class SillyTavernHelperExtension(BaseModel):
+    model_config = ConfigDict(extra='allow')
+
+    scripts: list[SillyTavernCharacterScript] = Field(default_factory=list)
+    variables: dict[str, Any] = Field(default_factory=dict)
+
+
+class SillyTavernCardV3Extensions(BaseModel):
+    model_config = ConfigDict(extra='allow')
+
+    regex_scripts: list[SillyTavernRegexScript] = Field(default_factory=list)
+    tavern_helper: SillyTavernHelperExtension | None = None
 
 
 class SillyTavernCardV3BookEntry(SillyTavernCardV2BookEntry):
@@ -42,6 +94,10 @@ class SillyTavernCardV3Asset(BaseModel):
 
 
 class SillyTavernCardV3Data(SillyTavernCardV2Data):
+    extensions: SillyTavernCardV3Extensions = Field(
+        default_factory=SillyTavernCardV3Extensions,
+        description='Application extensions, including scoped regex and character scripts',
+    )
     assets: Optional[list[SillyTavernCardV3Asset]] = Field(
         None,
         description="A list of assets used by this card"

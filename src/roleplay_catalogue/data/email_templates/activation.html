@@ -2,13 +2,38 @@
 <html lang="en">
   <head>
     <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Activate your Roleplay Catalogue account</title>
   </head>
-  <body>
-    <p>Hello {{ username }},</p>
-    <p>Click the link below to activate your Roleplay Catalogue account:</p>
-    <p><a href="{{ activation_url }}">Activate your account</a></p>
-    <p>This activation link expires in {{ expires_in_hours }} hours.</p>
-    <p>If you did not create this account, you can ignore this email.</p>
+  <body style="margin:0;padding:0;background:#f6f3ed;color:#2f2924;font-family:Arial,Helvetica,sans-serif;">
+    <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">Activate your Roleplay Catalogue account to begin creating and sharing resources.</div>
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;background:#f6f3ed;">
+      <tr><td align="center" style="padding:38px 16px;">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;max-width:580px;">
+          <tr><td style="padding:0 4px 18px;">
+            <table role="presentation" cellspacing="0" cellpadding="0" border="0"><tr>
+              <td width="42" height="42" align="center" style="width:42px;height:42px;border-radius:13px;background:#6d3bc1;color:#fff;font-size:13px;font-weight:800;letter-spacing:1px;">RC</td>
+              <td style="padding-left:12px;">
+                <div style="font-family:Georgia,'Times New Roman',serif;font-size:18px;font-weight:bold;line-height:22px;">Roleplay Catalogue</div>
+                <div style="padding-top:2px;color:#776e65;font-size:11px;line-height:15px;letter-spacing:.4px;">CREATE, VERSION AND SHARE</div>
+              </td>
+            </tr></table>
+          </td></tr>
+          <tr><td style="padding:38px 40px;border:1px solid #d8d0c5;border-radius:20px;background:#fffdf9;box-shadow:0 10px 30px rgba(43,33,24,.08);">
+            <div style="margin-bottom:10px;color:#6d3bc1;font-size:12px;font-weight:bold;letter-spacing:1.5px;text-transform:uppercase;">Welcome</div>
+            <h1 style="margin:0 0 18px;font-family:Georgia,'Times New Roman',serif;font-size:30px;line-height:38px;font-weight:normal;">Activate your account</h1>
+            <p style="margin:0 0 14px;color:#4d4741;font-size:15px;line-height:24px;">Hello {{ username }},</p>
+            <p style="margin:0 0 26px;color:#4d4741;font-size:15px;line-height:24px;">Thanks for joining Roleplay Catalogue. Confirm your email address to activate your account and start creating, versioning, and sharing resources.</p>
+            <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:0 0 27px;"><tr>
+              <td align="center" style="border-radius:11px;background:#6d3bc1;"><a href="{{ activation_url }}" style="display:inline-block;padding:14px 24px;border-radius:11px;color:#fff;font-size:15px;font-weight:bold;line-height:20px;text-decoration:none;">Activate your account</a></td>
+            </tr></table>
+            <div style="padding:15px 17px;border-radius:10px;background:#f1eafa;color:#4d248f;font-size:13px;line-height:20px;">This activation link expires in <strong>{{ expires_in_hours }} hours</strong>.</div>
+            <p style="margin:24px 0 8px;color:#776e65;font-size:12px;line-height:19px;">If the button does not work, copy and paste this address into your browser:</p>
+            <p style="margin:0;word-break:break-all;font-size:12px;line-height:18px;"><a href="{{ activation_url }}" style="color:#4d248f;text-decoration:underline;">{{ activation_url }}</a></p>
+          </td></tr>
+          <tr><td style="padding:19px 8px 0;color:#776e65;font-size:12px;line-height:19px;text-align:center;">If you did not create this account, you can safely ignore this email.<br>© Roleplay Catalogue</td></tr>
+        </table>
+      </td></tr>
+    </table>
   </body>
 </html>
