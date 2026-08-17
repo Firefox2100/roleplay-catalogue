@@ -456,11 +456,12 @@ async def test_resource_listing_filters_by_type_tags_and_author_username() -> No
         ])
 
     assert response.status_code == 200
-    assert [resource['id'] for resource in response.json()] == [matching.id]
+    assert [resource['id'] for resource in response.json()['items']] == [matching.id]
+    assert response.json()['nextOffset'] is None
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url='http://test') as client:
         response = await client.get('/resources', params={'publishedOnly': 'true'})
-        assert response.json() == []
+        assert response.json() == {'items': [], 'nextOffset': None}
 
         await database.resource_version.create(ResourceVersion(
             resourceId=matching.id,
@@ -471,13 +472,43 @@ async def test_resource_listing_filters_by_type_tags_and_author_username() -> No
             publishedById=USER.id,
         ))
         response = await client.get('/resources', params={'publishedOnly': 'true'})
-        assert [resource['id'] for resource in response.json()] == [matching.id]
+        assert [resource['id'] for resource in response.json()['items']] == [matching.id]
 
         response = await client.get('/resources/tags', params={'search': 'port'})
         assert response.json() == ['portrait']
 
         response = await client.get('/resources', params={'search_string': '[v2] hero'})
-        assert [resource['id'] for resource in response.json()] == [special_name.id]
+        assert [resource['id'] for resource in response.json()['items']] == [special_name.id]
+
+
+async def test_resource_listing_exposes_next_offset_and_updates_visibility() -> None:
+    database = MemoryDatabaseService()
+    first = Resource(
+        id='first', resourceType=ResourceType.SILLY_TAVERN_CHARACTER, authorId=USER.id,
+        metadata={'name': 'First', 'visibility': 'public'},
+    )
+    second = Resource(
+        id='second', resourceType=ResourceType.SILLY_TAVERN_CHARACTER, authorId=USER.id,
+        metadata={'name': 'Second', 'visibility': 'public'},
+    )
+    await database.resource.create(first)
+    await database.resource.create(second)
+    app.dependency_overrides[get_database_service] = lambda: database
+    app.dependency_overrides[authenticate_user] = authenticated_user
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url='http://test') as client:
+        page = await client.get('/resources', params={'limit': 1})
+        assert len(page.json()['items']) == 1
+        assert page.json()['nextOffset'] == 1
+
+        headers = await get_csrf_headers(client)
+        response = await client.put(
+            f'/resources/{first.id}', headers=headers,
+            json={'name': 'First', 'description': '', 'visibility': 'private', 'tags': []},
+        )
+
+    assert response.status_code == 200
+    assert response.json()['metadata']['visibility'] == 'private'
 
 
 async def test_image_metadata_and_sole_version_are_updated_together() -> None:

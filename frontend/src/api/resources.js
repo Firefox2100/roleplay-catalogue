@@ -35,17 +35,23 @@ export async function createResource(resource) {
   return response.json()
 }
 
-export async function listResources({ resourceType, tags = [], author = '', limit,
+export async function listResources({ resourceType, tags = [], author = '', limit, offset,
   publishedOnly = false, searchString = '' } = {}) {
   const query = new URLSearchParams()
   if (resourceType) query.set('resourceType', resourceType)
   tags.forEach((tag) => query.append('tags', tag))
   if (author) query.set('author', author)
   if (limit) query.set('limit', limit)
+  if (offset) query.set('offset', offset)
   if (publishedOnly) query.set('publishedOnly', 'true')
   if (searchString.trim()) query.set('search_string', searchString.trim())
   const suffix = query.size ? `?${query}` : ''
   return (await request(`/api/resources${suffix}`)).json()
+}
+
+export async function deleteResource(resourceId, resourceType) {
+  const path = resourceType === 'core/image' ? `/api/images/${resourceId}` : `/api/resources/${resourceId}`
+  await request(path, { method: 'DELETE', headers: await csrfHeaders() })
 }
 
 export async function suggestResourceTags(search, limit = 10) {

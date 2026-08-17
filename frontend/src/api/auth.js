@@ -62,3 +62,46 @@ export async function register(username, email, password) {
     body: JSON.stringify({ username, email, password }),
   })
 }
+
+async function authenticatedRequest(path, method, body) {
+  const csrfToken = await getCsrfToken()
+  return request(path, {
+    method,
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRF-Token': csrfToken,
+    },
+    body: JSON.stringify(body),
+  })
+}
+
+export async function listApiKeys() {
+  return (await request('/api/auth/api-keys')).json()
+}
+
+export async function createApiKey(name, lifetime) {
+  const response = await authenticatedRequest('/api/auth/api-keys', 'POST', { name, lifetime })
+  return response.json()
+}
+
+export async function revokeApiKey(keyId) {
+  await authenticatedRequest(`/api/auth/api-keys/${encodeURIComponent(keyId)}`, 'DELETE')
+}
+
+export async function changePassword(currentPassword, newPassword) {
+  await authenticatedRequest('/api/auth/password', 'POST', { currentPassword, newPassword })
+}
+
+export async function deleteAccount(password) {
+  await authenticatedRequest('/api/auth/account', 'DELETE', { password })
+}
+
+export async function requestPasswordReset(email) {
+  await authenticatedRequest('/api/auth/password-reset/request', 'POST', { email })
+}
+
+export async function confirmPasswordReset(userId, token, newPassword) {
+  await authenticatedRequest('/api/auth/password-reset/confirm', 'POST', {
+    userId, token, newPassword,
+  })
+}

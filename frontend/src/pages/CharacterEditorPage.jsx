@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Navigate, useLocation, useParams } from 'react-router-dom'
+import { Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
 import {
-  draftDownloadUrl, getResource, getResourceData, importCharacterCard, listResources, saveResourceData,
+  deleteResource, draftDownloadUrl, getResource, getResourceData, importCharacterCard, listResources, saveResourceData,
   listResourceVersions, publishResource, selectCharacterCover, updateResource,
   updateVersionVisibility, uploadCharacterCover,
 } from '../api/resources.js'
@@ -54,11 +54,12 @@ export function CharacterEditorPage() {
   const { t } = useTranslation()
   const { resourceId } = useParams()
   const location = useLocation()
+  const navigate = useNavigate()
   const { user, isLoading: isAuthLoading } = useAuth()
   const imageInput = useRef(null)
   const cardInput = useRef(null)
   const [resource, setResource] = useState(location.state?.resource ?? null)
-  const [resourceFields, setResourceFields] = useState({ name: '', description: '', tags: [] })
+  const [resourceFields, setResourceFields] = useState({ name: '', description: '', visibility: 'private', tags: [] })
   const [card, setCard] = useState(EMPTY_CARD)
   const [book, setBook] = useState(EMPTY_BOOK)
   const [loreEntries, setLoreEntries] = useState([])
@@ -97,6 +98,7 @@ export function CharacterEditorPage() {
       setResourceFields({
         name: loadedResource.metadata.name,
         description: loadedResource.metadata.description,
+        visibility: loadedResource.metadata.visibility,
         tags: loadedResource.metadata.tags ?? [],
       })
       if (draft) {
@@ -140,7 +142,7 @@ export function CharacterEditorPage() {
     if (!user) return undefined
     let active = true
     listResources({ resourceType: 'core/image', author: user.username, limit: 100 })
-      .then((images) => { if (active) setAvailableImages(images) })
+      .then((page) => { if (active) setAvailableImages(page.items) })
       .catch(() => {})
     return () => { active = false }
   }, [user])
@@ -185,6 +187,12 @@ export function CharacterEditorPage() {
 
   function optionalNumber(value) {
     return value === '' || value === null ? null : Number(value)
+  }
+
+  async function removeResource() {
+    if (!window.confirm(t('editor.deleteConfirm'))) return
+    try { await deleteResource(resourceId, resource.resourceType); navigate('/resources/mine', { replace: true }) }
+    catch { setError(t('editor.deleteFailed')) }
   }
 
   function makeDraftData() {
@@ -341,6 +349,7 @@ export function CharacterEditorPage() {
             <h1>{resource?.metadata.name}</h1>
           </div>
           <div className="editor-actions">
+            <button className="danger-button" type="button" onClick={removeResource}>{t('editor.delete')}</button>
             <button type="button" disabled={isPublishing}
               onClick={() => setIsPublishOpen(true)}>{t('editor.publish')}</button>
             <button type="button" disabled={isImportingCard}
@@ -370,6 +379,11 @@ export function CharacterEditorPage() {
               onChange={(event) => setResourceFields((fields) => ({
                 ...fields, name: event.target.value,
               }))} /></label>
+            <label>{t('resource.visibility')}<select value={resourceFields.visibility}
+              onChange={(event) => setResourceFields((current) => ({ ...current, visibility: event.target.value }))}>
+              {['private', 'authenticated', 'public'].map((visibility) => <option key={visibility} value={visibility}>
+                {t(`resource.visibilities.${visibility}`)}</option>)}
+            </select></label>
             <label className="wide-field">{t('resource.description')}<textarea rows={4}
               value={resourceFields.description} maxLength={10000}
               onChange={(event) => setResourceFields((fields) => ({

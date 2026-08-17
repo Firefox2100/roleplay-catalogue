@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Navigate, useLocation, useParams } from 'react-router-dom'
+import { Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
 import {
-  getResource, imageContentUrl, updateImageMetadata,
+  deleteResource, getResource, imageContentUrl, updateImageMetadata,
 } from '../api/resources.js'
 import { useAuth } from '../auth/useAuth.js'
 import { ResourceImage } from '../components/ResourceImage.jsx'
@@ -14,6 +14,7 @@ export function ImageEditorPage() {
   const { t } = useTranslation()
   const { resourceId } = useParams()
   const location = useLocation()
+  const navigate = useNavigate()
   const { user, isLoading: isAuthLoading } = useAuth()
   const [resource, setResource] = useState(location.state?.resource ?? null)
   const [fields, setFields] = useState({
@@ -76,6 +77,12 @@ export function ImageEditorPage() {
     }
   }
 
+  async function removeResource() {
+    if (!window.confirm(t('editor.deleteImageConfirm'))) return
+    try { await deleteResource(resourceId, resource.resourceType); navigate('/resources/mine', { replace: true }) }
+    catch { setError(t('editor.deleteFailed')) }
+  }
+
   return (
     <section className="image-editor-page">
       <form className="image-editor-card" onSubmit={save}>
@@ -85,6 +92,7 @@ export function ImageEditorPage() {
           <button className="save-button" type="submit" disabled={isSaving}>
             {isSaving ? t('editor.saving') : t('editor.save')}
           </button>
+          <button className="danger-button" type="button" onClick={removeResource}>{t('editor.delete')}</button>
         </div>
         {error && <p className="editor-message error" role="alert">{error}</p>}
         {message && <p className="editor-message success" role="status">{message}</p>}

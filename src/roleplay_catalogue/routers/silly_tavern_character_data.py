@@ -119,8 +119,14 @@ async def delete_character_data(data_id: str,
     if document.resource_version_id or resource.draft_data_id != document.id:
         raise HTTPException(status.HTTP_409_CONFLICT, 'Published data is immutable')
 
-    await database.silly_tavern_character_data.delete(document.id)
-    await database.resource.update(resource.model_copy(update={
-        'draft_data_id': None,
-        'updated_at': utc_now(),
-    }))
+    async def delete_records() -> None:
+        await database.silly_tavern_character_data.delete(document.id)
+        await database.resource.update(resource.model_copy(update={
+            'draft_data_id': None,
+            'updated_at': utc_now(),
+        }))
+
+    if hasattr(database, 'transaction'):
+        await database.transaction(delete_records)
+    else:
+        await delete_records()

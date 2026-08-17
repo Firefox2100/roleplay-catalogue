@@ -5,7 +5,7 @@ from io import BytesIO
 from urllib.parse import quote
 from uuid import uuid4
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, Query, Request, status
 from fastapi.responses import Response, StreamingResponse
 from PIL import Image, PngImagePlugin
 from pydantic import Field, field_validator
@@ -82,18 +82,20 @@ async def build_character_artifact(*, database: DatabaseDependency,
 
 async def resolve_download_asset(version: ResourceVersion,
                                  database: DatabaseDependency,
-                                 ) -> tuple[str, str, str, int | None]:
+                                 ) -> tuple[str, str, str, int | None, str | None]:
     if version.artifact_object_key:
         return (
             version.artifact_object_key,
             version.artifact_content_type or 'application/octet-stream',
             version.artifact_file_name or f'{version.metadata.name}.{version.version}',
             version.artifact_byte_size,
+            version.artifact_sha256,
         )
     if version.resource_type == ResourceType.IMAGE:
         document = await database.image_data.get(version.data_id)
         if document:
-            return document.object_key, document.content_type, f'{version.metadata.name}.png', document.byte_size
+            return (document.object_key, document.content_type,
+                    f'{version.metadata.name}.png', document.byte_size, document.sha256)
     raise HTTPException(status.HTTP_404_NOT_FOUND, 'Release artifact not found')
 
 
@@ -141,7 +143,10 @@ async def export_resource_draft(resource_id: str, database: DatabaseDependency,
     return Response(
         artifact,
         media_type=content_type,
-        headers={'Content-Disposition': attachment_header(file_name)},
+        headers={
+            'Content-Disposition': attachment_header(file_name),
+            'Cache-Control': 'no-store',
+        },
     )
 
 
@@ -162,7 +167,6 @@ async def publish_resource(resource_id: str, payload: PublishResourceRequest,
     draft = await repository.get(resource.draft_data_id)
     if not draft or draft.resource_version_id:
         raise HTTPException(status.HTTP_409_CONFLICT, 'Resource draft data is invalid')
-    latest = await database.resource_version.get_latest(resource.id)
     version_id = str(uuid4())
     if resource.resource_type == ResourceType.SILLY_TAVERN_CHARACTER:
         author = await database.user.get(resource.author_id)
@@ -201,27 +205,30 @@ async def publish_resource(resource_id: str, payload: PublishResourceRequest,
         'id': str(uuid4()), 'resource_version_id': version_id,
         'created_at': utc_now(), 'updated_at': utc_now(), 'data': snapshot_data,
     })
-    version = ResourceVersion(
-        id=version_id, resourceId=resource.id, resourceType=resource.resource_type,
-        versionNumber=latest.version_number + 1 if latest else 1, version=payload.version,
-        dataId=snapshot.id, coverImageResourceId=resource.cover_image_resource_id,
-        metadata=resource.metadata, visibility=resource.metadata.visibility,
-        artifactObjectKey=object_key, artifactContentType=content_type,
-        artifactFileName=file_name, artifactByteSize=len(artifact),
-        artifactSha256=sha256(artifact).hexdigest(), publishedById=user.id,
-        previousVersionId=latest.id if latest else None,
-    )
-    uploaded = snapshot_created = False
+    async def persist_release() -> ResourceVersion:
+        latest = await database.resource_version.get_latest(resource.id)
+        version = ResourceVersion(
+            id=version_id, resourceId=resource.id, resourceType=resource.resource_type,
+            versionNumber=latest.version_number + 1 if latest else 1, version=payload.version,
+            dataId=snapshot.id, coverImageResourceId=resource.cover_image_resource_id,
+            metadata=resource.metadata, visibility=resource.metadata.visibility,
+            artifactObjectKey=object_key, artifactContentType=content_type,
+            artifactFileName=file_name, artifactByteSize=len(artifact),
+            artifactSha256=sha256(artifact).hexdigest(), publishedById=user.id,
+            previousVersionId=latest.id if latest else None,
+        )
+        await repository.create(snapshot)
+        return await database.resource_version.create(version)
+
+    uploaded = False
     try:
         await storage.upload(object_key, artifact, content_type)
         uploaded = True
         await storage.wait_until_available(object_key)
-        await repository.create(snapshot)
-        snapshot_created = True
-        return await database.resource_version.create(version)
+        if hasattr(database, 'transaction'):
+            return await database.transaction(persist_release)
+        return await persist_release()
     except Exception:
-        if snapshot_created:
-            await repository.delete(snapshot.id)
         if uploaded:
             await storage.remove(object_key)
         raise
@@ -272,7 +279,9 @@ async def create_signed_download(version_id: str, database: DatabaseDependency,
                                  storage: StorageDependency,
                                  user: OptionalAuthenticatedUserDependency) -> SignedDownloadResponse:
     version = await get_readable_version(database, version_id, user)
-    key, _content_type, file_name, _byte_size = await resolve_download_asset(version, database)
+    key, _content_type, file_name, _byte_size, _digest = await resolve_download_asset(
+        version, database,
+    )
     return SignedDownloadResponse(
         url=await storage.create_signed_download_url(key, file_name),
         expiresIn=storage.signed_url_expiry,
@@ -383,10 +392,27 @@ async def fork_resource_version(version_id: str, database: DatabaseDependency,
 @resource_version_router.get('/{version_id}/download')
 async def download_resource_version(version_id: str, database: DatabaseDependency,
                                     storage: StorageDependency,
+                                    request: Request,
                                     user: OptionalAuthenticatedUserDependency):
     version = await get_readable_version(database, version_id, user)
-    key, content_type, file_name, byte_size = await resolve_download_asset(version, database)
-    headers = {'Content-Disposition': attachment_header(file_name)}
+    key, content_type, file_name, byte_size, digest = await resolve_download_asset(
+        version, database,
+    )
+    cache_control = (
+        'public, max-age=31536000, immutable'
+        if version.visibility == ResourceVisibility.PUBLIC
+        else 'private, no-cache'
+    )
+    headers = {
+        'Content-Disposition': attachment_header(file_name),
+        'Cache-Control': cache_control,
+    }
+    if digest:
+        etag = f'"{digest}"'
+        headers['ETag'] = etag
+        requested_etags = {part.strip() for part in request.headers.get('if-none-match', '').split(',')}
+        if etag in requested_etags or '*' in requested_etags:
+            return Response(status_code=status.HTTP_304_NOT_MODIFIED, headers=headers)
     if byte_size is not None:
         headers['Content-Length'] = str(byte_size)
     return StreamingResponse(storage.fetch(key), media_type=content_type, headers=headers)

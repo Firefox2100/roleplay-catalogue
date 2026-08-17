@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+import logging
 import aioboto3
 from aiosmtplib import SMTP
 from fastapi import FastAPI, Request
@@ -7,9 +8,11 @@ from jinja2 import Environment, PackageLoader, select_autoescape
 from pymongo import AsyncMongoClient
 from pymongo.errors import DuplicateKeyError
 from starlette.middleware.sessions import SessionMiddleware
+from starlette.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from roleplay_catalogue.misc import CONFIG
-from roleplay_catalogue.services import DatabaseService, MailingService, StorageService
+from roleplay_catalogue.services import AccountService, DatabaseService, MailingService, StorageService
 from roleplay_catalogue.components import AuthComponent
 from roleplay_catalogue.routers import (
     auth_router,
@@ -21,16 +24,31 @@ from roleplay_catalogue.routers import (
     silly_tavern_character_data_router,
     silly_tavern_lorebook_data_router,
 )
-from roleplay_catalogue.middleware import CSRFMiddleware
+from roleplay_catalogue.middleware import CSRFMiddleware, SecurityHeadersMiddleware
+
+
+LOGGER = logging.getLogger(__name__)
+
+
+class SPAStaticFiles(StaticFiles):
+    async def get_response(self, path: str, scope):
+        try:
+            return await super().get_response(path, scope)
+        except StarletteHTTPException as error:
+            if error.status_code != 404:
+                raise
+            return await super().get_response('index.html', scope)
 
 
 @asynccontextmanager
 async def lifespan(application: FastAPI):
+    from apscheduler.schedulers.asyncio import AsyncIOScheduler
     mongo_client = AsyncMongoClient(
         host=CONFIG.mongodb_host,
         port=CONFIG.mongodb_port,
         tz_aware=True,
         directConnection=CONFIG.mongodb_direct_connection,
+        replicaSet=CONFIG.mongodb_replica_set,
     )
     database_service = DatabaseService(
         client=mongo_client,
@@ -71,18 +89,45 @@ async def lifespan(application: FastAPI):
             mailing=mailing_service,
             public_base_url=CONFIG.public_base_url,
             activation_token_max_age=CONFIG.activation_token_max_age,
+            password_reset_token_max_age=CONFIG.password_reset_token_max_age,
         )
+        account_service = AccountService(
+            database_service, storage_service, CONFIG.pending_account_retention,
+        )
+        scheduler = AsyncIOScheduler()
+        scheduler.add_job(
+            account_service.purge_expired_pending_accounts,
+            'interval',
+            seconds=CONFIG.account_cleanup_interval,
+            max_instances=1,
+            coalesce=True,
+        )
+        scheduler.add_job(
+            auth_component.purge_expired_api_keys,
+            'interval',
+            seconds=CONFIG.api_key_cleanup_interval,
+            max_instances=1,
+            coalesce=True,
+        )
+        scheduler_started = False
 
         application.state.database_service = database_service
         application.state.mailing_service = mailing_service
         application.state.storage_service = storage_service
         application.state.auth_component = auth_component
+        application.state.account_service = account_service
 
         try:
             await database_service.initialize()
+            for problem in await database_service.check_integrity():
+                LOGGER.warning('Database integrity check: %s', problem)
             await smtp_client.connect()
+            scheduler.start()
+            scheduler_started = True
             yield
         finally:
+            if scheduler_started:
+                scheduler.shutdown(wait=False)
             smtp_client.close()
             await database_service.close()
 
@@ -102,6 +147,14 @@ async def duplicate_key_error_handler(_request: Request,
     )
 
 app.add_middleware(CSRFMiddleware)
+if CONFIG.security_headers_enabled:
+    app.add_middleware(
+        SecurityHeadersMiddleware,
+        content_security_policy=CONFIG.content_security_policy,
+        hsts_max_age=CONFIG.hsts_max_age,
+        hsts_include_subdomains=CONFIG.hsts_include_subdomains,
+        hsts_preload=CONFIG.hsts_preload,
+    )
 app.add_middleware(
     SessionMiddleware,
     secret_key=CONFIG.session_secret,
@@ -111,14 +164,15 @@ app.add_middleware(
     https_only=CONFIG.session_cookie_secure,
 )
 
-app.include_router(auth_router)
-app.include_router(card_import_router)
-app.include_router(resource_router)
-app.include_router(resource_version_router)
-app.include_router(silly_tavern_character_data_router)
-app.include_router(silly_tavern_lorebook_data_router)
-app.include_router(image_data_router)
-app.include_router(image_router)
+for router in (
+    auth_router, card_import_router, resource_router, resource_version_router,
+    silly_tavern_character_data_router, silly_tavern_lorebook_data_router,
+    image_data_router, image_router,
+):
+    app.include_router(router, prefix=CONFIG.api_prefix)
+
+if CONFIG.frontend_dist_path is not None:
+    app.mount('/', SPAStaticFiles(directory=CONFIG.frontend_dist_path, html=True), name='frontend')
 
 
 if __name__ == '__main__':

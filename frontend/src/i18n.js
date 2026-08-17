@@ -1,14 +1,15 @@
 import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
 
-const LOCALE_STORAGE_KEY = 'roleplay-catalogue.locale'
-const ENGLISH = 'en-UK'
-const CHINESE = 'zh-CN'
+export const LOCALE_STORAGE_KEY = 'roleplay-catalogue.locale'
+export const ENGLISH = 'en-uk'
+export const CHINESE = 'zh-cn'
+export const SUPPORTED_LOCALES = [ENGLISH, CHINESE]
 const translations = {
   [ENGLISH]: { translation: {
     app: { title: 'Roleplay Catalogue', tagline: 'Create, version and share', homeLabel: 'Roleplay Catalogue home' },
     nav: { primary: 'Primary navigation', home: 'Home', new: 'New' },
-    account: { myResources: 'My Resources' },
+    account: { profile: 'Profile', myResources: 'My Resources' },
     tags: {
       placeholder: 'Type to find or create a tag', help: 'Press Enter or comma to add a new tag.',
       create: 'Create “{{tag}}”', remove: 'Remove {{tag}}', popular: 'Popular',
@@ -20,7 +21,7 @@ const translations = {
       authorFilter: 'Author: {{author}}', removeAuthorFilter: 'Remove author filter',
       tagsPlaceholder: 'fantasy, adventure', tagsHelp: 'Comma-separated; resources must match every tag.',
       applyFilters: 'Apply filters', clearFilters: 'Clear', searchPlaceholder: 'Search resources',
-      search: 'Search', loading: 'Loading resources…',
+      search: 'Search', loading: 'Loading resources…', loadMore: 'Load more', loadingMore: 'Loading more…',
       loadFailed: 'Resources could not be loaded. Please try again.',
       emptyTitle: 'No resources found', emptyDescription: 'Try another type or clear your filters.',
       imagePlaceholder: 'Resource image placeholder', noDescription: 'No description provided.',
@@ -46,6 +47,15 @@ const translations = {
       backToLogin: 'Back to login',
       activationSuccess: 'Your account is active. You can now log in.',
       activationInvalid: 'This activation link is invalid or has expired.',
+      forgotPassword: 'Forgot password?', accountRecovery: 'Account recovery',
+      resetRequestDescription: 'Enter your email address and we will send a reset link if an active account exists.',
+      resetRequested: 'If an active account uses that address, a password reset link has been sent.',
+      sendReset: 'Send reset link', sendingReset: 'Sending…', resetRequestFailed: 'The reset request could not be sent.',
+      chooseNewPassword: 'Choose a new password', resetConfirmDescription: 'Use at least 8 characters for your new password.',
+      newPassword: 'New password', confirmPassword: 'Confirm new password', passwordMismatch: 'The passwords do not match.',
+      resetPassword: 'Reset password', resettingPassword: 'Resetting…',
+      resetInvalid: 'This password reset link is invalid or has expired.', resetFailed: 'The password could not be reset.',
+      resetSuccess: 'Your password has been changed. You can now log in.',
     },
     resource: {
       newLabel: 'New resource', createTitle: 'Create New Resource',
@@ -113,6 +123,9 @@ const translations = {
       recursiveScanning: 'Recursive scanning', loreEntry: 'Lore entry {{number}}', remove: 'Remove',
       entryName: 'Entry name', keywords: 'Keywords', insertionOrder: 'Insertion order',
       entryContent: 'Entry content', enabled: 'Enabled', constant: 'Always active', useRegex: 'Use regex',
+      delete: 'Delete', deleteConfirm: 'Delete this draft permanently? This cannot be undone.',
+      deleteImageConfirm: 'Delete this image permanently? Published releases using it as a cover may prevent deletion.',
+      deleteFailed: 'The resource could not be deleted.',
     },
     myResources: {
       library: 'Your library', title: 'My Resources',
@@ -150,12 +163,43 @@ const translations = {
       publishTitle: 'Publish this lorebook',
     },
     lorebookDetails: { published: 'Published lorebook', yes: 'Yes' },
+    profile: {
+      account: 'Account', title: 'Your profile', description: 'Manage the account for {{username}}.',
+      language: 'Language', languageHelp: 'Choose the language used on this device.', locale: 'Display language',
+      locales: { enUK: 'English (United Kingdom)', zhCN: '简体中文（中国）' },
+      changePassword: 'Change password', changePasswordHelp: 'Confirm your current password before choosing a new one.',
+      currentPassword: 'Current password', newPassword: 'New password', confirmPassword: 'Confirm new password',
+      changingPassword: 'Changing password…', passwordChanged: 'Your password has been changed.',
+      passwordMismatch: 'The new passwords do not match.', currentPasswordIncorrect: 'The current password is incorrect.',
+      passwordChangeFailed: 'The password could not be changed.',
+      apiKeys: 'API keys', apiKeysHelp: 'Create credentials for external clients. API keys have the same account identity as you.',
+      apiKeyName: 'Key name', apiKeyExpiration: 'Expiration', createApiKey: 'Create API key',
+      creatingApiKey: 'Creating…', apiKeyCreated: 'API key created',
+      apiKeyShownOnce: 'Copy this key now. For security, it will not be shown again.',
+      copyApiKey: 'Copy key', apiKeyCopied: 'Copied', existingApiKeys: 'Existing keys',
+      loadingApiKeys: 'Loading API keys…', noApiKeys: 'You have no API keys.',
+      apiKeyExpires: 'Expires {{date}}', apiKeyNeverExpires: 'Does not expire',
+      revokeApiKey: 'Revoke', revokingApiKey: 'Revoking…', apiKeysLoadFailed: 'API keys could not be loaded.',
+      apiKeyCreateFailed: 'The API key could not be created.', apiKeyRevokeFailed: 'The API key could not be revoked.',
+      apiKeyCopyFailed: 'The API key could not be copied.',
+      apiKeyLifetimes: { oneWeek: '1 week', oneMonth: '1 month', sixMonths: '6 months', oneYear: '1 year', never: 'No expiration' },
+      deleteAccount: 'Delete account',
+      deleteAccountHelp: 'Permanently remove your account and everything you have created.',
+      deleteWarningTitle: 'Delete your account permanently?',
+      deleteWarning: 'This action permanently removes your account and all associated catalogue content.',
+      deleteResources: 'All character and lorebook drafts will be deleted.',
+      deleteReleases: 'All published releases and downloadable artifacts will be deleted.',
+      deleteImages: 'All uploaded images and cover artwork will be deleted.',
+      deleteIrreversible: 'This cannot be undone or recovered.', confirmWithPassword: 'Enter your current password to continue',
+      cancel: 'Cancel', deletePermanently: 'Delete everything', deleting: 'Deleting…',
+      deleteFailed: 'The account could not be deleted.',
+    },
     footer: { project: 'Roleplay Catalogue', copyright: '© {{year}}' },
   } },
   [CHINESE]: { translation: {
     app: { title: '角色扮演资源库', tagline: '创作、版本管理与分享', homeLabel: '角色扮演资源库首页' },
     nav: { primary: '主导航', home: '首页', new: '新建' },
-    account: { myResources: '我的资源' },
+    account: { profile: '个人资料', myResources: '我的资源' },
     tags: {
       placeholder: '输入以查找或创建标签', help: '按 Enter 或逗号添加新标签。',
       create: '创建“{{tag}}”', remove: '删除 {{tag}}', popular: '热门',
@@ -167,7 +211,7 @@ const translations = {
       authorFilter: '作者：{{author}}', removeAuthorFilter: '移除作者筛选',
       tagsPlaceholder: '奇幻, 冒险', tagsHelp: '使用逗号分隔；资源必须包含全部标签。',
       applyFilters: '应用筛选', clearFilters: '清除', searchPlaceholder: '搜索资源',
-      search: '搜索', loading: '正在加载资源…',
+      search: '搜索', loading: '正在加载资源…', loadMore: '加载更多', loadingMore: '正在加载更多…',
       loadFailed: '无法加载资源，请重试。', emptyTitle: '没有找到资源',
       emptyDescription: '请尝试其他类型或清除筛选条件。', imagePlaceholder: '资源图片占位区域',
       noDescription: '暂无描述。',
@@ -187,6 +231,15 @@ const translations = {
       checkEmailDescription: '激活链接已发送至 {{email}}。请先激活账户，然后再登录。',
       backToLogin: '返回登录', activationSuccess: '账户已激活，现在可以登录。',
       activationInvalid: '该激活链接无效或已过期。',
+      forgotPassword: '忘记密码？', accountRecovery: '账户恢复',
+      resetRequestDescription: '请输入邮箱地址。如果存在对应的已激活账户，我们会发送重置链接。',
+      resetRequested: '如果该邮箱对应已激活账户，密码重置链接已发送。',
+      sendReset: '发送重置链接', sendingReset: '正在发送…', resetRequestFailed: '无法发送重置请求。',
+      chooseNewPassword: '设置新密码', resetConfirmDescription: '新密码至少需要 8 个字符。',
+      newPassword: '新密码', confirmPassword: '确认新密码', passwordMismatch: '两次输入的密码不一致。',
+      resetPassword: '重置密码', resettingPassword: '正在重置…',
+      resetInvalid: '该密码重置链接无效或已过期。', resetFailed: '无法重置密码。',
+      resetSuccess: '密码已更新，现在可以登录。',
     },
     resource: {
       newLabel: '新资源', createTitle: '创建新资源',
@@ -245,6 +298,9 @@ const translations = {
       tokenBudget: 'Token 预算', recursiveScanning: '递归扫描', loreEntry: '世界书条目 {{number}}',
       remove: '删除', entryName: '条目名称', keywords: '关键词', insertionOrder: '插入顺序',
       entryContent: '条目内容', enabled: '启用', constant: '始终启用', useRegex: '使用正则表达式',
+      delete: '删除', deleteConfirm: '永久删除此草稿？此操作无法撤销。',
+      deleteImageConfirm: '永久删除此图片？如果已发布版本正在使用它作为封面，删除可能会被阻止。',
+      deleteFailed: '无法删除此资源。',
     },
     myResources: {
       library: '你的资源库', title: '我的资源', description: '管理草稿并继续编辑你的角色卡。',
@@ -276,6 +332,35 @@ const translations = {
       selective: '选择性匹配', caseSensitive: '区分大小写', publishTitle: '发布此世界书',
     },
     lorebookDetails: { published: '已发布世界书', yes: '是' },
+    profile: {
+      account: '账户', title: '个人资料', description: '管理 {{username}} 的账户。',
+      language: '语言', languageHelp: '选择此设备上使用的界面语言。', locale: '显示语言',
+      locales: { enUK: 'English (United Kingdom)', zhCN: '简体中文（中国）' },
+      changePassword: '修改密码', changePasswordHelp: '设置新密码前，请先确认当前密码。',
+      currentPassword: '当前密码', newPassword: '新密码', confirmPassword: '确认新密码',
+      changingPassword: '正在修改密码…', passwordChanged: '密码已修改。',
+      passwordMismatch: '两次输入的新密码不一致。', currentPasswordIncorrect: '当前密码不正确。',
+      passwordChangeFailed: '无法修改密码。',
+      apiKeys: 'API 密钥', apiKeysHelp: '为外部客户端创建凭据。API 密钥代表你的账户身份。',
+      apiKeyName: '密钥名称', apiKeyExpiration: '有效期', createApiKey: '创建 API 密钥',
+      creatingApiKey: '正在创建…', apiKeyCreated: 'API 密钥已创建',
+      apiKeyShownOnce: '请立即复制此密钥。为保障安全，此后不会再次显示。',
+      copyApiKey: '复制密钥', apiKeyCopied: '已复制', existingApiKeys: '现有密钥',
+      loadingApiKeys: '正在加载 API 密钥…', noApiKeys: '你还没有 API 密钥。',
+      apiKeyExpires: '到期日期：{{date}}', apiKeyNeverExpires: '永不过期',
+      revokeApiKey: '撤销', revokingApiKey: '正在撤销…', apiKeysLoadFailed: '无法加载 API 密钥。',
+      apiKeyCreateFailed: '无法创建 API 密钥。', apiKeyRevokeFailed: '无法撤销 API 密钥。',
+      apiKeyCopyFailed: '无法复制 API 密钥。',
+      apiKeyLifetimes: { oneWeek: '1 周', oneMonth: '1 个月', sixMonths: '6 个月', oneYear: '1 年', never: '永不过期' },
+      deleteAccount: '删除账户',
+      deleteAccountHelp: '永久删除账户以及你创建的所有内容。', deleteWarningTitle: '永久删除你的账户？',
+      deleteWarning: '此操作会永久删除账户及其关联的所有资源库内容。',
+      deleteResources: '所有角色卡和世界书草稿都将被删除。',
+      deleteReleases: '所有已发布版本和下载文件都将被删除。',
+      deleteImages: '所有上传图片和封面都将被删除。', deleteIrreversible: '此操作无法撤销或恢复。',
+      confirmWithPassword: '输入当前密码以继续', cancel: '取消', deletePermanently: '删除全部内容',
+      deleting: '正在删除…', deleteFailed: '无法删除账户。',
+    },
     footer: { project: '角色扮演资源库', copyright: '© {{year}}' },
   } },
 }
@@ -283,6 +368,8 @@ const translations = {
 function getInitialLocale() {
   const storedLocale = localStorage.getItem(LOCALE_STORAGE_KEY)
   if (storedLocale === ENGLISH || storedLocale === CHINESE) return storedLocale
+  if (storedLocale?.toLowerCase() === 'en-uk') return ENGLISH
+  if (storedLocale?.toLowerCase() === 'zh-cn') return CHINESE
   return navigator.language?.toLowerCase().startsWith('zh') ? CHINESE : ENGLISH
 }
 
@@ -306,5 +393,14 @@ i18n.on('languageChanged', (locale) => {
   localStorage.setItem(LOCALE_STORAGE_KEY, supportedLocale)
   document.documentElement.lang = supportedLocale
 })
+
+export function changeLocale(locale) {
+  const supportedLocale = locale === CHINESE ? CHINESE : ENGLISH
+  return i18n.changeLanguage(supportedLocale === CHINESE ? 'zh' : 'en')
+}
+
+export function getCurrentLocale() {
+  return localStorage.getItem(LOCALE_STORAGE_KEY) === CHINESE ? CHINESE : ENGLISH
+}
 
 export default i18n

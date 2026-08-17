@@ -3,8 +3,8 @@ from hashlib import sha256
 from io import BytesIO
 from uuid import uuid4
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, File, Form, HTTPException, Query, Request, UploadFile, status
+from fastapi.responses import Response, StreamingResponse
 from PIL import Image, ImageOps, UnidentifiedImageError
 from pydantic import Field
 
@@ -135,22 +135,34 @@ async def create_image_resource(*,
         publishedById=user.id,
     )
 
-    await database.resource.create(resource)
     uploaded = False
+    resource_created = False
     data_created = False
     try:
         await storage.upload(object_key, png, 'image/png')
         uploaded = True
         await storage.wait_until_available(object_key)
-        await database.image_data.create(document)
-        data_created = True
-        await database.resource_version.create(version)
+
+        async def persist_image() -> None:
+            await database.resource.create(resource)
+            await database.image_data.create(document)
+            await database.resource_version.create(version)
+
+        if hasattr(database, 'transaction'):
+            await database.transaction(persist_image)
+        else:
+            await database.resource.create(resource)
+            resource_created = True
+            await database.image_data.create(document)
+            data_created = True
+            await database.resource_version.create(version)
     except Exception:
         if data_created:
             await database.image_data.delete(document.id)
+        if resource_created:
+            await database.resource.delete(resource.id)
         if uploaded:
             await storage.remove(object_key)
-        await database.resource.delete(resource.id)
         raise
     return resource
 
@@ -264,82 +276,133 @@ async def delete_image_resource(image_resource_id: str,
                                 user: AuthenticatedUserDependency,
                                 database: DatabaseDependency,
                                 storage: StorageDependency,
+                                force: bool = Query(False),
                                 ) -> None:
     image = await get_owned_resource(database, image_resource_id, user, ResourceType.IMAGE)
+    referencing_versions = [
+        version for version in await database.resource_version.list_by_cover(image.id)
+        if version.resource_type != ResourceType.IMAGE
+    ]
+    if referencing_versions and not force:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            'Image is used by published releases; retry with force=true to delete them',
+        )
+    object_keys: set[str] = set()
 
-    # Releases retain exact cover references, so removing the image removes every
-    # release which would otherwise become an incomplete immutable snapshot.
-    for version in await database.resource_version.list_by_cover(image.id):
-        if version.resource_type != ResourceType.IMAGE:
-            repository = get_data_repository(database, version.resource_type)
-            await repository.delete(version.data_id)
-        if version.artifact_object_key:
-            await storage.remove(version.artifact_object_key)
-        await database.resource_version.delete(version.id)
+    async def delete_records() -> None:
+        current_references = [
+            version for version in await database.resource_version.list_by_cover(image.id)
+            if version.resource_type != ResourceType.IMAGE
+        ]
+        if current_references and not force:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                'Image is used by published releases; retry with force=true to delete them',
+            )
+        if force:
+            for version in current_references:
+                if version.artifact_object_key:
+                    object_keys.add(version.artifact_object_key)
+                await get_data_repository(database, version.resource_type).delete(version.data_id)
+                await database.resource_version.delete(version.id)
+        await database.resource.clear_cover_reference(image.id)
+        for version in await database.resource_version.list_all_for_resource(image.id):
+            document = await database.image_data.get(version.data_id)
+            if document:
+                object_keys.add(document.object_key)
+            await database.image_data.delete(version.data_id)
+            await database.resource_version.delete(version.id)
+        await database.resource.delete(image.id)
 
-    await database.resource.clear_cover_reference(image.id)
-    image_version = await database.resource_version.get_latest(image.id)
-    if image_version:
-        document = await database.image_data.get(image_version.data_id)
-        if document:
-            await storage.remove(document.object_key)
-            await database.image_data.delete(document.id)
-        await database.resource_version.delete(image_version.id)
-    await database.resource.delete(image.id)
+    if hasattr(database, 'transaction'):
+        await database.transaction(delete_records)
+    else:
+        await delete_records()
+    for object_key in object_keys:
+        await storage.remove(object_key)
 
 
 async def image_response(image: Resource,
                          database: DatabaseDependency,
                          storage: StorageDependency,
-                         ) -> StreamingResponse:
+                         request: Request,
+                         cache_control: str,
+                         ) -> Response:
     version = await database.resource_version.get_latest(image.id)
     document = await database.image_data.get(version.data_id) if version else None
     if not document:
         raise HTTPException(status.HTTP_404_NOT_FOUND, 'Image not found')
+    etag = f'"{document.sha256}"'
+    headers = {'ETag': etag, 'Cache-Control': cache_control}
+    requested_etags = {
+        part.strip() for part in request.headers.get('if-none-match', '').split(',')
+    }
+    if etag in requested_etags or '*' in requested_etags:
+        return Response(status_code=status.HTTP_304_NOT_MODIFIED, headers=headers)
+    headers['Content-Length'] = str(document.byte_size)
     return StreamingResponse(
         storage.fetch(document.object_key),
         media_type=document.content_type,
-        headers={'Content-Length': str(document.byte_size)},
+        headers=headers,
     )
 
 
 @image_router.get('/covers/resources/{resource_id}')
 async def fetch_resource_cover(resource_id: str,
+                               request: Request,
                                user: OptionalAuthenticatedUserDependency,
                                database: DatabaseDependency,
                                storage: StorageDependency,
-                               ) -> StreamingResponse:
+                               ) -> Response:
     resource = await get_readable_resource(database, resource_id, user)
     if not resource.cover_image_resource_id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, 'Resource has no cover image')
     image = await database.resource.get(resource.cover_image_resource_id)
     if not image or image.resource_type != ResourceType.IMAGE:
         raise HTTPException(status.HTTP_404_NOT_FOUND, 'Cover image not found')
-    return await image_response(image, database, storage)
+    cache_control = (
+        'public, max-age=60, must-revalidate'
+        if resource.metadata.visibility == ResourceVisibility.PUBLIC
+        else 'private, no-cache'
+    )
+    return await image_response(image, database, storage, request, cache_control)
 
 
 @image_router.get('/covers/versions/{version_id}')
 async def fetch_version_cover(version_id: str,
+                              request: Request,
                               user: OptionalAuthenticatedUserDependency,
                               database: DatabaseDependency,
                               storage: StorageDependency,
-                              ) -> StreamingResponse:
+                              ) -> Response:
     version = await get_readable_version(database, version_id, user)
     if not version.cover_image_resource_id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, 'Release has no cover image')
     image = await database.resource.get(version.cover_image_resource_id)
     if not image or image.resource_type != ResourceType.IMAGE:
         raise HTTPException(status.HTTP_404_NOT_FOUND, 'Cover image not found')
-    return await image_response(image, database, storage)
+    cache_control = (
+        'public, max-age=31536000, immutable'
+        if version.visibility == ResourceVisibility.PUBLIC
+        else 'private, no-cache'
+    )
+    return await image_response(image, database, storage, request, cache_control)
 
 
 @image_router.get('/{image_resource_id}/content')
 async def fetch_image(image_resource_id: str,
+                      request: Request,
                       user: OptionalAuthenticatedUserDependency,
                       database: DatabaseDependency,
                       storage: StorageDependency,
-                      ) -> StreamingResponse:
+                      ) -> Response:
     image = await get_readable_resource(database, image_resource_id, user)
     if image.resource_type != ResourceType.IMAGE:
         raise HTTPException(status.HTTP_404_NOT_FOUND, 'Image not found')
-    return await image_response(image, database, storage)
+    cache_control = (
+        'public, max-age=31536000, immutable'
+        if image.metadata.visibility == ResourceVisibility.PUBLIC
+        else 'private, no-cache'
+    )
+    return await image_response(image, database, storage, request, cache_control)

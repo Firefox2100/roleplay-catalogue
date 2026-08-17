@@ -1,7 +1,8 @@
 import os
+from pathlib import Path
 from secrets import token_urlsafe
 from typing import Literal
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -19,6 +20,21 @@ class Settings(BaseSettings):
         9798,
         description='Port for the local server. Only relevant if using the start script.'
     )
+    api_prefix: str = Field(
+        '',
+        pattern=r'^$|^/[^/]*$',
+        description='Optional URL prefix for all API routes, for example /api.'
+    )
+    frontend_dist_path: Path | None = Field(
+        None,
+        description='Optional built frontend directory to serve with SPA fallback.'
+    )
+
+    @field_validator('frontend_dist_path', mode='before')
+    @classmethod
+    def blank_frontend_path_is_disabled(cls, value):
+        return None if value == '' else value
+
     logging_level: Literal['CRITICAL', 'ERROR', 'WARNING', 'INFO', 'DEBUG', 'NOTSET'] = Field(
         'INFO',
         description='Logging level for the application'
@@ -39,6 +55,21 @@ class Settings(BaseSettings):
     mongodb_direct_connection: bool = Field(
         False,
         description='Whether to ignore the cluster discovery and connect to the target host directly'
+    )
+    mongodb_replica_set: str | None = Field(
+        None,
+        description='Replica set name. Transactions require a replica set or sharded cluster.'
+    )
+
+    @field_validator('mongodb_replica_set', mode='before')
+    @classmethod
+    def blank_replica_set_is_disabled(cls, value):
+        return None if value == '' else value
+
+    api_key_cleanup_interval: int = Field(
+        21600,
+        ge=60,
+        description='Seconds between expired API key cleanup jobs.',
     )
 
     s3_endpoint_url: str | None = Field(
@@ -108,6 +139,21 @@ class Settings(BaseSettings):
         60 * 60 * 24,
         description='Activation token lifetime in seconds.'
     )
+    pending_account_retention: int = Field(
+        60 * 60 * 24,
+        ge=3600,
+        description='Seconds before an unactivated account is deleted.'
+    )
+    account_cleanup_interval: int = Field(
+        60 * 60 * 6,
+        ge=300,
+        description='Seconds between pending-account cleanup runs.'
+    )
+    password_reset_token_max_age: int = Field(
+        60 * 60,
+        ge=300,
+        description='Password reset token lifetime in seconds.'
+    )
     session_secret: str = Field(
         default_factory=lambda: token_urlsafe(32),
         description='Secret used to sign session cookies. Set this explicitly in production.'
@@ -124,6 +170,23 @@ class Settings(BaseSettings):
         False,
         description='Only send the session cookie over HTTPS.'
     )
+    security_headers_enabled: bool = Field(
+        True,
+        description='Add baseline browser security headers to HTTP responses.'
+    )
+    content_security_policy: str = Field(
+        "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; "
+        "script-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; "
+        "frame-ancestors 'none'; form-action 'self'",
+        description='Content-Security-Policy value. Override for external frontend dependencies.'
+    )
+    hsts_max_age: int = Field(
+        0,
+        ge=0,
+        description='Strict-Transport-Security max-age. Zero disables HSTS.'
+    )
+    hsts_include_subdomains: bool = Field(False)
+    hsts_preload: bool = Field(False)
 
 
 CONFIG = Settings(_env_file=os.getenv('RC_ENV_FILE', '.env'))      # type: ignore

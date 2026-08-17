@@ -54,14 +54,15 @@ export function MyResourcesPage() {
   const location = useLocation()
   const [selectedType, setSelectedType] = useState('')
   const [resources, setResources] = useState([])
+  const [nextOffset, setNextOffset] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState('')
 
   useEffect(() => {
     if (!user) return undefined
     let active = true
-    listResources({ author: user.username, limit: 100 })
-      .then((items) => { if (active) setResources(items) })
+    listResources({ author: user.username, limit: 50 })
+      .then((page) => { if (active) { setResources(page.items); setNextOffset(page.nextOffset) } })
       .catch(() => { if (active) setError(t('myResources.loadFailed')) })
       .finally(() => { if (active) setIsLoading(false) })
     return () => { active = false }
@@ -79,6 +80,16 @@ export function MyResourcesPage() {
   const visibleResources = selectedType
     ? resources.filter((resource) => resource.resourceType === selectedType)
     : resources
+
+  async function loadMore() {
+    if (nextOffset === null) return
+    setIsLoading(true); setError('')
+    try {
+      const page = await listResources({ author: user.username, limit: 50, offset: nextOffset })
+      setResources((current) => [...current, ...page.items]); setNextOffset(page.nextOffset)
+    } catch { setError(t('myResources.loadFailed')) }
+    finally { setIsLoading(false) }
+  }
 
   return (
     <section className="my-resources-page" aria-labelledby="my-resources-heading">
@@ -112,6 +123,11 @@ export function MyResourcesPage() {
             <PersonalResourceCard key={resource.id} resource={resource} />
           ))}
         </div>
+      )}
+      {resources.length > 0 && nextOffset !== null && (
+        <button className="load-more-button" type="button" disabled={isLoading} onClick={loadMore}>
+          {isLoading ? t('home.loadingMore') : t('home.loadMore')}
+        </button>
       )}
     </section>
   )

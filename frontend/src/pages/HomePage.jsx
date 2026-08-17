@@ -54,13 +54,14 @@ export function HomePage() {
   const [filters, setFilters] = useState({ tags: [], author: '', searchString: '' })
   const [search, setSearch] = useState('')
   const [resources, setResources] = useState([])
+  const [nextOffset, setNextOffset] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState('')
 
   useEffect(() => {
     let active = true
     listResources({ resourceType: selectedType, publishedOnly: true, ...filters })
-      .then((items) => { if (active) setResources(items) })
+      .then((page) => { if (active) { setResources(page.items); setNextOffset(page.nextOffset) } })
       .catch(() => { if (active) setError(t('home.loadFailed')) })
       .finally(() => { if (active) setIsLoading(false) })
     return () => { active = false }
@@ -110,6 +111,19 @@ export function HomePage() {
     setFilters((current) => ({ ...current, searchString: search.trim() }))
   }
 
+  async function loadMore() {
+    if (nextOffset === null) return
+    setIsLoading(true); setError('')
+    try {
+      const page = await listResources({
+        resourceType: selectedType, publishedOnly: true, ...filters, offset: nextOffset,
+      })
+      setResources((current) => [...current, ...page.items])
+      setNextOffset(page.nextOffset)
+    } catch { setError(t('home.loadFailed')) }
+    finally { setIsLoading(false) }
+  }
+
   return (
     <section className="home-page" aria-labelledby="catalogue-heading">
       <h1 id="catalogue-heading" className="visually-hidden">{t('home.label')}</h1>
@@ -152,7 +166,7 @@ export function HomePage() {
               placeholder={t('home.searchPlaceholder')} aria-label={t('home.searchPlaceholder')} />
             <button type="submit">{t('home.search')}</button>
           </form>
-          {isLoading ? (
+          {isLoading && resources.length === 0 ? (
             <div className="catalogue-message" role="status">{t('home.loading')}</div>
           ) : error ? (
             <div className="catalogue-message error" role="alert">{error}</div>
@@ -167,6 +181,11 @@ export function HomePage() {
                 <ResourceCard key={resource.id} resource={resource} onSelectAuthor={selectAuthor} />
               ))}
             </div>
+          )}
+          {resources.length > 0 && nextOffset !== null && (
+            <button className="load-more-button" type="button" disabled={isLoading} onClick={loadMore}>
+              {isLoading ? t('home.loadingMore') : t('home.loadMore')}
+            </button>
           )}
         </div>
       </div>

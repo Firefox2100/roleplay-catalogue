@@ -10,6 +10,11 @@ from .activation_token import ActivationTokenRepository
 from .resource import ResourceRepository
 from .resource_data import ResourceDataRepository
 from .resource_version import ResourceVersionRepository
+from .password_reset_token import PasswordResetTokenRepository
+from .api_key import ApiKeyRepository
+from .indexes import ensure_indexes
+from .integrity import check_integrity
+from .transaction import CURRENT_SESSION
 
 
 class DatabaseService:
@@ -29,6 +34,14 @@ class DatabaseService:
     @property
     def activation_token(self) -> ActivationTokenRepository:
         return ActivationTokenRepository(self._db)
+
+    @property
+    def password_reset_token(self) -> PasswordResetTokenRepository:
+        return PasswordResetTokenRepository(self._db)
+
+    @property
+    def api_key(self) -> ApiKeyRepository:
+        return ApiKeyRepository(self._db)
 
     @property
     def resource(self) -> ResourceRepository:
@@ -61,30 +74,21 @@ class DatabaseService:
         return ResourceDataRepository(self._db, 'image_data', ImageDataDocument)
 
     async def initialize(self) -> None:
-        await self._db['users'].create_index('id', unique=True)
-        await self._db['users'].create_index('username', unique=True)
-        await self._db['activation_tokens'].create_index('username', unique=True)
-        await self._db['activation_tokens'].create_index('expiresAt', expireAfterSeconds=0)
-        await self._db['resources'].create_index('id', unique=True)
-        await self._db['resources'].create_index([('authorId', 1), ('updatedAt', -1)])
-        await self._db['resources'].create_index([('metadata.visibility', 1), ('updatedAt', -1)])
-        await self._db['resources'].create_index([('resourceType', 1), ('updatedAt', -1)])
-        await self._db['resources'].create_index('metadata.tags')
-        await self._db['resource_versions'].create_index('id', unique=True)
-        await self._db['resource_versions'].create_index(
-            [('resourceId', 1), ('versionNumber', -1)],
-            unique=True,
-        )
-        await self._db['resource_versions'].create_index('coverImageResourceId')
+        await ensure_indexes(self._db)
 
-        for collection_name in (
-                'sillytavern_character_data',
-                'sillytavern_lorebook_data',
-                'image_data',
-        ):
-            await self._db[collection_name].create_index('id', unique=True)
-            await self._db[collection_name].create_index('resourceId')
-        await self._db['image_data'].create_index('sha256')
+    async def check_integrity(self) -> list[str]:
+        return await check_integrity(self._db)
+
+    async def transaction(self, operation):
+        async with self._client.start_session() as session:
+            async def run_in_context(active_session):
+                token = CURRENT_SESSION.set(active_session)
+                try:
+                    return await operation()
+                finally:
+                    CURRENT_SESSION.reset(token)
+
+            return await session.with_transaction(run_in_context)
 
     async def close(self) -> None:
         await self._client.close()

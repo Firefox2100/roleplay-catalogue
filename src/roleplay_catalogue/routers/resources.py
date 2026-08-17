@@ -59,6 +59,7 @@ class ResourceUpdateRequest(CommonModel):
 
     name: str = Field(..., min_length=1, max_length=200)
     description: str = Field('', max_length=10_000)
+    visibility: ResourceVisibility
     tags: list[str] = Field(default_factory=list, max_length=50)
 
     @field_validator('name')
@@ -79,6 +80,11 @@ class ResourceDataUpsertRequest(CommonModel):
 
 class ResourceListItem(Resource):
     author_username: str = Field(..., alias='authorUsername')
+
+
+class ResourceListResponse(CommonModel):
+    items: list[ResourceListItem]
+    next_offset: int | None = Field(None, alias='nextOffset')
 
 
 ResourceDataResponse = (
@@ -143,7 +149,7 @@ async def create_resource(payload: ResourceCreateRequest,
     return await database.resource.create(resource)
 
 
-@resource_router.get('', response_model=list[ResourceListItem])
+@resource_router.get('', response_model=ResourceListResponse)
 async def list_resources(database: DatabaseDependency,
                          user: OptionalAuthenticatedUserDependency,
                          offset: int = Query(0, ge=0),
@@ -156,12 +162,12 @@ async def list_resources(database: DatabaseDependency,
                          author: str | None = Query(None, min_length=1, max_length=100),
                          published_only: bool = Query(False, alias='publishedOnly'),
                          search_string: str | None = Query(None, max_length=200),
-                         ) -> list[ResourceListItem]:
+                         ) -> ResourceListResponse:
     author_id = None
     if author:
         author_user = await database.user.get_by_username(author.strip())
         if not author_user:
-            return []
+            return ResourceListResponse(items=[])
         author_id = author_user.id
 
     normalised_tags = list(dict.fromkeys(
@@ -173,18 +179,24 @@ async def list_resources(database: DatabaseDependency,
     resources = await database.resource.list_visible(
         user.id if user else None,
         offset,
-        limit,
+        limit + 1,
         resource_type=resource_type,
         tags=normalised_tags,
         author_id=author_id,
         published_resource_ids=published_resource_ids,
         search_string=search_string.strip() if search_string else None,
     )
+    has_more = len(resources) > limit
+    resources = resources[:limit]
     users = await database.user.get_many({resource.author_id for resource in resources})
-    return [ResourceListItem(
+    items = [ResourceListItem(
         **resource.model_dump(by_alias=True),
         authorUsername=users[resource.author_id].username,
     ) for resource in resources if resource.author_id in users]
+    return ResourceListResponse(
+        items=items,
+        nextOffset=offset + limit if has_more else None,
+    )
 
 
 @resource_router.get('/tags', response_model=list[str])
@@ -273,7 +285,7 @@ async def update_resource(resource_id: str,
         'metadata': ResourceMetadata(
             name=payload.name,
             description=payload.description.strip(),
-            visibility=resource.metadata.visibility,
+            visibility=payload.visibility,
             tags=tuple(tag.strip() for tag in payload.tags if tag.strip()),
         ),
         'updated_at': utc_now(),
@@ -293,7 +305,13 @@ async def delete_resource(resource_id: str,
             'Published resources cannot be deleted',
         )
 
-    if resource.draft_data_id:
-        repository = get_data_repository(database, resource.resource_type)
-        await repository.delete(resource.draft_data_id)
-    await database.resource.delete(resource.id)
+    async def delete_records() -> None:
+        if resource.draft_data_id:
+            repository = get_data_repository(database, resource.resource_type)
+            await repository.delete(resource.draft_data_id)
+        await database.resource.delete(resource.id)
+
+    if hasattr(database, 'transaction'):
+        await database.transaction(delete_records)
+    else:
+        await delete_records()

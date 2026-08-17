@@ -55,6 +55,9 @@ function UserMenu({ username }) {
       </button>
       {isOpen && (
         <div className="account-dropdown" role="menu">
+          <Link to="/profile" role="menuitem" onClick={() => setIsOpen(false)}>
+            {t('account.profile')}
+          </Link>
           <Link to="/resources/mine" role="menuitem" onClick={() => setIsOpen(false)}>
             {t('account.myResources')}
           </Link>

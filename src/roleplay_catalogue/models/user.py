@@ -1,8 +1,13 @@
+from datetime import datetime, timezone
 from uuid import uuid4
 from pydantic import Field
 
 from roleplay_catalogue.misc import UserRole, UserStatus
 from .common import CommonModel
+
+
+def utc_now() -> datetime:
+    return datetime.now(timezone.utc)
 
 
 class User(CommonModel):
@@ -30,4 +35,9 @@ class User(CommonModel):
     status: UserStatus = Field(
         UserStatus.ACTIVE,
         description='Account activation and access status',
+    )
+    created_at: datetime = Field(
+        default_factory=utc_now,
+        description='Time at which the account was created',
+        alias='createdAt',
     )

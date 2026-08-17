@@ -26,8 +26,13 @@ export function AuthProvider({ children }) {
     setUser(null)
   }, [])
 
-  const value = useMemo(() => ({ user, isLoading, login, logout }), [
-    user, isLoading, login, logout,
+  const deleteAccount = useCallback(async (password) => {
+    await authApi.deleteAccount(password)
+    setUser(null)
+  }, [])
+
+  const value = useMemo(() => ({ user, isLoading, login, logout, deleteAccount }), [
+    user, isLoading, login, logout, deleteAccount,
   ])
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

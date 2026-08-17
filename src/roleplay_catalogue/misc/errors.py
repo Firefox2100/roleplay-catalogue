@@ -39,3 +39,11 @@ class InvalidActivationToken(RoleplayCatalogueException):
                  status_code: int = 400,
                  ):
         super().__init__(message, status_code)
+
+
+class InvalidPasswordResetToken(RoleplayCatalogueException):
+    def __init__(self,
+                 message: str = 'Invalid or expired password reset token',
+                 status_code: int = 400,
+                 ):
+        super().__init__(message, status_code)

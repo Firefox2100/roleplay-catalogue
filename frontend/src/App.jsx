@@ -12,6 +12,7 @@ import { CharacterDetailPage } from './pages/CharacterDetailPage.jsx'
 import { ImageDetailPage } from './pages/ImageDetailPage.jsx'
 import { LorebookEditorPage } from './pages/LorebookEditorPage.jsx'
 import { LorebookDetailPage } from './pages/LorebookDetailPage.jsx'
+import { ProfilePage } from './pages/ProfilePage.jsx'
 import './App.css'
 
 function App() {
@@ -21,7 +22,9 @@ function App() {
         <Route element={<Layout />}>
           <Route index element={<HomePage />} />
           <Route path="login" element={<LoginPage />} />
+          <Route path="reset-password" element={<LoginPage />} />
           <Route path="register" element={<RegisterPage />} />
+          <Route path="profile" element={<ProfilePage />} />
           <Route path="resources/new" element={<CreateResourcePage />} />
           <Route path="resources/mine" element={<MyResourcesPage />} />
           <Route path="resources/:resourceId/edit" element={<CharacterEditorPage />} />

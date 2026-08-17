@@ -98,6 +98,16 @@ async def test_state_changing_requests_require_csrf_token() -> None:
         assert response.status_code == 403
 
 
+async def test_security_headers_are_added_without_hsts_by_default() -> None:
+    async with get_client() as client:
+        response = await client.get('/auth/csrf')
+
+    assert response.headers['x-content-type-options'] == 'nosniff'
+    assert response.headers['referrer-policy'] == 'strict-origin-when-cross-origin'
+    assert "frame-ancestors 'none'" in response.headers['content-security-policy']
+    assert 'strict-transport-security' not in response.headers
+
+
 async def test_invalid_credentials_do_not_create_authenticated_session() -> None:
     async with get_client() as client:
         csrf_token = (await client.get('/auth/csrf')).json()['csrfToken']

@@ -1,9 +1,11 @@
 from typing import Annotated
 from fastapi import Depends, HTTPException, Request, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from roleplay_catalogue.components import AuthComponent
+from roleplay_catalogue.misc import UserCredentialMismatch
 from roleplay_catalogue.models import User
-from roleplay_catalogue.services import DatabaseService, MailingService, StorageService
+from roleplay_catalogue.services import AccountService, DatabaseService, MailingService, StorageService
 
 
 def get_auth_component(request: Request) -> AuthComponent:
@@ -20,6 +22,10 @@ def get_mailing_service(request: Request) -> MailingService:
 
 def get_storage_service(request: Request) -> StorageService:
     return request.app.state.storage_service
+
+
+def get_account_service(request: Request) -> AccountService:
+    return request.app.state.account_service
 
 
 AuthDependency = Annotated[
@@ -43,6 +49,12 @@ MailingDependency = Annotated[
 StorageDependency = Annotated[
     StorageService,
     Depends(get_storage_service),
+]
+
+
+AccountDependency = Annotated[
+    AccountService,
+    Depends(get_account_service),
 ]
 
 
@@ -89,4 +101,33 @@ async def optionally_authenticate_user(request: Request,
 OptionalAuthenticatedUserDependency = Annotated[
     User | None,
     Depends(optionally_authenticate_user),
+]
+
+
+api_key_bearer = HTTPBearer(auto_error=False)
+
+
+async def authenticate_api_key(
+        auth: AuthDependency,
+        credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(api_key_bearer)],
+        ) -> User:
+    if not credentials or credentials.scheme.casefold() != 'bearer':
+        raise HTTPException(
+            status.HTTP_401_UNAUTHORIZED,
+            'API key authentication required',
+            headers={'WWW-Authenticate': 'Bearer'},
+        )
+    try:
+        return await auth.authenticate_api_key(credentials.credentials)
+    except UserCredentialMismatch as error:
+        raise HTTPException(
+            status.HTTP_401_UNAUTHORIZED,
+            'Invalid or expired API key',
+            headers={'WWW-Authenticate': 'Bearer'},
+        ) from error
+
+
+ApiKeyAuthenticatedUserDependency = Annotated[
+    User,
+    Depends(authenticate_api_key),
 ]

@@ -40,3 +40,38 @@ class CSRFMiddleware:
             return
 
         await self._app(scope, receive, send)
+
+
+class SecurityHeadersMiddleware:
+    def __init__(self, app: ASGIApp, *, content_security_policy: str,
+                 hsts_max_age: int = 0, hsts_include_subdomains: bool = False,
+                 hsts_preload: bool = False):
+        self._app = app
+        self._headers = [
+            (b'x-content-type-options', b'nosniff'),
+            (b'referrer-policy', b'strict-origin-when-cross-origin'),
+            (b'permissions-policy', b'camera=(), microphone=(), geolocation=()'),
+            (b'content-security-policy', content_security_policy.encode('latin-1')),
+        ]
+        if hsts_max_age:
+            value = f'max-age={hsts_max_age}'
+            if hsts_include_subdomains:
+                value += '; includeSubDomains'
+            if hsts_preload:
+                value += '; preload'
+            self._headers.append((b'strict-transport-security', value.encode('ascii')))
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope['type'] != 'http':
+            await self._app(scope, receive, send)
+            return
+
+        async def send_with_headers(message):
+            if message['type'] == 'http.response.start':
+                existing = {name.lower() for name, _value in message['headers']}
+                message['headers'].extend(
+                    header for header in self._headers if header[0] not in existing
+                )
+            await send(message)
+
+        await self._app(scope, receive, send_with_headers)

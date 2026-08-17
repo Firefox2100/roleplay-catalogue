@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Navigate, useLocation, useParams } from 'react-router-dom'
+import { Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
 import {
-  draftDownloadUrl, getResource, getResourceData, importLorebook, listResources,
+  deleteResource, draftDownloadUrl, getResource, getResourceData, importLorebook, listResources,
   listResourceVersions, publishResource, saveResourceData, selectCharacterCover,
   updateResource, updateVersionVisibility, uploadCharacterCover,
 } from '../api/resources.js'
@@ -34,11 +34,12 @@ export function LorebookEditorPage() {
   const { t } = useTranslation()
   const { resourceId } = useParams()
   const location = useLocation()
+  const navigate = useNavigate()
   const { user, isLoading: isAuthLoading } = useAuth()
   const importInput = useRef(null)
   const imageInput = useRef(null)
   const [resource, setResource] = useState(location.state?.resource ?? null)
-  const [resourceFields, setResourceFields] = useState({ name: '', description: '', tags: [] })
+  const [resourceFields, setResourceFields] = useState({ name: '', description: '', visibility: 'private', tags: [] })
   const [book, setBook] = useState(EMPTY_BOOK)
   const [entries, setEntries] = useState([])
   const [versions, setVersions] = useState([])
@@ -69,6 +70,7 @@ export function LorebookEditorPage() {
       setResourceFields({
         name: loadedResource.metadata.name,
         description: loadedResource.metadata.description,
+        visibility: loadedResource.metadata.visibility,
         tags: loadedResource.metadata.tags ?? [],
       })
       setCoverImageId(loadedResource.coverImageResourceId ?? '')
@@ -97,7 +99,7 @@ export function LorebookEditorPage() {
     if (!user) return undefined
     let active = true
     listResources({ resourceType: 'core/image', author: user.username, limit: 100 })
-      .then((images) => { if (active) setAvailableImages(images) }).catch(() => {})
+      .then((page) => { if (active) setAvailableImages(page.items) }).catch(() => {})
     return () => { active = false }
   }, [user])
 
@@ -207,12 +209,19 @@ export function LorebookEditorPage() {
     } catch { setError(t('editor.visibilityUpdateFailed')) }
   }
 
+  async function removeResource() {
+    if (!window.confirm(t('editor.deleteConfirm'))) return
+    try { await deleteResource(resourceId, resource.resourceType); navigate('/resources/mine', { replace: true }) }
+    catch { setError(t('editor.deleteFailed')) }
+  }
+
   return (
     <section className="character-editor-page">
       <form className="character-editor" onSubmit={save}>
         <div className="editor-toolbar">
           <div><span className="eyebrow">{t('lorebookEditor.draft')}</span><h1>{resource.metadata.name}</h1></div>
           <div className="editor-actions">
+            <button className="danger-button" type="button" onClick={removeResource}>{t('editor.delete')}</button>
             <button type="button" onClick={() => setIsPublishOpen(true)}>{t('editor.publish')}</button>
             <button type="button" disabled={busy === 'import'} onClick={() => importInput.current?.click()}>
               {busy === 'import' ? t('editor.importing') : t('editor.upload')}
@@ -234,6 +243,11 @@ export function LorebookEditorPage() {
           <div className="editor-field-grid">
             <label>{t('resource.name')}<input required maxLength={200} value={resourceFields.name}
               onChange={(event) => setResourceFields((current) => ({ ...current, name: event.target.value }))} /></label>
+            <label>{t('resource.visibility')}<select value={resourceFields.visibility}
+              onChange={(event) => setResourceFields((current) => ({ ...current, visibility: event.target.value }))}>
+              {['private', 'authenticated', 'public'].map((visibility) => <option key={visibility} value={visibility}>
+                {t(`resource.visibilities.${visibility}`)}</option>)}
+            </select></label>
             <label className="wide-field">{t('resource.description')}<textarea rows={4}
               value={resourceFields.description} onChange={(event) => setResourceFields((current) => ({
                 ...current, description: event.target.value,
