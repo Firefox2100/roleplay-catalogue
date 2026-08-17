@@ -231,7 +231,7 @@
 .resource-created dl div { padding: 14px 0; display: grid; grid-template-columns: 130px 1fr; gap: 16px; border-bottom: 1px solid var(--line); }
 .resource-created dt { color: var(--ink-muted); font-size: 13px; }
 .resource-created dd { margin: 0; font-size: 14px; overflow-wrap: anywhere; }
-.completion-actions { display: flex; align-items: center; gap: 20px; }
+.completion-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 20px; }
 .completion-actions .primary-button { min-width: 180px; margin: 0; padding: 0 20px; }
 .completion-actions a { color: var(--brand-dark); font-size: 14px; font-weight: 750; }
 .page-loading { width: 100%; padding: 80px 20px; color: var(--ink-muted); text-align: center; }
@@ -240,7 +240,7 @@
 .character-editor { width: min(1120px, 100%); margin: 0 auto; }
 .editor-toolbar { margin-bottom: 24px; display: flex; align-items: end; justify-content: space-between; gap: 24px; }
 .editor-toolbar h1 { margin: 6px 0 0; font-family: Georgia, "Times New Roman", serif; font-size: clamp(27px, 4vw, 36px); font-weight: 600; }
-.editor-actions { display: flex; gap: 8px; }
+.editor-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
 .editor-actions button, .editor-action-link { min-height: 42px; padding: 0 16px; display: inline-flex; align-items: center; border: 1px solid var(--line-strong); border-radius: 10px; color: var(--ink); background: var(--surface); font-weight: 700; text-decoration: none; cursor: pointer; }
 .editor-actions button:hover:not(:disabled) { border-color: var(--brand); }
 .editor-actions button:disabled { opacity: 0.48; cursor: not-allowed; }
@@ -249,7 +249,7 @@
 .editor-message.error { color: var(--danger); background: #f8e8e5; }
 .editor-message.success { color: #285c3a; background: #e7f3e9; }
 .editor-summary { margin-top: 24px; padding: 25px; display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 32px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); box-shadow: 0 8px 28px rgba(43, 33, 24, 0.07); }
-.character-image-picker { aspect-ratio: 3 / 4; padding: 20px; display: grid; place-items: center; align-content: center; gap: 8px; overflow: hidden; border: 1px dashed var(--brand); border-radius: 13px; color: var(--brand-dark); background: linear-gradient(145deg, #f1ece4, #ebe2f7); cursor: pointer; }
+.character-image-picker { aspect-ratio: 3 / 4; padding: 20px; display: grid; place-items: center; align-content: center; gap: 8px; overflow: hidden; border: 1px dashed var(--brand); border-radius: 13px; color: var(--brand-dark); background: linear-gradient(145deg, #f1ece4, #ebe2f7); white-space: normal; cursor: pointer; }
 .character-image-picker > span { font-size: 36px; font-weight: 300; }
 .character-image-picker strong { font-size: 14px; }
 .character-image-picker small { color: var(--ink-muted); font-size: 11px; line-height: 1.4; }
@@ -293,7 +293,7 @@
 .cover-picker-heading > button { width: 34px; height: 34px; border: 0; border-radius: 8px; background: transparent; font-size: 24px; cursor: pointer; }
 .cover-upload-button { width: 100%; min-height: 45px; margin: 22px 0; border: 1px dashed var(--brand); border-radius: 10px; color: var(--brand-dark); background: var(--brand-soft); font-weight: 750; cursor: pointer; }
 .existing-image-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(125px, 1fr)); gap: 13px; }
-.existing-image-grid button { min-width: 0; padding: 7px 7px 10px; border: 1px solid var(--line); border-radius: 11px; background: var(--surface); text-align: left; cursor: pointer; }
+.existing-image-grid button { min-width: 0; padding: 7px 7px 10px; border: 1px solid var(--line); border-radius: 11px; background: var(--surface); text-align: left; white-space: normal; cursor: pointer; }
 .existing-image-grid button:hover { border-color: var(--brand); }
 .existing-image-grid img { width: 100%; aspect-ratio: 3 / 4; display: block; border-radius: 7px; object-fit: cover; background: #eee8df; }
 .existing-image-grid span { margin-top: 7px; display: block; overflow: hidden; font-size: 11px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
@@ -308,7 +308,7 @@
 .publish-dialog .save-button { min-height: 43px; border: 0; border-radius: 10px; color: white; background: linear-gradient(135deg, var(--brand), var(--brand-dark)); font-weight: 750; cursor: pointer; }
 .catalogue-card.clickable { cursor: pointer; }
 .catalogue-card.clickable:focus-visible { outline: 3px solid var(--brand-soft); outline-offset: 3px; }
-.detail-version-actions { display: flex; gap: 9px; align-items: center; }
+.detail-version-actions { display: flex; flex-wrap: wrap; gap: 9px; align-items: center; }
 .detail-version-actions select { min-width: 150px; height: 42px; padding: 0 12px; border: 1px solid var(--line-strong); border-radius: 10px; background: white; }
 .detail-version-actions .save-button, .image-editor-heading a.save-button { min-height: 42px; padding: 0 18px; display: inline-flex; align-items: center; border-radius: 10px; color: white; background: linear-gradient(135deg, var(--brand), var(--brand-dark)); font-weight: 750; text-decoration: none; }
 .detail-version-actions button { min-height: 42px; padding: 0 14px; border: 1px solid var(--line-strong); border-radius: 10px; color: var(--ink); background: var(--surface); font-weight: 700; cursor: pointer; }
@@ -324,7 +324,7 @@
 .image-detail-metadata { display: grid; gap: 24px; }
 .image-editor-page { width: 100%; padding: 45px 20px 90px; }
 .image-editor-card { width: min(960px, 100%); margin: 0 auto; padding: 28px; border: 1px solid var(--line); border-radius: 20px; background: var(--surface); box-shadow: var(--shadow); }
-.image-editor-heading { margin-bottom: 25px; display: flex; align-items: end; justify-content: space-between; gap: 20px; }
+.image-editor-heading { margin-bottom: 25px; display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 20px; }
 .image-editor-heading h1 { margin: 7px 0 0; font-family: Georgia, "Times New Roman", serif; font-size: clamp(28px, 5vw, 38px); font-weight: 600; }
 .image-editor-heading .save-button { min-height: 43px; padding: 0 21px; border: 0; border-radius: 10px; color: white; background: linear-gradient(135deg, var(--brand), var(--brand-dark)); font-weight: 750; cursor: pointer; }
 .image-editor-layout { display: grid; grid-template-columns: minmax(240px, 380px) 1fr; gap: 30px; align-items: start; }
@@ -391,7 +391,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .delete-account-dialog form, .delete-account-dialog label { display: grid; }
 .delete-account-dialog label { gap: 7px; font-size: 13px; font-weight: 750; }
 .delete-account-dialog input { width: 100%; height: 46px; margin-bottom: 17px; padding: 0 13px; border: 1px solid var(--line-strong); border-radius: 10px; font: inherit; }
-.modal-actions { display: flex; justify-content: flex-end; gap: 10px; }
+.modal-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; }
 .modal-actions button { min-height: 43px; padding: 0 16px; border: 1px solid var(--line-strong); border-radius: 9px; background: white; font-weight: 750; cursor: pointer; }
 .modal-actions .confirm-delete-button { border-color: #b42318; color: white; background: #b42318; }
 .modal-actions button:disabled { opacity: .6; cursor: wait; }
@@ -417,8 +417,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   .resource-form-card { padding: 30px 22px; border-radius: 18px; }
   .character-editor-page { padding: 24px 12px 70px; }
   .editor-toolbar { align-items: start; flex-direction: column; }
-  .editor-actions { width: 100%; display: grid; grid-template-columns: repeat(5, 1fr); }
-  .editor-actions button, .editor-action-link { min-width: 0; padding: 0 7px; justify-content: center; font-size: 12px; }
+  .editor-actions { width: 100%; display: grid; grid-template-columns: repeat(auto-fit, minmax(88px, 1fr)); }
+  .editor-actions button, .editor-action-link { min-width: 0; padding: 0 10px; justify-content: center; font-size: 12px; }
   .editor-summary { padding: 18px; grid-template-columns: 1fr; }
   .character-image-picker { width: min(250px, 100%); margin: 0 auto; }
   .editor-field-grid { grid-template-columns: 1fr; }
