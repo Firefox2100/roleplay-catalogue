@@ -22,7 +22,7 @@ def world_zip(*, spec_version: str = '1.0', duplicate_id: bool = False) -> bytes
         }))
         archive.writestr('world.json', json.dumps({
             'id': world_id, 'name': 'Test world', 'starting_time': '2026-01-01T00:00:00Z',
-            'language': 'en', 'cover_media_id': 'cover-1',
+            'language': 'en', 'cover_media_id': 'cover-1', 'metadata': {'tags': ['imported']},
         }))
         archive.writestr('author.json', 'null')
         archive.writestr('data/locations.jsonl', json.dumps({
@@ -64,7 +64,7 @@ def test_catalogue_metadata_controls_exported_world_language_and_description() -
         resourceType=ResourceType.WORLD_SIMULATION_WORLD,
         authorId='author',
         metadata=ResourceMetadata(
-            name='目录世界', description='目录描述', language='zh-cn',
+            name='目录世界', description='目录描述', language='zh-cn', tags=('catalogue',),
         ),
     )
 
@@ -73,5 +73,6 @@ def test_catalogue_metadata_controls_exported_world_language_and_description() -
     assert updated.world['name'] == '目录世界'
     assert updated.world['description'] == '目录描述'
     assert updated.world['language'] == 'zh'
+    assert updated.world['metadata']['tags'] == ['catalogue']
     assert resource_language_from_world('zh').value == 'zh-cn'
     assert resource_language_from_world('en').value == 'en-uk'

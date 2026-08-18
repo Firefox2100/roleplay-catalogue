@@ -49,7 +49,7 @@ function emptyWorld(name, description) {
   const id = crypto.randomUUID()
   return {
     spec: 'wse_world', specVersion: '1.0',
-    world: { id, name, description, starting_time: new Date().toISOString(), version: 1, url: null, language: 'en', metadata: { author: null, author_url: null, resource_url: null, comment: null, version: null }, creation_time: new Date().toISOString(), cover_media_id: null },
+    world: { id, name, description, starting_time: new Date().toISOString(), version: 1, url: null, language: 'en', metadata: { author: null, author_url: null, resource_url: null, comment: null, version: null, tags: [] }, creation_time: new Date().toISOString(), cover_media_id: null },
     author: null,
     sections: Object.fromEntries(Object.keys(SECTION_TEMPLATES).map((key) => [key, []])),
     configs: { chat: [], embed: [], image: [], tts: [] }, prompts: [], workflows: [], media: [],
@@ -180,7 +180,7 @@ export function WorldEditorPage() {
   async function save() {
     setBusy('save'); setError(''); setMessage('')
     try {
-      const nextBundle = { ...bundle, world: { ...bundle.world, name: metadata.name, description: metadata.description, language: metadata.language === 'zh-cn' ? 'zh' : 'en' } }
+      const nextBundle = { ...bundle, world: { ...bundle.world, name: metadata.name, description: metadata.description, language: metadata.language === 'zh-cn' ? 'zh' : 'en', metadata: { ...(bundle.world.metadata ?? {}), tags: metadata.tags } } }
       const [updated] = await Promise.all([updateResource(resourceId, metadata), saveResourceData(resourceId, nextBundle)])
       setResource(updated); setBundle(nextBundle); setMessage(t('world.saved'))
     } catch { setError(t('world.saveFailed')) } finally { setBusy('') }
@@ -194,7 +194,7 @@ export function WorldEditorPage() {
   async function publish() {
     setBusy('publish'); setError('')
     try {
-      const nextBundle = { ...bundle, world: { ...bundle.world, name: metadata.name, description: metadata.description, language: metadata.language === 'zh-cn' ? 'zh' : 'en' } }
+      const nextBundle = { ...bundle, world: { ...bundle.world, name: metadata.name, description: metadata.description, language: metadata.language === 'zh-cn' ? 'zh' : 'en', metadata: { ...(bundle.world.metadata ?? {}), tags: metadata.tags } } }
       const [updated] = await Promise.all([updateResource(resourceId, metadata), saveResourceData(resourceId, nextBundle)])
       setResource(updated); setBundle(nextBundle)
       const version = await publishResource(resourceId, releaseVersion)

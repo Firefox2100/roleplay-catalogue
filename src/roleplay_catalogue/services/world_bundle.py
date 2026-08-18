@@ -25,11 +25,13 @@ class ParsedWorldBundle:
 def apply_resource_metadata_to_world(data: WorldBundleData, resource) -> WorldBundleData:
     """Translate catalogue metadata into the World Engine's v1.0 vocabulary."""
     language = {'en-uk': 'en', 'zh-cn': 'zh'}[resource.metadata.language.value]
+    world_metadata = {**(data.world.get('metadata') or {}), 'tags': list(resource.metadata.tags)}
     return data.model_copy(update={'world': {
         **data.world,
         'name': resource.metadata.name,
         'description': resource.metadata.description or None,
         'language': language,
+        'metadata': world_metadata,
     }})
 
 

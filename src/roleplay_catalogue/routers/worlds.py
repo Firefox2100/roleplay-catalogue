@@ -72,6 +72,9 @@ async def import_world_bundle(resource_id: str,
     cover = next((item.image_resource_id for item in references
                   if item.media_id == cover_media_id), None)
     imported_language = resource_language_from_world(data.world['language'])
+    imported_tags = (data.world.get('metadata') or {}).get('tags', [])
+    merged_tags = list(resource.metadata.tags)
+    merged_tags.extend(tag for tag in imported_tags if tag not in merged_tags)
 
     async def persist() -> None:
         if existing:
@@ -86,7 +89,7 @@ async def import_world_bundle(resource_id: str,
                 description=resource.metadata.description or data.world.get('description') or '',
                 language=imported_language,
                 visibility=resource.metadata.visibility,
-                tags=resource.metadata.tags,
+                tags=tuple(merged_tags),
             ),
             'updated_at': utc_now(),
         }))

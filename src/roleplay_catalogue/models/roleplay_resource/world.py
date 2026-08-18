@@ -56,6 +56,9 @@ class WorldBundleData(CommonModel):
             raise ValueError(f"World is missing required fields: {', '.join(missing)}")
         if self.world.get('language') not in ('en', 'zh'):
             raise ValueError('World language must be en or zh')
+        world_tags = (self.world.get('metadata') or {}).get('tags', [])
+        if not isinstance(world_tags, list) or not all(isinstance(tag, str) for tag in world_tags):
+            raise ValueError('World metadata tags must be a list of strings')
         unknown_sections = set(self.sections) - set(WORLD_SECTION_NAMES)
         if unknown_sections:
             raise ValueError(f'Unknown world sections: {sorted(unknown_sections)}')
