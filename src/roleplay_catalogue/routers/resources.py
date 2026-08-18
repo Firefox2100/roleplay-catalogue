@@ -8,11 +8,14 @@ from roleplay_catalogue.models import (
     CommonModel,
     ImageData,
     ImageDataDocument,
+    LorebookReference,
     Resource,
     ResourceLanguage,
     ResourceMetadata,
     ResourceType,
     ResourceVisibility,
+    SillyTavernPresetData,
+    SillyTavernPresetDataDocument,
     WorldBundleData,
     WorldDataDocument,
 )
@@ -25,7 +28,9 @@ from roleplay_catalogue.models.roleplay_resource.silly_tavern import (
 from roleplay_catalogue.models.roleplay_resource.silly_tavern.card_v3 import (
     SillyTavernCardV3LoreBook,
 )
-from .resource_utils import get_data_repository, get_owned_resource, get_readable_resource
+from .resource_utils import (
+    get_data_repository, get_owned_resource, get_readable_resource, get_readable_version,
+)
 from .utils import (
     AuthenticatedUserDependency,
     DatabaseDependency,
@@ -66,8 +71,8 @@ class ResourceUpdateRequest(CommonModel):
     language: ResourceLanguage | None = None
     visibility: ResourceVisibility
     tags: list[str] = Field(default_factory=list, max_length=50)
-    linked_lorebook_resource_ids: list[str] | None = Field(
-        None, max_length=50, alias='linkedLorebookResourceIds',
+    linked_lorebooks: list[LorebookReference] | None = Field(
+        None, max_length=50, alias='linkedLorebooks',
     )
 
     @field_validator('name')
@@ -99,16 +104,18 @@ ResourceDataResponse = (
     SillyTavernCharacterDataDocument |
     SillyTavernLorebookDataDocument |
     ImageDataDocument |
+    SillyTavernPresetDataDocument |
     WorldDataDocument
 )
 
 
 def validate_resource_data(resource_type: ResourceType,
                            data: dict[str, Any],
-                           ) -> SillyTavernCharacterData | SillyTavernCardV3LoreBook | ImageData | WorldBundleData:
+                           ) -> SillyTavernCharacterData | SillyTavernCardV3LoreBook | SillyTavernPresetData | ImageData | WorldBundleData:
     models = {
         ResourceType.SILLY_TAVERN_CHARACTER: SillyTavernCharacterData,
         ResourceType.SILLY_TAVERN_LOREBOOK: SillyTavernCardV3LoreBook,
+        ResourceType.SILLY_TAVERN_PRESET: SillyTavernPresetData,
         ResourceType.IMAGE: ImageData,
         ResourceType.WORLD_SIMULATION_WORLD: WorldBundleData,
     }
@@ -121,11 +128,12 @@ def validate_resource_data(resource_type: ResourceType,
 
 
 def create_data_document(resource: Resource,
-                         data: SillyTavernCharacterData | SillyTavernCardV3LoreBook | ImageData | WorldBundleData,
+                         data: SillyTavernCharacterData | SillyTavernCardV3LoreBook | SillyTavernPresetData | ImageData | WorldBundleData,
                          ) -> ResourceDataResponse:
     models = {
         ResourceType.SILLY_TAVERN_CHARACTER: SillyTavernCharacterDataDocument,
         ResourceType.SILLY_TAVERN_LOREBOOK: SillyTavernLorebookDataDocument,
+        ResourceType.SILLY_TAVERN_PRESET: SillyTavernPresetDataDocument,
         ResourceType.IMAGE: ImageDataDocument,
         ResourceType.WORLD_SIMULATION_WORLD: WorldDataDocument,
     }
@@ -293,13 +301,23 @@ async def update_resource(resource_id: str,
                           user: AuthenticatedUserDependency,
                           ) -> Resource:
     resource = await get_owned_resource(database, resource_id, user)
-    linked_lorebooks = resource.linked_lorebook_resource_ids
-    if payload.linked_lorebook_resource_ids is not None:
+    linked_lorebooks = resource.linked_lorebooks
+    if payload.linked_lorebooks is not None:
         if resource.resource_type != ResourceType.SILLY_TAVERN_CHARACTER:
             raise HTTPException(status.HTTP_409_CONFLICT, 'Only character cards can link lorebooks')
-        linked_lorebooks = tuple(dict.fromkeys(payload.linked_lorebook_resource_ids))
-        for lorebook_id in linked_lorebooks:
-            await get_owned_resource(database, lorebook_id, user, ResourceType.SILLY_TAVERN_LOREBOOK)
+        if len({link.resource_id for link in payload.linked_lorebooks}) != len(payload.linked_lorebooks):
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, 'A lorebook can only be linked once')
+        linked_lorebooks = tuple(payload.linked_lorebooks)
+        for link in linked_lorebooks:
+            if link.version_id is None:
+                await get_owned_resource(
+                    database, link.resource_id, user, ResourceType.SILLY_TAVERN_LOREBOOK,
+                )
+                continue
+            version = await get_readable_version(database, link.version_id, user)
+            if version.resource_id != link.resource_id or \
+                    version.resource_type != ResourceType.SILLY_TAVERN_LOREBOOK:
+                raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, 'Invalid lorebook release link')
     updated = resource.model_copy(update={
         'metadata': ResourceMetadata(
             name=payload.name,
@@ -308,7 +326,7 @@ async def update_resource(resource_id: str,
             visibility=payload.visibility,
             tags=tuple(tag.strip() for tag in payload.tags if tag.strip()),
         ),
-        'linked_lorebook_resource_ids': linked_lorebooks,
+        'linked_lorebooks': linked_lorebooks,
         'updated_at': utc_now(),
     })
     return await database.resource.update(updated)

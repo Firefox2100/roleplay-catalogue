@@ -15,6 +15,8 @@ import { LorebookDetailPage } from './pages/LorebookDetailPage.jsx'
 import { ProfilePage } from './pages/ProfilePage.jsx'
 import { WorldEditorPage } from './pages/WorldEditorPage.jsx'
 import { WorldDetailPage } from './pages/WorldDetailPage.jsx'
+import { PresetEditorPage } from './pages/PresetEditorPage.jsx'
+import { PresetDetailPage } from './pages/PresetDetailPage.jsx'
 import './App.css'
 
 function App() {
@@ -33,10 +35,12 @@ function App() {
           <Route path="images/:resourceId/edit" element={<ImageEditorPage />} />
           <Route path="lorebooks/:resourceId/edit" element={<LorebookEditorPage />} />
           <Route path="worlds/:resourceId/edit" element={<WorldEditorPage />} />
+          <Route path="presets/:resourceId/edit" element={<PresetEditorPage />} />
           <Route path="characters/:resourceId" element={<CharacterDetailPage />} />
           <Route path="images/:resourceId" element={<ImageDetailPage />} />
           <Route path="lorebooks/:resourceId" element={<LorebookDetailPage />} />
           <Route path="worlds/:resourceId" element={<WorldDetailPage />} />
+          <Route path="presets/:resourceId" element={<PresetDetailPage />} />
           <Route path="*" element={<HomePage />} />
         </Route>
       </Routes>

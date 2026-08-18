@@ -127,7 +127,7 @@ class ResourceRepository:
 
     async def exists_lorebook_reference(self, lorebook_resource_id: str) -> bool:
         return await self._collection.find_one(
-            {'linkedLorebookResourceIds': lorebook_resource_id},
+            {'linkedLorebooks.resourceId': lorebook_resource_id},
             {'_id': 1},
             session=current_session(),
         ) is not None

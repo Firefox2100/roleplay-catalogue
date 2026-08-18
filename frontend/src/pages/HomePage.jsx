@@ -9,6 +9,7 @@ const RESOURCE_TABS = [
   { value: '', label: 'all' },
   { value: 'sillytavern/character', label: 'characters' },
   { value: 'sillytavern/lorebook', label: 'lorebooks' },
+  { value: 'sillytavern/preset', label: 'presets' },
   { value: 'core/image', label: 'images' },
   { value: 'world-simulation-engine/world', label: 'worlds' },
 ]
@@ -23,8 +24,10 @@ function ResourceCard({ resource, onSelectAuthor }) {
     : resource.resourceType === 'sillytavern/character'
       ? `/characters/${resource.id}`
       : resource.resourceType === 'sillytavern/lorebook' ? `/lorebooks/${resource.id}` : ''
+  const presetDetailPath = resource.resourceType === 'sillytavern/preset'
+    ? `/presets/${resource.id}` : detailPath
   const resolvedDetailPath = resource.resourceType === 'world-simulation-engine/world'
-    ? `/worlds/${resource.id}` : detailPath
+    ? `/worlds/${resource.id}` : presetDetailPath
 
   return (
     <article className={`catalogue-card${resolvedDetailPath ? ' clickable' : ''}`}

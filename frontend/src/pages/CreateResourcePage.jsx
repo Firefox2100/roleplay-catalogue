@@ -8,6 +8,7 @@ import { TagEditor } from '../components/TagEditor.jsx'
 const RESOURCE_TYPES = [
   'sillytavern/character',
   'sillytavern/lorebook',
+  'sillytavern/preset',
   'core/image',
   'world-simulation-engine/world',
 ]
@@ -52,9 +53,12 @@ export function CreateResourcePage() {
         : await createResource({ resourceType, name, description, language, visibility, tags })
       if (resource.resourceType === 'sillytavern/character' ||
           resource.resourceType === 'sillytavern/lorebook' ||
+          resource.resourceType === 'sillytavern/preset' ||
           resource.resourceType === 'world-simulation-engine/world') {
         const editorPath = resource.resourceType === 'sillytavern/lorebook'
           ? `/lorebooks/${resource.id}/edit`
+          : resource.resourceType === 'sillytavern/preset'
+            ? `/presets/${resource.id}/edit`
           : resource.resourceType === 'world-simulation-engine/world'
             ? `/worlds/${resource.id}/edit`
             : `/resources/${resource.id}/edit`

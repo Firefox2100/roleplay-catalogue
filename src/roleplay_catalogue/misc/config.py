@@ -107,6 +107,11 @@ class Settings(BaseSettings):
         ge=1_048_576,
         description='Maximum compressed World bundle upload size.',
     )
+    preset_max_bytes: int = Field(
+        5 * 1024 * 1024,
+        ge=1024,
+        description='Maximum accepted SillyTavern preset JSON size.',
+    )
 
     smtp_host: str = Field(
         '127.0.0.1',

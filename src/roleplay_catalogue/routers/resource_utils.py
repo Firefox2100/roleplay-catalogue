@@ -65,6 +65,7 @@ def get_data_repository(database: DatabaseService,
     attribute = {
         ResourceType.SILLY_TAVERN_CHARACTER: 'silly_tavern_character_data',
         ResourceType.SILLY_TAVERN_LOREBOOK: 'silly_tavern_lorebook_data',
+        ResourceType.SILLY_TAVERN_PRESET: 'silly_tavern_preset_data',
         ResourceType.IMAGE: 'image_data',
         ResourceType.WORLD_SIMULATION_WORLD: 'world_data',
     }[resource_type]

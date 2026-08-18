@@ -66,7 +66,7 @@ export function CharacterEditorPage() {
   const [coverImageId, setCoverImageId] = useState(resource?.coverImageResourceId ?? '')
   const [availableImages, setAvailableImages] = useState([])
   const [availableLorebooks, setAvailableLorebooks] = useState([])
-  const [linkedLorebookIds, setLinkedLorebookIds] = useState([])
+  const [linkedLorebooks, setLinkedLorebooks] = useState([])
   const [isCoverPickerOpen, setIsCoverPickerOpen] = useState(false)
   const [isUploadingImage, setIsUploadingImage] = useState(false)
   const [isImportingCard, setIsImportingCard] = useState(false)
@@ -97,7 +97,7 @@ export function CharacterEditorPage() {
       }
       setResource(loadedResource)
       setCoverImageId(loadedResource.coverImageResourceId ?? '')
-      setLinkedLorebookIds(loadedResource.linkedLorebookResourceIds ?? [])
+      setLinkedLorebooks(loadedResource.linkedLorebooks ?? (loadedResource.linkedLorebookResourceIds ?? []).map((resourceId) => ({ resourceId, versionId: null })))
       setResourceFields({
         name: loadedResource.metadata.name,
         description: loadedResource.metadata.description,
@@ -154,8 +154,11 @@ export function CharacterEditorPage() {
   useEffect(() => {
     if (!user) return undefined
     let active = true
-    listResources({ resourceType: 'sillytavern/lorebook', author: user.username, limit: 100 })
-      .then((page) => { if (active) setAvailableLorebooks(page.items) })
+    listResources({ resourceType: 'sillytavern/lorebook', limit: 100 })
+      .then(async (page) => Promise.all(page.items.map(async (item) => ({
+        ...item, versions: await listResourceVersions(item.id).catch(() => []),
+      }))))
+      .then((items) => { if (active) setAvailableLorebooks(items) })
       .catch(() => {})
     return () => { active = false }
   }, [user])
@@ -239,7 +242,7 @@ export function CharacterEditorPage() {
 
   async function persistDraft() {
     const updatedResource = await updateResource(resourceId, {
-      ...resourceFields, linkedLorebookResourceIds: linkedLorebookIds,
+      ...resourceFields, linkedLorebooks,
     })
     setResource(updatedResource)
     await saveResourceData(resourceId, makeDraftData())
@@ -262,6 +265,10 @@ export function CharacterEditorPage() {
 
   async function publishCurrentDraft() {
     if (!releaseVersion.trim()) return
+    if (linkedLorebooks.some((link) => !link.versionId)) {
+      setError(t('editor.selectLorebookReleases'))
+      return
+    }
     setError('')
     setSaveState('')
     setIsPublishing(true)
@@ -509,14 +516,22 @@ export function CharacterEditorPage() {
           <div className="section-heading"><div><h2>{t('editor.linkedLorebooks')}</h2>
             <p>{t('editor.linkedLorebooksHelp')}</p></div></div>
           {availableLorebooks.length ? <div className="linked-lorebook-options">
-            {availableLorebooks.map((lorebook) => <label key={lorebook.id}>
-              <input type="checkbox" checked={linkedLorebookIds.includes(lorebook.id)}
-                onChange={(event) => setLinkedLorebookIds((current) => event.target.checked
-                  ? [...current, lorebook.id]
-                  : current.filter((id) => id !== lorebook.id))} />
-              <span><strong>{lorebook.metadata.name}</strong>
+            {availableLorebooks.map((lorebook) => {
+              const link = linkedLorebooks.find((item) => item.resourceId === lorebook.id)
+              const value = link ? (link.versionId || 'draft') : ''
+              const ownsDraft = lorebook.authorId === user.id && lorebook.draftDataId
+              return <label key={lorebook.id}><span><strong>{lorebook.metadata.name}</strong>
+                <small>{t('editor.byAuthor', { author: lorebook.authorUsername })}</small>
                 {lorebook.metadata.description && <small>{lorebook.metadata.description}</small>}</span>
-            </label>)}
+                <select value={value} onChange={(event) => setLinkedLorebooks((current) => {
+                  const others = current.filter((item) => item.resourceId !== lorebook.id)
+                  if (!event.target.value) return others
+                  return [...others, { resourceId: lorebook.id, versionId: event.target.value === 'draft' ? null : event.target.value }]
+                })}><option value="">{t('editor.notLinked')}</option>
+                  {ownsDraft && <option value="draft">{t('editor.currentDraft')}</option>}
+                  {lorebook.versions.map((version) => <option key={version.id} value={version.id}>{t('editor.releaseOption', { version: version.version })}</option>)}
+                </select></label>
+            })}
           </div> : <p className="empty-releases">{t('editor.noLorebooks')}</p>}
         </section>
 

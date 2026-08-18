@@ -1,6 +1,6 @@
 from pymongo import AsyncMongoClient
 
-from roleplay_catalogue.models import ImageDataDocument, WorldDataDocument
+from roleplay_catalogue.models import ImageDataDocument, SillyTavernPresetDataDocument, WorldDataDocument
 from roleplay_catalogue.models.roleplay_resource.silly_tavern import (
     SillyTavernCharacterDataDocument,
     SillyTavernLorebookDataDocument,
@@ -67,6 +67,12 @@ class DatabaseService:
             self._db,
             'sillytavern_lorebook_data',
             SillyTavernLorebookDataDocument,
+        )
+
+    @property
+    def silly_tavern_preset_data(self) -> ResourceDataRepository[SillyTavernPresetDataDocument]:
+        return ResourceDataRepository(
+            self._db, 'sillytavern_preset_data', SillyTavernPresetDataDocument,
         )
 
     @property

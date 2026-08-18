@@ -14,6 +14,7 @@ class UserStatus(StrEnum):
 class ResourceType(StrEnum):
     SILLY_TAVERN_CHARACTER = 'sillytavern/character'
     SILLY_TAVERN_LOREBOOK = 'sillytavern/lorebook'
+    SILLY_TAVERN_PRESET = 'sillytavern/preset'
     IMAGE = 'core/image'
     WORLD_SIMULATION_WORLD = 'world-simulation-engine/world'
 

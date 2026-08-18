@@ -10,7 +10,7 @@ from fastapi.responses import Response, StreamingResponse
 from PIL import Image, PngImagePlugin
 from pydantic import Field, field_validator
 
-from roleplay_catalogue.models import CommonModel, ResourceType, ResourceVersion, ResourceVisibility
+from roleplay_catalogue.models import CommonModel, LorebookReference, ResourceType, ResourceVersion, ResourceVisibility
 from roleplay_catalogue.models import Resource, ResourceMetadata, ResourceVersionReference
 from roleplay_catalogue.models.roleplay_resource.resource import utc_now
 from roleplay_catalogue.models.roleplay_resource.silly_tavern import (
@@ -86,19 +86,33 @@ async def build_character_artifact(*, database: DatabaseDependency,
 
 
 async def merge_linked_lorebooks(character: SillyTavernCardV3Data,
-                                 lorebook_ids: tuple[str, ...],
+                                 links: tuple[LorebookReference, ...],
                                  database: DatabaseDependency,
-                                 *, published_only: bool = False,
+                                 *, character_author_id: str,
+                                 character_author_name: str,
+                                 require_releases: bool = False,
                                  required_visibility: ResourceVisibility | None = None,
                                  ) -> SillyTavernCardV3Data:
     """Embed linked books in selection order, retaining private-book settings as the base."""
     books: list[SillyTavernCardV3LoreBook] = []
-    for lorebook_id in lorebook_ids:
-        resource = await database.resource.get(lorebook_id)
+    authors = [character_author_name] if character.character_book else []
+    for link in links:
+        resource = await database.resource.get(link.resource_id)
         if not resource or resource.resource_type != ResourceType.SILLY_TAVERN_LOREBOOK:
             raise HTTPException(status.HTTP_409_CONFLICT, 'A linked lorebook no longer exists')
-        version = await database.resource_version.get_latest(resource.id)
-        if published_only and version and required_visibility:
+        if require_releases and link.version_id is None:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                'Character releases cannot link lorebook drafts; select a lorebook release first',
+            )
+        version = await database.resource_version.get(link.version_id) if link.version_id else None
+        if version and (version.resource_id != resource.id or
+                        version.resource_type != ResourceType.SILLY_TAVERN_LOREBOOK):
+            raise HTTPException(status.HTTP_409_CONFLICT, 'A linked lorebook release is invalid')
+        if version and version.visibility == ResourceVisibility.PRIVATE and \
+                resource.author_id != character_author_id:
+            raise HTTPException(status.HTTP_409_CONFLICT, 'A linked lorebook release is no longer readable')
+        if version and required_visibility:
             permitted = {
                 ResourceVisibility.PRIVATE: set(ResourceVisibility),
                 ResourceVisibility.AUTHENTICATED: {
@@ -111,27 +125,60 @@ async def merge_linked_lorebooks(character: SillyTavernCardV3Data,
                     status.HTTP_409_CONFLICT,
                     'A linked lorebook release is less visible than the character release',
                 )
+        if link.version_id is None and resource.author_id != character_author_id:
+            raise HTTPException(status.HTTP_409_CONFLICT, 'Only owned lorebook drafts may be linked')
         document = None
-        if not published_only and resource.draft_data_id:
+        if link.version_id is None and resource.draft_data_id:
             document = await database.silly_tavern_lorebook_data.get(resource.draft_data_id)
-        if not document:
+        elif version:
             document = (
                 await database.silly_tavern_lorebook_data.get(version.data_id)
-                if version else None
             )
         if not document:
-            detail = 'published release' if published_only else 'content'
-            raise HTTPException(status.HTTP_409_CONFLICT, f'A linked lorebook has no {detail}')
+            raise HTTPException(status.HTTP_409_CONFLICT, 'A linked lorebook has no selected content')
         books.append(document.data)
+        lorebook_author = await database.user.get(resource.author_id)
+        if lorebook_author and lorebook_author.username not in authors:
+            authors.append(lorebook_author.username)
 
     if not books:
-        return character
+        if not character.character_book:
+            return character
+        return character.model_copy(update={'character_book': character.character_book.model_copy(
+            update={'author': ', '.join(authors)},
+        )})
     base = character.character_book or books[0]
     linked_entries = [entry for book in books for entry in book.entries]
     if character.character_book is None:
         linked_entries = [entry for book in books[1:] for entry in book.entries]
-    merged = base.model_copy(update={'entries': [*base.entries, *linked_entries]})
+    merged = base.model_copy(update={
+        'entries': [*base.entries, *linked_entries],
+        'author': ', '.join(authors),
+    })
     return character.model_copy(update={'character_book': merged})
+
+
+async def snapshot_lorebook_references(links: tuple[LorebookReference, ...],
+                                       database: DatabaseDependency,
+                                       ) -> tuple[LorebookReference, ...]:
+    snapshots = []
+    for link in links:
+        if not link.version_id:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                'Character releases cannot link lorebook drafts; select a lorebook release first',
+            )
+        version = await database.resource_version.get(link.version_id)
+        resource = await database.resource.get(link.resource_id)
+        author = await database.user.get(resource.author_id) if resource else None
+        if not version or not resource or version.resource_id != resource.id or not author:
+            raise HTTPException(status.HTTP_409_CONFLICT, 'A linked lorebook release is invalid')
+        snapshots.append(link.model_copy(update={
+            'name': version.metadata.name,
+            'author': author.username,
+            'version': version.version,
+        }))
+    return tuple(snapshots)
 
 
 async def resolve_download_asset(version: ResourceVersion,
@@ -161,6 +208,7 @@ async def export_resource_draft(resource_id: str, database: DatabaseDependency,
     if resource.resource_type not in (
             ResourceType.SILLY_TAVERN_CHARACTER,
             ResourceType.SILLY_TAVERN_LOREBOOK,
+            ResourceType.SILLY_TAVERN_PRESET,
             ResourceType.WORLD_SIMULATION_WORLD,
     ):
         raise HTTPException(status.HTTP_409_CONFLICT, 'Resource type cannot be exported')
@@ -180,7 +228,10 @@ async def export_resource_draft(resource_id: str, database: DatabaseDependency,
             'creator': draft.data.creator or author.username,
         })
         artifact_data = await merge_linked_lorebooks(
-            data, resource.linked_lorebook_resource_ids, database,
+            data, resource.linked_lorebooks, database,
+            character_author_id=resource.author_id,
+            character_author_name=author.username,
+            required_visibility=resource.metadata.visibility,
         )
         card = SillyTavernCardV3(spec='chara_card_v3', spec_version='3.0', data=artifact_data)
         artifact, content_type, extension = await build_character_artifact(
@@ -195,6 +246,10 @@ async def export_resource_draft(resource_id: str, database: DatabaseDependency,
         artifact = SillyTavernLorebookV3(
             spec='lorebook_v3', data=data,
         ).model_dump_json(exclude_none=True).encode('utf-8')
+        content_type, extension = 'application/json', '.json'
+    elif resource.resource_type == ResourceType.SILLY_TAVERN_PRESET:
+        data = draft.data
+        artifact = data.model_dump_json(by_alias=True).encode('utf-8')
         content_type, extension = 'application/json', '.json'
     else:
         data = apply_resource_metadata_to_world(draft.data, resource)
@@ -221,6 +276,7 @@ async def publish_resource(resource_id: str, payload: PublishResourceRequest,
     if resource.resource_type not in (
             ResourceType.SILLY_TAVERN_CHARACTER,
             ResourceType.SILLY_TAVERN_LOREBOOK,
+            ResourceType.SILLY_TAVERN_PRESET,
             ResourceType.WORLD_SIMULATION_WORLD,
     ):
         raise HTTPException(status.HTTP_409_CONFLICT, 'This resource type cannot be published yet')
@@ -241,8 +297,14 @@ async def publish_resource(resource_id: str, payload: PublishResourceRequest,
             'creator': draft.data.creator or author.username,
             'character_version': draft.data.character_version or payload.version,
         })
+        release_lorebooks = await snapshot_lorebook_references(
+            resource.linked_lorebooks, database,
+        )
         artifact_data = await merge_linked_lorebooks(
-            snapshot_data, resource.linked_lorebook_resource_ids, database, published_only=True,
+            snapshot_data, release_lorebooks, database,
+            character_author_id=resource.author_id,
+            character_author_name=author.username,
+            require_releases=True,
             required_visibility=resource.metadata.visibility,
         )
         card = SillyTavernCardV3(
@@ -260,6 +322,10 @@ async def publish_resource(resource_id: str, payload: PublishResourceRequest,
         artifact = SillyTavernLorebookV3(
             spec='lorebook_v3', data=snapshot_data,
         ).model_dump_json(exclude_none=True).encode('utf-8')
+        content_type, extension = 'application/json', '.json'
+    elif resource.resource_type == ResourceType.SILLY_TAVERN_PRESET:
+        snapshot_data = draft.data
+        artifact = snapshot_data.model_dump_json(by_alias=True).encode('utf-8')
         content_type, extension = 'application/json', '.json'
     else:
         snapshot_data = apply_resource_metadata_to_world(draft.data, resource)
@@ -282,7 +348,9 @@ async def publish_resource(resource_id: str, payload: PublishResourceRequest,
             id=version_id, resourceId=resource.id, resourceType=resource.resource_type,
             versionNumber=latest.version_number + 1 if latest else 1, version=payload.version,
             dataId=snapshot.id, coverImageResourceId=resource.cover_image_resource_id,
-            linkedLorebookResourceIds=resource.linked_lorebook_resource_ids,
+            linkedLorebooks=(release_lorebooks
+                             if resource.resource_type == ResourceType.SILLY_TAVERN_CHARACTER
+                             else ()),
             metadata=resource.metadata, visibility=resource.metadata.visibility,
             artifactObjectKey=object_key, artifactContentType=content_type,
             artifactFileName=file_name, artifactByteSize=len(artifact),
@@ -369,6 +437,7 @@ async def fork_resource_version(version_id: str, database: DatabaseDependency,
     if version.resource_type not in (
             ResourceType.SILLY_TAVERN_CHARACTER,
             ResourceType.SILLY_TAVERN_LOREBOOK,
+            ResourceType.SILLY_TAVERN_PRESET,
             ResourceType.WORLD_SIMULATION_WORLD,
     ):
         raise HTTPException(status.HTTP_409_CONFLICT, 'This release type cannot be forked')
@@ -434,7 +503,7 @@ async def fork_resource_version(version_id: str, database: DatabaseDependency,
         ),
         draftDataId=draft.id,
         coverImageResourceId=cover_image_resource_id,
-        linkedLorebookResourceIds=version.linked_lorebook_resource_ids,
+        linkedLorebooks=version.linked_lorebooks,
         forkedFrom=ResourceVersionReference(
             resourceId=version.resource_id,
             versionId=version.id,

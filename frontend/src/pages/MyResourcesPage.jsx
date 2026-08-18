@@ -9,6 +9,7 @@ const RESOURCE_TABS = [
   { value: '', label: 'all' },
   { value: 'sillytavern/character', label: 'characters' },
   { value: 'sillytavern/lorebook', label: 'lorebooks' },
+  { value: 'sillytavern/preset', label: 'presets' },
   { value: 'core/image', label: 'images' },
   { value: 'world-simulation-engine/world', label: 'worlds' },
 ]
@@ -17,9 +18,10 @@ function PersonalResourceCard({ resource }) {
   const { t } = useTranslation()
   const isCharacter = resource.resourceType === 'sillytavern/character'
   const isLorebook = resource.resourceType === 'sillytavern/lorebook'
+  const isPreset = resource.resourceType === 'sillytavern/preset'
   const isImage = resource.resourceType === 'core/image'
   const isWorld = resource.resourceType === 'world-simulation-engine/world'
-  const isEditable = isCharacter || isLorebook || isImage || isWorld
+  const isEditable = isCharacter || isLorebook || isPreset || isImage || isWorld
   const imageUrl = resourceImageUrl(resource)
   const content = (
     <article className={`catalogue-card ${isEditable ? 'editable' : 'unavailable'}`}>
@@ -42,6 +44,7 @@ function PersonalResourceCard({ resource }) {
   const editorPath = isImage
     ? `/images/${resource.id}/edit`
     : isLorebook ? `/lorebooks/${resource.id}/edit`
+    : isPreset ? `/presets/${resource.id}/edit`
       : isWorld ? `/worlds/${resource.id}/edit` : `/resources/${resource.id}/edit`
   return (
     <Link className="my-resource-link" to={editorPath}

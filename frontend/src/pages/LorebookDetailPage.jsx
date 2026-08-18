@@ -21,6 +21,7 @@ export function LorebookDetailPage() {
   const { resourceId } = useParams()
   const navigate = useNavigate()
   const location = useLocation()
+  const requestedVersion = new URLSearchParams(location.search).get('version')
   const { user } = useAuth()
   const [resource, setResource] = useState(null)
   const [versions, setVersions] = useState([])
@@ -38,10 +39,11 @@ export function LorebookDetailPage() {
         if (loadedResource.resourceType !== 'sillytavern/lorebook' || !loadedVersions.length) {
           throw new Error('Published lorebook not found')
         }
-        setResource(loadedResource); setVersions(loadedVersions); setSelectedId(loadedVersions[0].id)
+        const initial = loadedVersions.find((version) => version.id === requestedVersion) ?? loadedVersions[0]
+        setResource(loadedResource); setVersions(loadedVersions); setSelectedId(initial.id)
       }).catch(() => { if (active) setError(t('details.loadFailed')) })
     return () => { active = false }
-  }, [resourceId, t])
+  }, [resourceId, requestedVersion, t])
 
   useEffect(() => {
     if (!selectedId) return undefined

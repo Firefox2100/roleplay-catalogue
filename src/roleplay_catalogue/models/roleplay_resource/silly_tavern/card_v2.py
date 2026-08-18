@@ -75,6 +75,10 @@ class SillyTavernCardV2BookEntry(BaseModel):
 
 
 class SillyTavernCardV2CharacterBook(BaseModel):
+    author: Optional[str] = Field(
+        None,
+        description='Compound attribution for an embedded lorebook assembled from multiple authors',
+    )
     name: Optional[str] = Field(
         None,
         description="The name of the character lore book",

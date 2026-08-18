@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from pydantic import ConfigDict, Field
+from pydantic import ConfigDict, Field, model_validator
 
 from roleplay_catalogue.models.common import CommonModel
 from roleplay_catalogue.misc import ResourceLanguage, ResourceType, ResourceVisibility
@@ -62,6 +62,19 @@ class ResourceVersionReference(CommonModel):
     )
 
 
+class LorebookReference(CommonModel):
+    model_config = ConfigDict(frozen=True, serialize_by_alias=True)
+
+    resource_id: str = Field(..., alias='resourceId')
+    version_id: str | None = Field(
+        None, alias='versionId',
+        description='Exact release ID, or null when following an owned lorebook draft',
+    )
+    name: str | None = Field(None, description='Lorebook name captured for release display')
+    author: str | None = Field(None, description='Lorebook author username captured for attribution')
+    version: str | None = Field(None, description='Lorebook release label captured for display')
+
+
 class Resource(CommonModel):
     id: str = Field(
         default_factory=lambda: str(uuid4()),
@@ -91,11 +104,22 @@ class Resource(CommonModel):
         description='Immutable image resource used as the current draft cover',
         alias='coverImageResourceId',
     )
-    linked_lorebook_resource_ids: tuple[str, ...] = Field(
+    linked_lorebooks: tuple[LorebookReference, ...] = Field(
         default_factory=tuple,
-        description='Standalone lorebooks linked to a mutable character draft',
-        alias='linkedLorebookResourceIds',
+        description='Standalone lorebook drafts or exact releases linked to this character draft',
+        alias='linkedLorebooks',
     )
+
+    @model_validator(mode='before')
+    @classmethod
+    def migrate_legacy_lorebook_links(cls, value):
+        if isinstance(value, dict) and 'linkedLorebooks' not in value:
+            legacy = value.get('linkedLorebookResourceIds', [])
+            if legacy:
+                value = {**value, 'linkedLorebooks': [
+                    {'resourceId': resource_id, 'versionId': None} for resource_id in legacy
+                ]}
+        return value
     forked_from: ResourceVersionReference | None = Field(
         None,
         description='Exact version from which this resource was forked',
@@ -155,11 +179,22 @@ class ResourceVersion(CommonModel):
         description='Image resource used as the cover when this version was published',
         alias='coverImageResourceId',
     )
-    linked_lorebook_resource_ids: tuple[str, ...] = Field(
+    linked_lorebooks: tuple[LorebookReference, ...] = Field(
         default_factory=tuple,
-        description='Lorebook links captured when this character release was published',
-        alias='linkedLorebookResourceIds',
+        description='Exact lorebook releases captured when this character release was published',
+        alias='linkedLorebooks',
     )
+
+    @model_validator(mode='before')
+    @classmethod
+    def migrate_legacy_lorebook_links(cls, value):
+        if isinstance(value, dict) and 'linkedLorebooks' not in value:
+            legacy = value.get('linkedLorebookResourceIds', [])
+            if legacy:
+                value = {**value, 'linkedLorebooks': [
+                    {'resourceId': resource_id, 'versionId': None} for resource_id in legacy
+                ]}
+        return value
     metadata: ResourceMetadata = Field(
         ...,
         description='Metadata snapshot taken at publication time',

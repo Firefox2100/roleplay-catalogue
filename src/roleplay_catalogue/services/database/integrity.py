@@ -11,6 +11,8 @@ async def check_integrity(database: AsyncDatabase) -> list[str]:
          'character documents with a missing resource'),
         ('sillytavern_lorebook_data', 'resourceId', 'resources', 'id',
          'lorebook documents with a missing resource'),
+        ('sillytavern_preset_data', 'resourceId', 'resources', 'id',
+         'preset documents with a missing resource'),
         ('image_data', 'resourceId', 'resources', 'id', 'image documents with a missing resource'),
         ('world_data', 'resourceId', 'resources', 'id', 'world documents with a missing resource'),
     )
@@ -33,6 +35,7 @@ async def check_integrity(database: AsyncDatabase) -> list[str]:
     for collection, label in (
         ('sillytavern_character_data', 'character snapshots'),
         ('sillytavern_lorebook_data', 'lorebook snapshots'),
+        ('sillytavern_preset_data', 'preset snapshots'),
         ('image_data', 'image snapshots'),
         ('world_data', 'world snapshots'),
     ):
@@ -68,10 +71,10 @@ async def check_integrity(database: AsyncDatabase) -> list[str]:
         problems.append(f"{result[0]['count']} world media links with a missing image")
 
     cursor = await database['resources'].aggregate([
-        {'$unwind': '$linkedLorebookResourceIds'},
+        {'$unwind': '$linkedLorebooks'},
         {'$lookup': {
             'from': 'resources',
-            'localField': 'linkedLorebookResourceIds',
+            'localField': 'linkedLorebooks.resourceId',
             'foreignField': 'id',
             'as': '_integrityLorebook',
         }},
@@ -81,4 +84,23 @@ async def check_integrity(database: AsyncDatabase) -> list[str]:
     result = await cursor.to_list(length=1)
     if result:
         problems.append(f"{result[0]['count']} character lorebook links with a missing lorebook")
+    for collection, label in (
+        ('resources', 'character draft lorebook release links'),
+        ('resource_versions', 'character release lorebook links'),
+    ):
+        cursor = await database[collection].aggregate([
+            {'$unwind': '$linkedLorebooks'},
+            {'$match': {'linkedLorebooks.versionId': {'$ne': None}}},
+            {'$lookup': {
+                'from': 'resource_versions',
+                'localField': 'linkedLorebooks.versionId',
+                'foreignField': 'id',
+                'as': '_integrityLorebookVersion',
+            }},
+            {'$match': {'_integrityLorebookVersion': {'$eq': []}}},
+            {'$count': 'count'},
+        ])
+        result = await cursor.to_list(length=1)
+        if result:
+            problems.append(f"{result[0]['count']} {label} with a missing version")
     return problems

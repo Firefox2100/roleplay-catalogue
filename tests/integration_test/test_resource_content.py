@@ -147,6 +147,7 @@ class MemoryDatabaseService:
         self.resource_version = MemoryVersionRepository()
         self.silly_tavern_character_data = MemoryDataRepository()
         self.silly_tavern_lorebook_data = MemoryDataRepository()
+        self.silly_tavern_preset_data = MemoryDataRepository()
         self.image_data = MemoryDataRepository()
 
 
@@ -232,13 +233,16 @@ async def test_character_draft_can_be_added_updated_and_published() -> None:
             f'/versions/{linked_lorebook_id}', headers=headers, json={'version': 'v1.0.0'},
         )
         assert response.status_code == 201
+        linked_lorebook_version_id = response.json()['id']
         response = await client.put(f'/resources/{resource_id}', headers=headers, json={
             'name': 'Example character', 'description': 'Catalogue description',
             'visibility': 'public', 'tags': ['catalogue-tag'],
-            'linkedLorebookResourceIds': [linked_lorebook_id],
+            'linkedLorebooks': [{
+                'resourceId': linked_lorebook_id, 'versionId': linked_lorebook_version_id,
+            }],
         })
         assert response.status_code == 200
-        assert response.json()['linkedLorebookResourceIds'] == [linked_lorebook_id]
+        assert response.json()['linkedLorebooks'][0]['versionId'] == linked_lorebook_version_id
 
         response = await client.put(
             f'/resources/{resource_id}/data',
@@ -285,7 +289,8 @@ async def test_character_draft_can_be_added_updated_and_published() -> None:
         assert response.json()['versionNumber'] == 1
         assert response.json()['version'] == 'v1.2.3'
         assert response.json()['artifactFileName'] == 'Updated draft.json'
-        assert response.json()['linkedLorebookResourceIds'] == [linked_lorebook_id]
+        assert response.json()['linkedLorebooks'][0]['versionId'] == linked_lorebook_version_id
+        assert response.json()['linkedLorebooks'][0]['author'] == USER.username
         assert response.json()['dataId'] != draft_id
         snapshot = database.silly_tavern_character_data.documents[response.json()['dataId']]
         assert snapshot.data.creator == USER.username
@@ -298,6 +303,7 @@ async def test_character_draft_can_be_added_updated_and_published() -> None:
         artifact = storage.objects[artifact_key][0]
         assert b'Character-specific context' in artifact
         assert b'Shared linked context' in artifact
+        assert b'"author":"author"' in artifact
         version_id = response.json()['id']
 
         response = await client.get(f'/versions/{version_id}/data')
@@ -427,6 +433,49 @@ async def test_lorebook_import_export_publish_and_fork() -> None:
         assert fork_draft.data.entries[0].keys == ['castle']
 
 
+async def test_preset_import_export_publish_and_fork() -> None:
+    database = MemoryDatabaseService()
+    storage = MemoryStorageService()
+    app.dependency_overrides[get_database_service] = lambda: database
+    app.dependency_overrides[get_storage_service] = lambda: storage
+    app.dependency_overrides[authenticate_user] = authenticated_user
+    preset_json = b'''{
+      "temperature": 0.75, "top_p": 0.9, "openrouter_model": "example/model",
+      "prompts": [{"identifier": "main", "name": "Main", "role": "system", "content": "Write vividly."}],
+      "prompt_order": [{"character_id": 100000, "order": [{"identifier": "main", "enabled": true}]}]
+    }'''
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url='http://test') as client:
+        headers = await get_csrf_headers(client)
+        response = await client.post('/resources', headers=headers, json={
+            'resourceType': 'sillytavern/preset', 'name': 'Vivid preset',
+            'description': 'Chat preset', 'visibility': 'public', 'tags': ['writing'],
+        })
+        assert response.status_code == 201
+        resource_id = response.json()['id']
+        response = await client.post(
+            f'/resources/{resource_id}/import-preset', headers=headers,
+            files={'file': ('preset.json', preset_json, 'application/json')},
+        )
+        assert response.status_code == 200
+        assert response.json()['draft']['data']['openrouter_model'] == 'example/model'
+
+        response = await client.get(f'/versions/draft/{resource_id}/download')
+        assert response.status_code == 200
+        assert response.json()['prompts'][0]['content'] == 'Write vividly.'
+
+        response = await client.post(f'/versions/{resource_id}', headers=headers, json={'version': 'v1'})
+        assert response.status_code == 201
+        version = response.json()
+        assert b'example/model' in storage.objects[version['artifactObjectKey']][0]
+
+        response = await client.post(f"/versions/{version['id']}/fork", headers=headers)
+        assert response.status_code == 201
+        fork = response.json()
+        assert fork['resourceType'] == 'sillytavern/preset'
+        assert database.silly_tavern_preset_data.documents[fork['draftDataId']].data.temperature == 0.75
+
+
 async def test_character_fork_requires_access_to_the_release() -> None:
     database = MemoryDatabaseService()
     storage = MemoryStorageService()
@@ -454,10 +503,74 @@ async def test_character_fork_requires_access_to_the_release() -> None:
         app.dependency_overrides[authenticate_user] = other_authenticated_user
         response = await client.post(f'/versions/{version_id}/fork', headers=headers)
 
-    assert response.status_code == 404
+        assert response.status_code == 404
+
     assert len(database.resource.documents) == 1
 
 
+async def test_character_can_link_foreign_lorebook_release_but_not_publish_draft_link() -> None:
+    database = MemoryDatabaseService()
+    database.user.documents[OTHER_USER.id] = OTHER_USER
+    storage = MemoryStorageService()
+    app.dependency_overrides[get_database_service] = lambda: database
+    app.dependency_overrides[get_storage_service] = lambda: storage
+    app.dependency_overrides[authenticate_user] = other_authenticated_user
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url='http://test') as client:
+        headers = await get_csrf_headers(client)
+        lorebook = (await client.post('/resources', headers=headers, json={
+            'resourceType': 'sillytavern/lorebook', 'name': 'Other world',
+            'description': '', 'visibility': 'public', 'tags': [],
+        })).json()
+        await client.put(f"/resources/{lorebook['id']}/data", headers=headers, json={'data': {
+            'entries': [{'keys': ['world'], 'content': 'Foreign lore', 'enabled': True,
+                         'insertion_order': 0, 'use_regex': False, 'constant': False}],
+        }})
+        lorebook_version = (await client.post(
+            f"/versions/{lorebook['id']}", headers=headers, json={'version': 'shared-v1'},
+        )).json()
+
+        app.dependency_overrides[authenticate_user] = authenticated_user
+        headers = await get_csrf_headers(client)
+        character = (await client.post('/resources', headers=headers, json={
+            'resourceType': 'sillytavern/character', 'name': 'Uses shared world',
+            'description': '', 'visibility': 'public', 'tags': [],
+        })).json()
+        await client.put(f"/resources/{character['id']}/data", headers=headers,
+                         json={'data': {'name': 'Uses shared world'}})
+        response = await client.put(f"/resources/{character['id']}", headers=headers, json={
+            'name': 'Uses shared world', 'description': '', 'visibility': 'public', 'tags': [],
+            'linkedLorebooks': [{'resourceId': lorebook['id'], 'versionId': lorebook_version['id']}],
+        })
+        assert response.status_code == 200
+        response = await client.post(
+            f"/versions/{character['id']}", headers=headers, json={'version': 'v1'},
+        )
+        assert response.status_code == 201
+        assert response.json()['linkedLorebooks'][0]['author'] == OTHER_USER.username
+        assert b'"author":"other"' in storage.objects[response.json()['artifactObjectKey']][0]
+
+        own_lorebook = (await client.post('/resources', headers=headers, json={
+            'resourceType': 'sillytavern/lorebook', 'name': 'Unreleased draft',
+            'description': '', 'visibility': 'private', 'tags': [],
+        })).json()
+        await client.put(f"/resources/{own_lorebook['id']}/data", headers=headers,
+                         json={'data': {'entries': []}})
+        draft_character = (await client.post('/resources', headers=headers, json={
+            'resourceType': 'sillytavern/character', 'name': 'Draft linked',
+            'description': '', 'visibility': 'private', 'tags': [],
+        })).json()
+        await client.put(f"/resources/{draft_character['id']}/data", headers=headers,
+                         json={'data': {'name': 'Draft linked'}})
+        await client.put(f"/resources/{draft_character['id']}", headers=headers, json={
+            'name': 'Draft linked', 'description': '', 'visibility': 'private', 'tags': [],
+            'linkedLorebooks': [{'resourceId': own_lorebook['id'], 'versionId': None}],
+        })
+        response = await client.post(
+            f"/versions/{draft_character['id']}", headers=headers, json={'version': 'v1'},
+        )
+        assert response.status_code == 409
+        assert 'cannot link lorebook drafts' in response.json()['detail']
 async def test_resource_listing_filters_by_type_tags_and_author_username() -> None:
     database = MemoryDatabaseService()
     matching = Resource(

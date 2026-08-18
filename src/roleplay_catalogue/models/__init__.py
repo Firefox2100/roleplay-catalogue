@@ -6,6 +6,7 @@ from .user import User
 from .roleplay_resource import (
     ImageData,
     ImageDataDocument,
+    LorebookReference,
     Resource,
     ResourceDataDocument,
     ResourceMetadata,
@@ -14,6 +15,8 @@ from .roleplay_resource import (
     ResourceVersion,
     ResourceVersionReference,
     ResourceVisibility,
+    SillyTavernPresetData,
+    SillyTavernPresetDataDocument,
     WorldBundleData,
     WorldDataDocument,
     WorldMediaReference,
