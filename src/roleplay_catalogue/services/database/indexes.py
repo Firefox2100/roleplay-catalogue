@@ -30,6 +30,7 @@ INDEXES: tuple[IndexDefinition, ...] = (
     IndexDefinition('resources', 'resources_author_updated', [('authorId', ASCENDING), ('updatedAt', DESCENDING)], {}),
     IndexDefinition('resources', 'resources_visibility_updated', [('metadata.visibility', ASCENDING), ('updatedAt', DESCENDING)], {}),
     IndexDefinition('resources', 'resources_type_updated', [('resourceType', ASCENDING), ('updatedAt', DESCENDING)], {}),
+    IndexDefinition('resources', 'resources_language_updated', [('metadata.language', ASCENDING), ('updatedAt', DESCENDING)], {}),
     IndexDefinition('resources', 'resources_tags', [('metadata.tags', ASCENDING)], {}),
     IndexDefinition('resources', 'resources_linked_lorebooks', [('linkedLorebookResourceIds', ASCENDING)], {}),
     IndexDefinition(

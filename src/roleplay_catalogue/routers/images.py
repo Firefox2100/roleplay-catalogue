@@ -13,6 +13,7 @@ from roleplay_catalogue.models import (
     CommonModel,
     ImageDataDocument,
     Resource,
+    ResourceLanguage,
     ResourceMetadata,
     ResourceType,
     ResourceVersion,
@@ -43,6 +44,7 @@ class CoverImageRequest(CommonModel):
 class ImageMetadataRequest(CommonModel):
     name: str = Field(..., min_length=1, max_length=200)
     description: str = Field('', max_length=10_000)
+    language: ResourceLanguage | None = None
     visibility: ResourceVisibility
     tags: list[str] = Field(default_factory=list, max_length=50)
 
@@ -78,6 +80,7 @@ async def create_image_resource(*,
                                 description: str,
                                 visibility: ResourceVisibility,
                                 tags: list[str],
+                                language: ResourceLanguage = ResourceLanguage.ENGLISH_UK,
                                 file: UploadFile | None = None,
                                 source: bytes | None = None,
                                 user: AuthenticatedUserDependency,
@@ -107,6 +110,7 @@ async def create_image_resource(*,
         metadata=ResourceMetadata(
             name=name.strip(),
             description=description.strip(),
+            language=language,
             visibility=visibility,
             tags=tuple(tag.strip() for tag in tags if tag.strip()),
         ),
@@ -175,6 +179,7 @@ async def upload_image_resource(user: AuthenticatedUserDependency,
                                 description: str = Form('', max_length=10_000),
                                 visibility: ResourceVisibility = Form(ResourceVisibility.PRIVATE),
                                 tags: list[str] = Form(default_factory=list),
+                                language: ResourceLanguage = Form(ResourceLanguage.ENGLISH_UK),
                                 file: UploadFile = File(...),
                                 ) -> Resource:
     return await create_image_resource(
@@ -182,6 +187,7 @@ async def upload_image_resource(user: AuthenticatedUserDependency,
         description=description,
         visibility=visibility,
         tags=tags,
+        language=language,
         file=file,
         user=user,
         database=database,
@@ -254,6 +260,7 @@ async def update_image_metadata(image_resource_id: str,
     metadata = ResourceMetadata(
         name=payload.name.strip(),
         description=payload.description.strip(),
+        language=payload.language or image.metadata.language,
         visibility=payload.visibility,
         tags=tuple(tag.strip() for tag in payload.tags if tag.strip()),
     )

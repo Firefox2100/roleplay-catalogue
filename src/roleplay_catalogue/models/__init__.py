@@ -9,6 +9,7 @@ from .roleplay_resource import (
     Resource,
     ResourceDataDocument,
     ResourceMetadata,
+    ResourceLanguage,
     ResourceType,
     ResourceVersion,
     ResourceVersionReference,

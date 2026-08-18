@@ -22,3 +22,8 @@ class ResourceVisibility(StrEnum):
     PUBLIC = 'public'
     AUTHENTICATED = 'authenticated'
     PRIVATE = 'private'
+
+
+class ResourceLanguage(StrEnum):
+    ENGLISH_UK = 'en-uk'
+    CHINESE_SIMPLIFIED = 'zh-cn'

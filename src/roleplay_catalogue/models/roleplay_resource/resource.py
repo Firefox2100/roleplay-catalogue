@@ -4,7 +4,7 @@ from uuid import uuid4
 from pydantic import ConfigDict, Field
 
 from roleplay_catalogue.models.common import CommonModel
-from roleplay_catalogue.misc import ResourceType, ResourceVisibility
+from roleplay_catalogue.misc import ResourceLanguage, ResourceType, ResourceVisibility
 
 
 def utc_now() -> datetime:
@@ -25,6 +25,10 @@ class ResourceMetadata(CommonModel):
     description: str = Field(
         '',
         description='Description of the resource',
+    )
+    language: ResourceLanguage = Field(
+        ResourceLanguage.ENGLISH_UK,
+        description='Primary language of the resource content',
     )
     visibility: ResourceVisibility = Field(
         ResourceVisibility.PRIVATE,

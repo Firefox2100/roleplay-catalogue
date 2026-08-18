@@ -92,6 +92,7 @@ export function LorebookDetailPage() {
     <section className="resource-metadata-editor detail-metadata">
       <h2>{t('editor.resourceMetadata')}</h2>
       <Value label={t('resource.description')} value={version.metadata.description} />
+      <Value label={t('resource.language')} value={t(`resource.languages.${version.metadata.language === 'zh-cn' ? 'zhCN' : 'enUK'}`)} />
       <Value label={t('details.author')} value={resource.authorUsername} />
       {!!version.metadata.tags?.length && <div className="detail-tags">{version.metadata.tags.map((tag) => <span key={tag}>{tag}</span>)}</div>}
     </section>

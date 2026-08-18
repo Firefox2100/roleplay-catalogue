@@ -1,9 +1,19 @@
 from fastapi import APIRouter, File, HTTPException, UploadFile, status
 
 from roleplay_catalogue.misc import CONFIG
-from roleplay_catalogue.models import CommonModel, Resource, ResourceType, WorldDataDocument
+from roleplay_catalogue.models import (
+    CommonModel,
+    Resource,
+    ResourceMetadata,
+    ResourceType,
+    WorldDataDocument,
+)
 from roleplay_catalogue.models.roleplay_resource.resource import utc_now
-from roleplay_catalogue.services import WorldBundleError, parse_world_bundle
+from roleplay_catalogue.services import (
+    WorldBundleError,
+    parse_world_bundle,
+    resource_language_from_world,
+)
 from .images import create_image_resource
 from .resource_utils import get_owned_resource
 from .utils import AuthenticatedUserDependency, DatabaseDependency, StorageDependency
@@ -61,6 +71,7 @@ async def import_world_bundle(resource_id: str,
     cover_media_id = data.world.get('cover_media_id')
     cover = next((item.image_resource_id for item in references
                   if item.media_id == cover_media_id), None)
+    imported_language = resource_language_from_world(data.world['language'])
 
     async def persist() -> None:
         if existing:
@@ -70,6 +81,13 @@ async def import_world_bundle(resource_id: str,
         await database.resource.update(resource.model_copy(update={
             'draft_data_id': draft.id,
             'cover_image_resource_id': cover or resource.cover_image_resource_id,
+            'metadata': ResourceMetadata(
+                name=resource.metadata.name,
+                description=resource.metadata.description or data.world.get('description') or '',
+                language=imported_language,
+                visibility=resource.metadata.visibility,
+                tags=resource.metadata.tags,
+            ),
             'updated_at': utc_now(),
         }))
 

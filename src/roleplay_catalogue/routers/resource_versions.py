@@ -21,7 +21,7 @@ from roleplay_catalogue.models.roleplay_resource.silly_tavern.card_v3 import (
     SillyTavernCardV3Data,
     SillyTavernCardV3LoreBook,
 )
-from roleplay_catalogue.services import build_world_bundle
+from roleplay_catalogue.services import apply_resource_metadata_to_world, build_world_bundle
 from .resource_utils import get_data_repository, get_owned_resource, get_readable_version
 from .images import create_image_resource
 from .utils import AuthenticatedUserDependency, DatabaseDependency, OptionalAuthenticatedUserDependency, StorageDependency
@@ -197,7 +197,7 @@ async def export_resource_draft(resource_id: str, database: DatabaseDependency,
         ).model_dump_json(exclude_none=True).encode('utf-8')
         content_type, extension = 'application/json', '.json'
     else:
-        data = draft.data
+        data = apply_resource_metadata_to_world(draft.data, resource)
         artifact = await build_world_bundle(data, database, storage)
         content_type, extension = 'application/zip', '.zip'
     export_name = data.name if resource.resource_type == ResourceType.SILLY_TAVERN_CHARACTER else resource.metadata.name
@@ -262,7 +262,7 @@ async def publish_resource(resource_id: str, payload: PublishResourceRequest,
         ).model_dump_json(exclude_none=True).encode('utf-8')
         content_type, extension = 'application/json', '.json'
     else:
-        snapshot_data = draft.data
+        snapshot_data = apply_resource_metadata_to_world(draft.data, resource)
         artifact = await build_world_bundle(snapshot_data, database, storage)
         content_type, extension = 'application/zip', '.zip'
     object_key = f'releases/{resource.id}/{version_id}{extension}'
@@ -428,6 +428,7 @@ async def fork_resource_version(version_id: str, database: DatabaseDependency,
         metadata=ResourceMetadata(
             name=fork_name,
             description=version.metadata.description,
+            language=version.metadata.language,
             visibility=ResourceVisibility.PRIVATE,
             tags=version.metadata.tags,
         ),

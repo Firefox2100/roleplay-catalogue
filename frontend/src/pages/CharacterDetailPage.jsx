@@ -146,6 +146,7 @@ export function CharacterDetailPage() {
         <section className="resource-metadata-editor detail-metadata">
           <h2>{t('editor.resourceMetadata')}</h2>
           <TextField label={t('resource.description')} value={version.metadata.description} />
+          <TextField label={t('resource.language')} value={t(`resource.languages.${version.metadata.language === 'zh-cn' ? 'zhCN' : 'enUK'}`)} />
           {!!version.metadata.tags?.length && <div className="detail-tags">
             {version.metadata.tags.map((tag) => <span key={tag}>{tag}</span>)}</div>}
           <TextField label={t('details.author')} value={resource.authorUsername} />

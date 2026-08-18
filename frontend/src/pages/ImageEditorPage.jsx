@@ -18,7 +18,7 @@ export function ImageEditorPage() {
   const { user, isLoading: isAuthLoading } = useAuth()
   const [resource, setResource] = useState(location.state?.resource ?? null)
   const [fields, setFields] = useState({
-    name: '', description: '', visibility: 'private', tags: [],
+    name: '', description: '', language: 'en-uk', visibility: 'private', tags: [],
   })
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
@@ -36,6 +36,7 @@ export function ImageEditorPage() {
       setFields({
         name: loaded.metadata.name,
         description: loaded.metadata.description,
+        language: loaded.metadata.language ?? 'en-uk',
         visibility: loaded.metadata.visibility,
         tags: loaded.metadata.tags ?? [],
       })
@@ -116,6 +117,10 @@ export function ImageEditorPage() {
                   {t(`resource.visibilities.${visibility}`)}
                 </option>
               ))}
+            </select></label>
+            <label>{t('resource.language')}<select value={fields.language}
+              onChange={(event) => setFields((current) => ({ ...current, language: event.target.value }))}>
+              <option value="en-uk">{t('resource.languages.enUK')}</option><option value="zh-cn">{t('resource.languages.zhCN')}</option>
             </select></label>
             <div><label htmlFor="image-editor-tags">{t('resource.tags')}</label>
               <TagEditor id="image-editor-tags" value={fields.tags}

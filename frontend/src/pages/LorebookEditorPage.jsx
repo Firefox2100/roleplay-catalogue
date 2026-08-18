@@ -39,7 +39,7 @@ export function LorebookEditorPage() {
   const importInput = useRef(null)
   const imageInput = useRef(null)
   const [resource, setResource] = useState(location.state?.resource ?? null)
-  const [resourceFields, setResourceFields] = useState({ name: '', description: '', visibility: 'private', tags: [] })
+  const [resourceFields, setResourceFields] = useState({ name: '', description: '', language: 'en-uk', visibility: 'private', tags: [] })
   const [book, setBook] = useState(EMPTY_BOOK)
   const [entries, setEntries] = useState([])
   const [versions, setVersions] = useState([])
@@ -70,6 +70,7 @@ export function LorebookEditorPage() {
       setResourceFields({
         name: loadedResource.metadata.name,
         description: loadedResource.metadata.description,
+        language: loadedResource.metadata.language ?? 'en-uk',
         visibility: loadedResource.metadata.visibility,
         tags: loadedResource.metadata.tags ?? [],
       })
@@ -247,6 +248,10 @@ export function LorebookEditorPage() {
               onChange={(event) => setResourceFields((current) => ({ ...current, visibility: event.target.value }))}>
               {['private', 'authenticated', 'public'].map((visibility) => <option key={visibility} value={visibility}>
                 {t(`resource.visibilities.${visibility}`)}</option>)}
+            </select></label>
+            <label>{t('resource.language')}<select value={resourceFields.language}
+              onChange={(event) => setResourceFields((current) => ({ ...current, language: event.target.value }))}>
+              <option value="en-uk">{t('resource.languages.enUK')}</option><option value="zh-cn">{t('resource.languages.zhCN')}</option>
             </select></label>
             <label className="wide-field">{t('resource.description')}<textarea rows={4}
               value={resourceFields.description} onChange={(event) => setResourceFields((current) => ({

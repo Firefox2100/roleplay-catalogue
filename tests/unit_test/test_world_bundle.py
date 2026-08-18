@@ -4,7 +4,13 @@ from zipfile import ZipFile
 
 import pytest
 
-from roleplay_catalogue.services.world_bundle import WorldBundleError, parse_world_bundle
+from roleplay_catalogue.models import Resource, ResourceMetadata, ResourceType
+from roleplay_catalogue.services.world_bundle import (
+    WorldBundleError,
+    apply_resource_metadata_to_world,
+    parse_world_bundle,
+    resource_language_from_world,
+)
 
 
 def world_zip(*, spec_version: str = '1.0', duplicate_id: bool = False) -> bytes:
@@ -50,3 +56,22 @@ def test_world_bundle_rejects_unsupported_version() -> None:
 def test_world_bundle_rejects_duplicate_graph_ids() -> None:
     with pytest.raises(WorldBundleError, match='Duplicate graph id'):
         parse_world_bundle(world_zip(duplicate_id=True))
+
+
+def test_catalogue_metadata_controls_exported_world_language_and_description() -> None:
+    data = parse_world_bundle(world_zip()).data
+    resource = Resource(
+        resourceType=ResourceType.WORLD_SIMULATION_WORLD,
+        authorId='author',
+        metadata=ResourceMetadata(
+            name='目录世界', description='目录描述', language='zh-cn',
+        ),
+    )
+
+    updated = apply_resource_metadata_to_world(data, resource)
+
+    assert updated.world['name'] == '目录世界'
+    assert updated.world['description'] == '目录描述'
+    assert updated.world['language'] == 'zh'
+    assert resource_language_from_world('zh').value == 'zh-cn'
+    assert resource_language_from_world('en').value == 'en-uk'

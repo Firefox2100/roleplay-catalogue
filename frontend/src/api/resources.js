@@ -78,10 +78,11 @@ async function csrfHeaders() {
   return { 'X-CSRF-Token': (await csrfResponse.json()).csrfToken }
 }
 
-export async function uploadImageResource({ name, description, visibility, tags, file }) {
+export async function uploadImageResource({ name, description, language, visibility, tags, file }) {
   const form = new FormData()
   form.append('name', name)
   form.append('description', description)
+  form.append('language', language)
   form.append('visibility', visibility)
   tags.forEach((tag) => form.append('tags', tag))
   form.append('file', file)

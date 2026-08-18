@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from io import BytesIO
 from zipfile import BadZipFile, ZIP_DEFLATED, ZipFile
 
-from roleplay_catalogue.models import WorldBundleData, WorldMediaReference
+from roleplay_catalogue.models import ResourceLanguage, WorldBundleData, WorldMediaReference
 from roleplay_catalogue.models.roleplay_resource.world import (
     WORLD_BUNDLE_SPEC,
     WORLD_BUNDLE_SPEC_VERSION,
@@ -20,6 +20,24 @@ class WorldBundleError(ValueError):
 class ParsedWorldBundle:
     data: WorldBundleData
     image_files: dict[str, bytes]
+
+
+def apply_resource_metadata_to_world(data: WorldBundleData, resource) -> WorldBundleData:
+    """Translate catalogue metadata into the World Engine's v1.0 vocabulary."""
+    language = {'en-uk': 'en', 'zh-cn': 'zh'}[resource.metadata.language.value]
+    return data.model_copy(update={'world': {
+        **data.world,
+        'name': resource.metadata.name,
+        'description': resource.metadata.description or None,
+        'language': language,
+    }})
+
+
+def resource_language_from_world(language: str) -> ResourceLanguage:
+    return {
+        'en': ResourceLanguage.ENGLISH_UK,
+        'zh': ResourceLanguage.CHINESE_SIMPLIFIED,
+    }[language]
 
 
 def _read_json(archive: ZipFile, name: str, required: bool = True):

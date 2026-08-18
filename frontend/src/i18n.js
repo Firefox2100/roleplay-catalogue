@@ -60,7 +60,8 @@ const translations = {
     resource: {
       newLabel: 'New resource', createTitle: 'Create New Resource',
       createDescription: 'Create the catalogue entry first. You can add its actual content afterward.',
-      name: 'Name', type: 'Resource type', description: 'Description', visibility: 'Visibility',
+      name: 'Name', type: 'Resource type', description: 'Description', language: 'Content language', visibility: 'Visibility',
+      languages: { enUK: 'English (United Kingdom)', zhCN: 'Simplified Chinese (China)' },
       tags: 'Tags', tagsPlaceholder: 'fantasy, original character, adventure',
       tagsHelp: 'Separate tags with commas.', create: 'Create resource', creating: 'Creating…',
       createFailed: 'The resource could not be created. Please try again.',
@@ -279,7 +280,8 @@ const translations = {
     resource: {
       newLabel: '新资源', createTitle: '创建新资源',
       createDescription: '先创建资源的目录条目，之后再添加实际内容。',
-      name: '名称', type: '资源类型', description: '描述', visibility: '可见范围',
+      name: '名称', type: '资源类型', description: '描述', language: '内容语言', visibility: '可见范围',
+      languages: { enUK: '英语（英国）', zhCN: '简体中文（中国）' },
       tags: '标签', tagsPlaceholder: '奇幻, 原创角色, 冒险', tagsHelp: '请使用逗号分隔标签。',
       create: '创建资源', creating: '正在创建…', createFailed: '无法创建资源，请重试。',
       sessionExpired: '登录状态已过期，请重新登录。', createdLabel: '资源已创建',

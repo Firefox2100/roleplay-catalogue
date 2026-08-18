@@ -36,7 +36,7 @@ export function WorldDetailPage() {
     </header>
     <section className="editor-summary">{imageUrl ? <ResourceImage className="character-image-picker" src={imageUrl} /> : <div className="character-image-picker"><span>◇</span><strong>{t('world.noCover')}</strong></div>}
       <div className="detail-metadata"><div className="detail-field"><h3>{t('resource.description')}</h3><p>{resource.metadata.description || t('home.noDescription')}</p></div>
-        {bundle && <><div className="detail-field"><h3>{t('world.startingTime')}</h3><p>{new Date(bundle.world.starting_time).toLocaleString()}</p></div><div className="detail-field"><h3>{t('world.language')}</h3><p>{bundle.world.language}</p></div></>}
+        {bundle && <><div className="detail-field"><h3>{t('world.startingTime')}</h3><p>{new Date(bundle.world.starting_time).toLocaleString()}</p></div><div className="detail-field"><h3>{t('world.language')}</h3><p>{t(`resource.languages.${resource.metadata.language === 'zh-cn' ? 'zhCN' : 'enUK'}`)}</p></div></>}
         <div className="detail-tags">{resource.metadata.tags.map((tag) => <span key={tag}>{tag}</span>)}</div></div>
     </section>
     {bundle && <section className="world-overview"><h2>{t('world.contents')}</h2><div className="world-count-grid">{Object.entries(bundle.sections).map(([name, rows]) => <div key={name}><strong>{rows.length}</strong><span>{t(`world.sections.${name}`)}</span></div>)}</div>

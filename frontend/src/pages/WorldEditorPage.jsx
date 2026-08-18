@@ -180,7 +180,7 @@ export function WorldEditorPage() {
   async function save() {
     setBusy('save'); setError(''); setMessage('')
     try {
-      const nextBundle = { ...bundle, world: { ...bundle.world, name: metadata.name, description: metadata.description } }
+      const nextBundle = { ...bundle, world: { ...bundle.world, name: metadata.name, description: metadata.description, language: metadata.language === 'zh-cn' ? 'zh' : 'en' } }
       const [updated] = await Promise.all([updateResource(resourceId, metadata), saveResourceData(resourceId, nextBundle)])
       setResource(updated); setBundle(nextBundle); setMessage(t('world.saved'))
     } catch { setError(t('world.saveFailed')) } finally { setBusy('') }
@@ -188,13 +188,13 @@ export function WorldEditorPage() {
   async function importBundle(file) {
     if (!file) return
     setBusy('import'); setError(''); setMessage('')
-    try { const result = await importWorldBundle(resourceId, file); setResource(result.resource); setBundle(result.draft.data); setMessage(t('world.imported')) }
+    try { const result = await importWorldBundle(resourceId, file); setResource(result.resource); setMetadata({ ...result.resource.metadata, tags: [...result.resource.metadata.tags] }); setBundle(result.draft.data); setMessage(t('world.imported')) }
     catch { setError(t('world.importFailed')) } finally { setBusy(''); importInput.current.value = '' }
   }
   async function publish() {
     setBusy('publish'); setError('')
     try {
-      const nextBundle = { ...bundle, world: { ...bundle.world, name: metadata.name, description: metadata.description } }
+      const nextBundle = { ...bundle, world: { ...bundle.world, name: metadata.name, description: metadata.description, language: metadata.language === 'zh-cn' ? 'zh' : 'en' } }
       const [updated] = await Promise.all([updateResource(resourceId, metadata), saveResourceData(resourceId, nextBundle)])
       setResource(updated); setBundle(nextBundle)
       const version = await publishResource(resourceId, releaseVersion)
@@ -216,11 +216,12 @@ export function WorldEditorPage() {
     <section className="resource-metadata-editor"><div><h2>{t('editor.resourceMetadata')}</h2><p>{t('editor.resourceMetadataHelp')}</p></div>
       <div className="editor-field-grid"><label>{t('resource.name')}<input value={metadata.name} onChange={(event) => setMetadata({ ...metadata, name: event.target.value })} /></label>
         <label>{t('resource.visibility')}<select value={metadata.visibility} onChange={(event) => setMetadata({ ...metadata, visibility: event.target.value })}><option value="private">{t('resource.visibilities.private')}</option><option value="authenticated">{t('resource.visibilities.authenticated')}</option><option value="public">{t('resource.visibilities.public')}</option></select></label>
+        <label>{t('resource.language')}<select value={metadata.language ?? 'en-uk'} onChange={(event) => setMetadata({ ...metadata, language: event.target.value })}><option value="en-uk">{t('resource.languages.enUK')}</option><option value="zh-cn">{t('resource.languages.zhCN')}</option></select></label>
         <label className="wide-field">{t('resource.description')}<textarea rows={3} value={metadata.description} onChange={(event) => setMetadata({ ...metadata, description: event.target.value })} /></label>
         <div className="wide-field resource-tag-field"><label>{t('resource.tags')}</label><TagEditor value={metadata.tags} onChange={(tags) => setMetadata({ ...metadata, tags })} /></div></div>
     </section>
     <section className="world-settings"><h2>{t('world.settings')}</h2><div className="editor-field-grid">
-      {Object.entries(bundle.world).filter(([field]) => !['id', 'creation_time', 'cover_media_id'].includes(field)).map(([field, value]) => <WorldField key={field} field={field} value={value} section="world" registry={registry} t={t} onChange={(newValue) => setBundle({ ...bundle, world: { ...bundle.world, [field]: newValue } })} />)}
+      {Object.entries(bundle.world).filter(([field]) => !['id', 'creation_time', 'cover_media_id', 'language'].includes(field)).map(([field, value]) => <WorldField key={field} field={field} value={value} section="world" registry={registry} t={t} onChange={(newValue) => setBundle({ ...bundle, world: { ...bundle.world, [field]: newValue } })} />)}
     </div></section>
     <div className="world-graph-sections">{Object.keys(SECTION_TEMPLATES).map((name) => <EntitySection key={name} name={name} rows={bundle.sections[name] ?? []} registry={registry} t={t} worldId={bundle.world.id} onChange={(rows) => setBundle({ ...bundle, sections: { ...bundle.sections, [name]: rows } })} />)}</div>
     <section className="world-integrations"><h2>{t('world.integrations')}</h2><p>{t('world.integrationsHelp')}</p>

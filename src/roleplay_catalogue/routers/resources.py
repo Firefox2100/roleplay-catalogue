@@ -9,6 +9,7 @@ from roleplay_catalogue.models import (
     ImageData,
     ImageDataDocument,
     Resource,
+    ResourceLanguage,
     ResourceMetadata,
     ResourceType,
     ResourceVisibility,
@@ -44,6 +45,7 @@ class ResourceCreateRequest(CommonModel):
     resource_type: ResourceType = Field(..., alias='resourceType')
     name: str = Field(..., min_length=1, max_length=200)
     description: str = Field('', max_length=10_000)
+    language: ResourceLanguage = ResourceLanguage.ENGLISH_UK
     visibility: ResourceVisibility = ResourceVisibility.PRIVATE
     tags: list[str] = Field(default_factory=list, max_length=50)
 
@@ -61,6 +63,7 @@ class ResourceUpdateRequest(CommonModel):
 
     name: str = Field(..., min_length=1, max_length=200)
     description: str = Field('', max_length=10_000)
+    language: ResourceLanguage | None = None
     visibility: ResourceVisibility
     tags: list[str] = Field(default_factory=list, max_length=50)
     linked_lorebook_resource_ids: list[str] | None = Field(
@@ -150,6 +153,7 @@ async def create_resource(payload: ResourceCreateRequest,
         metadata=ResourceMetadata(
             name=payload.name,
             description=payload.description.strip(),
+            language=payload.language,
             visibility=payload.visibility,
             tags=tuple(tag.strip() for tag in payload.tags if tag.strip()),
         ),
@@ -300,6 +304,7 @@ async def update_resource(resource_id: str,
         'metadata': ResourceMetadata(
             name=payload.name,
             description=payload.description.strip(),
+            language=payload.language or resource.metadata.language,
             visibility=payload.visibility,
             tags=tuple(tag.strip() for tag in payload.tags if tag.strip()),
         ),

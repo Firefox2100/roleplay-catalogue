@@ -22,6 +22,7 @@ export function CreateResourcePage() {
   const [resourceType, setResourceType] = useState(RESOURCE_TYPES[0])
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
+  const [language, setLanguage] = useState('en-uk')
   const [visibility, setVisibility] = useState(VISIBILITIES[0])
   const [tags, setTags] = useState([])
   const [imageFile, setImageFile] = useState(null)
@@ -47,8 +48,8 @@ export function CreateResourcePage() {
     setIsSubmitting(true)
     try {
       const resource = resourceType === 'core/image'
-        ? await uploadImageResource({ name, description, visibility, tags, file: imageFile })
-        : await createResource({ resourceType, name, description, visibility, tags })
+        ? await uploadImageResource({ name, description, language, visibility, tags, file: imageFile })
+        : await createResource({ resourceType, name, description, language, visibility, tags })
       if (resource.resourceType === 'sillytavern/character' ||
           resource.resourceType === 'sillytavern/lorebook' ||
           resource.resourceType === 'world-simulation-engine/world') {
@@ -145,6 +146,12 @@ export function CreateResourcePage() {
                 maxLength={10000}
                 rows={5}
               />
+
+              <label htmlFor="resource-language">{t('resource.language')}</label>
+              <select id="resource-language" value={language} onChange={(event) => setLanguage(event.target.value)}>
+                <option value="en-uk">{t('resource.languages.enUK')}</option>
+                <option value="zh-cn">{t('resource.languages.zhCN')}</option>
+              </select>
 
               <label htmlFor="resource-visibility">{t('resource.visibility')}</label>
               <select
