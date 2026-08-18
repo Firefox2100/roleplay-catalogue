@@ -87,6 +87,11 @@ class Resource(CommonModel):
         description='Immutable image resource used as the current draft cover',
         alias='coverImageResourceId',
     )
+    linked_lorebook_resource_ids: tuple[str, ...] = Field(
+        default_factory=tuple,
+        description='Standalone lorebooks linked to a mutable character draft',
+        alias='linkedLorebookResourceIds',
+    )
     forked_from: ResourceVersionReference | None = Field(
         None,
         description='Exact version from which this resource was forked',
@@ -145,6 +150,11 @@ class ResourceVersion(CommonModel):
         None,
         description='Image resource used as the cover when this version was published',
         alias='coverImageResourceId',
+    )
+    linked_lorebook_resource_ids: tuple[str, ...] = Field(
+        default_factory=tuple,
+        description='Lorebook links captured when this character release was published',
+        alias='linkedLorebookResourceIds',
     )
     metadata: ResourceMetadata = Field(
         ...,

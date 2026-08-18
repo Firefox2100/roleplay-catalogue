@@ -62,9 +62,10 @@ async def get_readable_version(database: DatabaseService,
 def get_data_repository(database: DatabaseService,
                         resource_type: ResourceType,
                         ) -> Any:
-    repositories = {
-        ResourceType.SILLY_TAVERN_CHARACTER: database.silly_tavern_character_data,
-        ResourceType.SILLY_TAVERN_LOREBOOK: database.silly_tavern_lorebook_data,
-        ResourceType.IMAGE: database.image_data,
-    }
-    return repositories[resource_type]
+    attribute = {
+        ResourceType.SILLY_TAVERN_CHARACTER: 'silly_tavern_character_data',
+        ResourceType.SILLY_TAVERN_LOREBOOK: 'silly_tavern_lorebook_data',
+        ResourceType.IMAGE: 'image_data',
+        ResourceType.WORLD_SIMULATION_WORLD: 'world_data',
+    }[resource_type]
+    return getattr(database, attribute)

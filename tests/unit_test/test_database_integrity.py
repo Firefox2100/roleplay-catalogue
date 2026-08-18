@@ -29,4 +29,4 @@ async def test_integrity_check_awaits_async_aggregate_cursor() -> None:
     database = Database()
 
     assert await check_integrity(database) == []
-    assert sum(collection.aggregate_calls for collection in database.collections.values()) == 9
+    assert sum(collection.aggregate_calls for collection in database.collections.values()) == 13

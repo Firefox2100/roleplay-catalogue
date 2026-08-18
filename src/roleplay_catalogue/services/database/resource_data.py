@@ -41,6 +41,15 @@ class ResourceDataRepository(Generic[DataDocument]):
         )
         return [self._model.model_validate(document) async for document in cursor]
 
+    async def list_referencing_image(self, image_resource_id: str) -> list[DataDocument]:
+        """Return structured documents whose world media links use an image resource."""
+        cursor = self._collection.find(
+            {'data.media.imageResourceId': image_resource_id},
+            {'_id': 0},
+            session=current_session(),
+        )
+        return [self._model.model_validate(document) async for document in cursor]
+
     async def update(self, data: DataDocument) -> DataDocument:
         await self._collection.replace_one(
             {'id': getattr(data, 'id')},

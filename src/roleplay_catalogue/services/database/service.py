@@ -1,6 +1,6 @@
 from pymongo import AsyncMongoClient
 
-from roleplay_catalogue.models import ImageDataDocument
+from roleplay_catalogue.models import ImageDataDocument, WorldDataDocument
 from roleplay_catalogue.models.roleplay_resource.silly_tavern import (
     SillyTavernCharacterDataDocument,
     SillyTavernLorebookDataDocument,
@@ -72,6 +72,10 @@ class DatabaseService:
     @property
     def image_data(self) -> ResourceDataRepository[ImageDataDocument]:
         return ResourceDataRepository(self._db, 'image_data', ImageDataDocument)
+
+    @property
+    def world_data(self) -> ResourceDataRepository[WorldDataDocument]:
+        return ResourceDataRepository(self._db, 'world_data', WorldDataDocument)
 
     async def initialize(self) -> None:
         await ensure_indexes(self._db)

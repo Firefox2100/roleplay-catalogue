@@ -65,6 +65,8 @@ export function CharacterEditorPage() {
   const [loreEntries, setLoreEntries] = useState([])
   const [coverImageId, setCoverImageId] = useState(resource?.coverImageResourceId ?? '')
   const [availableImages, setAvailableImages] = useState([])
+  const [availableLorebooks, setAvailableLorebooks] = useState([])
+  const [linkedLorebookIds, setLinkedLorebookIds] = useState([])
   const [isCoverPickerOpen, setIsCoverPickerOpen] = useState(false)
   const [isUploadingImage, setIsUploadingImage] = useState(false)
   const [isImportingCard, setIsImportingCard] = useState(false)
@@ -95,6 +97,7 @@ export function CharacterEditorPage() {
       }
       setResource(loadedResource)
       setCoverImageId(loadedResource.coverImageResourceId ?? '')
+      setLinkedLorebookIds(loadedResource.linkedLorebookResourceIds ?? [])
       setResourceFields({
         name: loadedResource.metadata.name,
         description: loadedResource.metadata.description,
@@ -143,6 +146,15 @@ export function CharacterEditorPage() {
     let active = true
     listResources({ resourceType: 'core/image', author: user.username, limit: 100 })
       .then((page) => { if (active) setAvailableImages(page.items) })
+      .catch(() => {})
+    return () => { active = false }
+  }, [user])
+
+  useEffect(() => {
+    if (!user) return undefined
+    let active = true
+    listResources({ resourceType: 'sillytavern/lorebook', author: user.username, limit: 100 })
+      .then((page) => { if (active) setAvailableLorebooks(page.items) })
       .catch(() => {})
     return () => { active = false }
   }, [user])
@@ -225,7 +237,9 @@ export function CharacterEditorPage() {
   }
 
   async function persistDraft() {
-    const updatedResource = await updateResource(resourceId, resourceFields)
+    const updatedResource = await updateResource(resourceId, {
+      ...resourceFields, linkedLorebookResourceIds: linkedLorebookIds,
+    })
     setResource(updatedResource)
     await saveResourceData(resourceId, makeDraftData())
   }
@@ -484,6 +498,21 @@ export function CharacterEditorPage() {
               </article>
             ))}
           </div>
+        </section>
+
+        <section className="linked-lorebooks">
+          <div className="section-heading"><div><h2>{t('editor.linkedLorebooks')}</h2>
+            <p>{t('editor.linkedLorebooksHelp')}</p></div></div>
+          {availableLorebooks.length ? <div className="linked-lorebook-options">
+            {availableLorebooks.map((lorebook) => <label key={lorebook.id}>
+              <input type="checkbox" checked={linkedLorebookIds.includes(lorebook.id)}
+                onChange={(event) => setLinkedLorebookIds((current) => event.target.checked
+                  ? [...current, lorebook.id]
+                  : current.filter((id) => id !== lorebook.id))} />
+              <span><strong>{lorebook.metadata.name}</strong>
+                {lorebook.metadata.description && <small>{lorebook.metadata.description}</small>}</span>
+            </label>)}
+          </div> : <p className="empty-releases">{t('editor.noLorebooks')}</p>}
         </section>
 
         <section className="release-history">

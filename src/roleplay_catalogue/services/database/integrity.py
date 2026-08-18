@@ -12,6 +12,7 @@ async def check_integrity(database: AsyncDatabase) -> list[str]:
         ('sillytavern_lorebook_data', 'resourceId', 'resources', 'id',
          'lorebook documents with a missing resource'),
         ('image_data', 'resourceId', 'resources', 'id', 'image documents with a missing resource'),
+        ('world_data', 'resourceId', 'resources', 'id', 'world documents with a missing resource'),
     )
     problems: list[str] = []
     for source, local_field, target, foreign_field, description in checks:
@@ -33,6 +34,7 @@ async def check_integrity(database: AsyncDatabase) -> list[str]:
         ('sillytavern_character_data', 'character snapshots'),
         ('sillytavern_lorebook_data', 'lorebook snapshots'),
         ('image_data', 'image snapshots'),
+        ('world_data', 'world snapshots'),
     ):
         cursor = await database[collection].aggregate([
             {'$match': {'resourceVersionId': {'$ne': None}}},
@@ -48,4 +50,35 @@ async def check_integrity(database: AsyncDatabase) -> list[str]:
         result = await cursor.to_list(length=1)
         if result:
             problems.append(f"{result[0]['count']} {label} with a missing version")
+
+    cursor = await database['world_data'].aggregate([
+        {'$unwind': '$data.media'},
+        {'$match': {'data.media.imageResourceId': {'$ne': None}}},
+        {'$lookup': {
+            'from': 'resources',
+            'localField': 'data.media.imageResourceId',
+            'foreignField': 'id',
+            'as': '_integrityImage',
+        }},
+        {'$match': {'_integrityImage': {'$eq': []}}},
+        {'$count': 'count'},
+    ])
+    result = await cursor.to_list(length=1)
+    if result:
+        problems.append(f"{result[0]['count']} world media links with a missing image")
+
+    cursor = await database['resources'].aggregate([
+        {'$unwind': '$linkedLorebookResourceIds'},
+        {'$lookup': {
+            'from': 'resources',
+            'localField': 'linkedLorebookResourceIds',
+            'foreignField': 'id',
+            'as': '_integrityLorebook',
+        }},
+        {'$match': {'_integrityLorebook': {'$eq': []}}},
+        {'$count': 'count'},
+    ])
+    result = await cursor.to_list(length=1)
+    if result:
+        problems.append(f"{result[0]['count']} character lorebook links with a missing lorebook")
     return problems

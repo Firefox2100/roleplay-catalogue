@@ -31,6 +31,7 @@ INDEXES: tuple[IndexDefinition, ...] = (
     IndexDefinition('resources', 'resources_visibility_updated', [('metadata.visibility', ASCENDING), ('updatedAt', DESCENDING)], {}),
     IndexDefinition('resources', 'resources_type_updated', [('resourceType', ASCENDING), ('updatedAt', DESCENDING)], {}),
     IndexDefinition('resources', 'resources_tags', [('metadata.tags', ASCENDING)], {}),
+    IndexDefinition('resources', 'resources_linked_lorebooks', [('linkedLorebookResourceIds', ASCENDING)], {}),
     IndexDefinition(
         'resources', 'resources_catalogue_text',
         [('metadata.name', TEXT), ('metadata.description', TEXT)],
@@ -52,6 +53,10 @@ INDEXES: tuple[IndexDefinition, ...] = (
     IndexDefinition('image_data', 'image_data_resource', [('resourceId', ASCENDING)], {}),
     IndexDefinition('image_data', 'image_data_version', [('resourceVersionId', ASCENDING)], {}),
     IndexDefinition('image_data', 'image_data_sha256', [('sha256', ASCENDING)], {}),
+    IndexDefinition('world_data', 'world_data_id_unique', [('id', ASCENDING)], {'unique': True}),
+    IndexDefinition('world_data', 'world_data_resource', [('resourceId', ASCENDING)], {}),
+    IndexDefinition('world_data', 'world_data_version', [('resourceVersionId', ASCENDING)], {}),
+    IndexDefinition('world_data', 'world_data_media_image', [('data.media.imageResourceId', ASCENDING)], {}),
 )
 
 

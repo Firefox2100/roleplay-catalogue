@@ -13,6 +13,8 @@ import { ImageDetailPage } from './pages/ImageDetailPage.jsx'
 import { LorebookEditorPage } from './pages/LorebookEditorPage.jsx'
 import { LorebookDetailPage } from './pages/LorebookDetailPage.jsx'
 import { ProfilePage } from './pages/ProfilePage.jsx'
+import { WorldEditorPage } from './pages/WorldEditorPage.jsx'
+import { WorldDetailPage } from './pages/WorldDetailPage.jsx'
 import './App.css'
 
 function App() {
@@ -30,9 +32,11 @@ function App() {
           <Route path="resources/:resourceId/edit" element={<CharacterEditorPage />} />
           <Route path="images/:resourceId/edit" element={<ImageEditorPage />} />
           <Route path="lorebooks/:resourceId/edit" element={<LorebookEditorPage />} />
+          <Route path="worlds/:resourceId/edit" element={<WorldEditorPage />} />
           <Route path="characters/:resourceId" element={<CharacterDetailPage />} />
           <Route path="images/:resourceId" element={<ImageDetailPage />} />
           <Route path="lorebooks/:resourceId" element={<LorebookDetailPage />} />
+          <Route path="worlds/:resourceId" element={<WorldDetailPage />} />
           <Route path="*" element={<HomePage />} />
         </Route>
       </Routes>

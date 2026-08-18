@@ -283,10 +283,11 @@ async def delete_image_resource(image_resource_id: str,
         version for version in await database.resource_version.list_by_cover(image.id)
         if version.resource_type != ResourceType.IMAGE
     ]
-    if referencing_versions and not force:
+    world_references = await database.world_data.list_referencing_image(image.id)
+    if (referencing_versions or world_references) and not force:
         raise HTTPException(
             status.HTTP_409_CONFLICT,
-            'Image is used by published releases; retry with force=true to delete them',
+            'Image is referenced by another resource; retry with force=true to remove it',
         )
     object_keys: set[str] = set()
 
@@ -295,10 +296,11 @@ async def delete_image_resource(image_resource_id: str,
             version for version in await database.resource_version.list_by_cover(image.id)
             if version.resource_type != ResourceType.IMAGE
         ]
-        if current_references and not force:
+        current_world_references = await database.world_data.list_referencing_image(image.id)
+        if (current_references or current_world_references) and not force:
             raise HTTPException(
                 status.HTTP_409_CONFLICT,
-                'Image is used by published releases; retry with force=true to delete them',
+                'Image is referenced by another resource; retry with force=true to remove it',
             )
         if force:
             for version in current_references:
@@ -306,6 +308,24 @@ async def delete_image_resource(image_resource_id: str,
                     object_keys.add(version.artifact_object_key)
                 await get_data_repository(database, version.resource_type).delete(version.data_id)
                 await database.resource_version.delete(version.id)
+            for document in current_world_references:
+                if document.resource_version_id:
+                    version = await database.resource_version.get(document.resource_version_id)
+                    if version:
+                        if version.artifact_object_key:
+                            object_keys.add(version.artifact_object_key)
+                        await database.resource_version.delete(version.id)
+                    await database.world_data.delete(document.id)
+                    continue
+                media = [
+                    reference.model_copy(update={'image_resource_id': None})
+                    if reference.image_resource_id == image.id else reference
+                    for reference in document.data.media
+                ]
+                await database.world_data.update(document.model_copy(update={
+                    'data': document.data.model_copy(update={'media': media}),
+                    'updated_at': utc_now(),
+                }))
         await database.resource.clear_cover_reference(image.id)
         for version in await database.resource_version.list_all_for_resource(image.id):
             document = await database.image_data.get(version.data_id)

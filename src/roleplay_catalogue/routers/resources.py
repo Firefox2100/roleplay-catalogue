@@ -12,6 +12,8 @@ from roleplay_catalogue.models import (
     ResourceMetadata,
     ResourceType,
     ResourceVisibility,
+    WorldBundleData,
+    WorldDataDocument,
 )
 from roleplay_catalogue.models.roleplay_resource.resource import utc_now
 from roleplay_catalogue.models.roleplay_resource.silly_tavern import (
@@ -61,6 +63,9 @@ class ResourceUpdateRequest(CommonModel):
     description: str = Field('', max_length=10_000)
     visibility: ResourceVisibility
     tags: list[str] = Field(default_factory=list, max_length=50)
+    linked_lorebook_resource_ids: list[str] | None = Field(
+        None, max_length=50, alias='linkedLorebookResourceIds',
+    )
 
     @field_validator('name')
     @classmethod
@@ -90,17 +95,19 @@ class ResourceListResponse(CommonModel):
 ResourceDataResponse = (
     SillyTavernCharacterDataDocument |
     SillyTavernLorebookDataDocument |
-    ImageDataDocument
+    ImageDataDocument |
+    WorldDataDocument
 )
 
 
 def validate_resource_data(resource_type: ResourceType,
                            data: dict[str, Any],
-                           ) -> SillyTavernCharacterData | SillyTavernCardV3LoreBook | ImageData:
+                           ) -> SillyTavernCharacterData | SillyTavernCardV3LoreBook | ImageData | WorldBundleData:
     models = {
         ResourceType.SILLY_TAVERN_CHARACTER: SillyTavernCharacterData,
         ResourceType.SILLY_TAVERN_LOREBOOK: SillyTavernCardV3LoreBook,
         ResourceType.IMAGE: ImageData,
+        ResourceType.WORLD_SIMULATION_WORLD: WorldBundleData,
     }
     try:
         return models[resource_type].model_validate(data)
@@ -111,12 +118,13 @@ def validate_resource_data(resource_type: ResourceType,
 
 
 def create_data_document(resource: Resource,
-                         data: SillyTavernCharacterData | SillyTavernCardV3LoreBook | ImageData,
+                         data: SillyTavernCharacterData | SillyTavernCardV3LoreBook | ImageData | WorldBundleData,
                          ) -> ResourceDataResponse:
     models = {
         ResourceType.SILLY_TAVERN_CHARACTER: SillyTavernCharacterDataDocument,
         ResourceType.SILLY_TAVERN_LOREBOOK: SillyTavernLorebookDataDocument,
         ResourceType.IMAGE: ImageDataDocument,
+        ResourceType.WORLD_SIMULATION_WORLD: WorldDataDocument,
     }
     if resource.resource_type == ResourceType.IMAGE:
         return models[resource.resource_type](
@@ -281,6 +289,13 @@ async def update_resource(resource_id: str,
                           user: AuthenticatedUserDependency,
                           ) -> Resource:
     resource = await get_owned_resource(database, resource_id, user)
+    linked_lorebooks = resource.linked_lorebook_resource_ids
+    if payload.linked_lorebook_resource_ids is not None:
+        if resource.resource_type != ResourceType.SILLY_TAVERN_CHARACTER:
+            raise HTTPException(status.HTTP_409_CONFLICT, 'Only character cards can link lorebooks')
+        linked_lorebooks = tuple(dict.fromkeys(payload.linked_lorebook_resource_ids))
+        for lorebook_id in linked_lorebooks:
+            await get_owned_resource(database, lorebook_id, user, ResourceType.SILLY_TAVERN_LOREBOOK)
     updated = resource.model_copy(update={
         'metadata': ResourceMetadata(
             name=payload.name,
@@ -288,6 +303,7 @@ async def update_resource(resource_id: str,
             visibility=payload.visibility,
             tags=tuple(tag.strip() for tag in payload.tags if tag.strip()),
         ),
+        'linked_lorebook_resource_ids': linked_lorebooks,
         'updated_at': utc_now(),
     })
     return await database.resource.update(updated)
@@ -299,6 +315,12 @@ async def delete_resource(resource_id: str,
                           user: AuthenticatedUserDependency,
                           ) -> None:
     resource = await get_owned_resource(database, resource_id, user)
+    if resource.resource_type == ResourceType.SILLY_TAVERN_LOREBOOK and \
+            await database.resource.exists_lorebook_reference(resource.id):
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            'Lorebook is linked to a character card and cannot be deleted',
+        )
     if await database.resource_version.exists_for_resource(resource.id):
         raise HTTPException(
             status.HTTP_409_CONFLICT,

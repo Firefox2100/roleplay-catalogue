@@ -37,6 +37,7 @@ export function CharacterDetailPage() {
   const [versions, setVersions] = useState([])
   const [selectedId, setSelectedId] = useState('')
   const [releaseDocument, setReleaseDocument] = useState(null)
+  const [linkedLorebooks, setLinkedLorebooks] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState('')
   const [actionMessage, setActionMessage] = useState('')
@@ -75,6 +76,14 @@ export function CharacterDetailPage() {
     document.title = `${resource.metadata.name} · ${t('app.title')}`
     return () => { document.title = t('app.title') }
   }, [resource, t])
+
+  useEffect(() => {
+    let active = true
+    const ids = version?.linkedLorebookResourceIds ?? []
+    Promise.all(ids.map((id) => getResource(id).catch(() => null)))
+      .then((items) => { if (active) setLinkedLorebooks(items.filter(Boolean)) })
+    return () => { active = false }
+  }, [version])
 
   if (error) return <div className="page-loading error" role="alert">{error}</div>
   if (isLoading || !resource || !data || !version) {
@@ -176,6 +185,14 @@ export function CharacterDetailPage() {
             </article>)}
           </section>
         )}
+        {!!linkedLorebooks.length && <section className="linked-lorebooks detail-content">
+          <h2>{t('editor.linkedLorebooks')}</h2><p>{t('details.linkedLorebooksHelp')}</p>
+          <div className="linked-lorebook-links">{linkedLorebooks.map((lorebook) =>
+            <a key={lorebook.id} href={`/lorebooks/${lorebook.id}`} target="_blank" rel="noopener noreferrer">
+              <strong>{lorebook.metadata.name}</strong>
+              {lorebook.metadata.description && <small>{lorebook.metadata.description}</small>}
+            </a>)}</div>
+        </section>}
       </div>
     </article>
   )

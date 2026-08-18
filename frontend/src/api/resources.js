@@ -140,6 +140,14 @@ export async function importLorebook(resourceId, file) {
   })).json()
 }
 
+export async function importWorldBundle(resourceId, file) {
+  const form = new FormData()
+  form.append('file', file)
+  return (await request(`/api/resources/${resourceId}/import-world`, {
+    method: 'POST', headers: await csrfHeaders(), body: form,
+  })).json()
+}
+
 export async function getResource(resourceId) {
   return (await request(`/api/resources/${resourceId}`)).json()
 }

@@ -102,6 +102,11 @@ class Settings(BaseSettings):
         20 * 1024 * 1024,
         description='Maximum accepted source image size in bytes.'
     )
+    world_bundle_max_bytes: int = Field(
+        104_857_600,
+        ge=1_048_576,
+        description='Maximum compressed World bundle upload size.',
+    )
 
     smtp_host: str = Field(
         '127.0.0.1',

@@ -10,6 +10,7 @@ const RESOURCE_TABS = [
   { value: 'sillytavern/character', label: 'characters' },
   { value: 'sillytavern/lorebook', label: 'lorebooks' },
   { value: 'core/image', label: 'images' },
+  { value: 'world-simulation-engine/world', label: 'worlds' },
 ]
 
 function ResourceCard({ resource, onSelectAuthor }) {
@@ -22,13 +23,15 @@ function ResourceCard({ resource, onSelectAuthor }) {
     : resource.resourceType === 'sillytavern/character'
       ? `/characters/${resource.id}`
       : resource.resourceType === 'sillytavern/lorebook' ? `/lorebooks/${resource.id}` : ''
+  const resolvedDetailPath = resource.resourceType === 'world-simulation-engine/world'
+    ? `/worlds/${resource.id}` : detailPath
 
   return (
-    <article className={`catalogue-card${detailPath ? ' clickable' : ''}`}
-      tabIndex={detailPath ? '0' : undefined} role={detailPath ? 'link' : undefined}
-      onClick={() => detailPath && navigate(detailPath)}
+    <article className={`catalogue-card${resolvedDetailPath ? ' clickable' : ''}`}
+      tabIndex={resolvedDetailPath ? '0' : undefined} role={resolvedDetailPath ? 'link' : undefined}
+      onClick={() => resolvedDetailPath && navigate(resolvedDetailPath)}
       onKeyDown={(event) => {
-        if (detailPath && (event.key === 'Enter' || event.key === ' ')) event.currentTarget.click()
+        if (resolvedDetailPath && (event.key === 'Enter' || event.key === ' ')) event.currentTarget.click()
       }}>
       {imageUrl ? (
         <ResourceImage className="resource-grid-image" src={imageUrl} />

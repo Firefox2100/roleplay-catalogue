@@ -125,6 +125,13 @@ class ResourceRepository:
             session=current_session(),
         )
 
+    async def exists_lorebook_reference(self, lorebook_resource_id: str) -> bool:
+        return await self._collection.find_one(
+            {'linkedLorebookResourceIds': lorebook_resource_id},
+            {'_id': 1},
+            session=current_session(),
+        ) is not None
+
     async def list_by_author(self, author_id: str) -> list[Resource]:
         cursor = self._collection.find(
             {'authorId': author_id}, {'_id': 0}, session=current_session(),

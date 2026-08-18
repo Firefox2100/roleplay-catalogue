@@ -213,6 +213,33 @@ async def test_character_draft_can_be_added_updated_and_published() -> None:
         assert response.json()['draftDataId'] is None
         resource_id = response.json()['id']
 
+        response = await client.post('/resources', headers=headers, json={
+            'resourceType': 'sillytavern/lorebook', 'name': 'Linked lore',
+            'description': 'Shared setting', 'visibility': 'public', 'tags': [],
+        })
+        assert response.status_code == 201
+        linked_lorebook_id = response.json()['id']
+        response = await client.put(
+            f'/resources/{linked_lorebook_id}/data', headers=headers, json={'data': {
+                'name': 'Linked lore', 'entries': [{
+                    'keys': ['shared'], 'content': 'Shared linked context', 'enabled': True,
+                    'insertion_order': 10, 'use_regex': False, 'constant': False,
+                }],
+            }},
+        )
+        assert response.status_code == 200
+        response = await client.post(
+            f'/versions/{linked_lorebook_id}', headers=headers, json={'version': 'v1.0.0'},
+        )
+        assert response.status_code == 201
+        response = await client.put(f'/resources/{resource_id}', headers=headers, json={
+            'name': 'Example character', 'description': 'Catalogue description',
+            'visibility': 'public', 'tags': ['catalogue-tag'],
+            'linkedLorebookResourceIds': [linked_lorebook_id],
+        })
+        assert response.status_code == 200
+        assert response.json()['linkedLorebookResourceIds'] == [linked_lorebook_id]
+
         response = await client.put(
             f'/resources/{resource_id}/data',
             headers=headers,
@@ -246,6 +273,11 @@ async def test_character_draft_can_be_added_updated_and_published() -> None:
             'Character-specific context'
         )
 
+        response = await client.get(f'/versions/draft/{resource_id}/download')
+        assert response.status_code == 200
+        assert b'Character-specific context' in response.content
+        assert b'Shared linked context' in response.content
+
         response = await client.post(
             f'/versions/{resource_id}', headers=headers, json={'version': 'v1.2.3'},
         )
@@ -253,14 +285,19 @@ async def test_character_draft_can_be_added_updated_and_published() -> None:
         assert response.json()['versionNumber'] == 1
         assert response.json()['version'] == 'v1.2.3'
         assert response.json()['artifactFileName'] == 'Updated draft.json'
+        assert response.json()['linkedLorebookResourceIds'] == [linked_lorebook_id]
         assert response.json()['dataId'] != draft_id
         snapshot = database.silly_tavern_character_data.documents[response.json()['dataId']]
         assert snapshot.data.creator == USER.username
         assert snapshot.data.description == 'Catalogue description'
         assert snapshot.data.tags == ['catalogue-tag']
         assert snapshot.data.character_version == 'v1.2.3'
+        assert len(snapshot.data.character_book.entries) == 1
         artifact_key = response.json()['artifactObjectKey']
         assert storage.objects[artifact_key][1] == 'application/json'
+        artifact = storage.objects[artifact_key][0]
+        assert b'Character-specific context' in artifact
+        assert b'Shared linked context' in artifact
         version_id = response.json()['id']
 
         response = await client.get(f'/versions/{version_id}/data')

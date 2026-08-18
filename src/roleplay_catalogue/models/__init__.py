@@ -13,4 +13,7 @@ from .roleplay_resource import (
     ResourceVersion,
     ResourceVersionReference,
     ResourceVisibility,
+    WorldBundleData,
+    WorldDataDocument,
+    WorldMediaReference,
 )

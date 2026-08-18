@@ -23,6 +23,7 @@ from roleplay_catalogue.routers import (
     resource_version_router,
     silly_tavern_character_data_router,
     silly_tavern_lorebook_data_router,
+    world_router,
 )
 from roleplay_catalogue.middleware import CSRFMiddleware, SecurityHeadersMiddleware
 
@@ -168,6 +169,7 @@ for router in (
     auth_router, card_import_router, resource_router, resource_version_router,
     silly_tavern_character_data_router, silly_tavern_lorebook_data_router,
     image_data_router, image_router,
+    world_router,
 ):
     app.include_router(router, prefix=CONFIG.api_prefix)
 

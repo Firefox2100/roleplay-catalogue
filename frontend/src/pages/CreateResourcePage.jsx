@@ -9,6 +9,7 @@ const RESOURCE_TYPES = [
   'sillytavern/character',
   'sillytavern/lorebook',
   'core/image',
+  'world-simulation-engine/world',
 ]
 
 const VISIBILITIES = ['private', 'authenticated', 'public']
@@ -49,10 +50,13 @@ export function CreateResourcePage() {
         ? await uploadImageResource({ name, description, visibility, tags, file: imageFile })
         : await createResource({ resourceType, name, description, visibility, tags })
       if (resource.resourceType === 'sillytavern/character' ||
-          resource.resourceType === 'sillytavern/lorebook') {
+          resource.resourceType === 'sillytavern/lorebook' ||
+          resource.resourceType === 'world-simulation-engine/world') {
         const editorPath = resource.resourceType === 'sillytavern/lorebook'
           ? `/lorebooks/${resource.id}/edit`
-          : `/resources/${resource.id}/edit`
+          : resource.resourceType === 'world-simulation-engine/world'
+            ? `/worlds/${resource.id}/edit`
+            : `/resources/${resource.id}/edit`
         navigate(editorPath, { replace: true, state: { resource } })
         return
       }

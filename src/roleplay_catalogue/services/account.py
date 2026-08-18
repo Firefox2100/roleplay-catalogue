@@ -15,11 +15,13 @@ class AccountService:
         self._pending_account_retention = pending_account_retention
 
     def _data_repository(self, resource_type: ResourceType):
-        return {
-            ResourceType.SILLY_TAVERN_CHARACTER: self._database.silly_tavern_character_data,
-            ResourceType.SILLY_TAVERN_LOREBOOK: self._database.silly_tavern_lorebook_data,
-            ResourceType.IMAGE: self._database.image_data,
+        attribute = {
+            ResourceType.SILLY_TAVERN_CHARACTER: 'silly_tavern_character_data',
+            ResourceType.SILLY_TAVERN_LOREBOOK: 'silly_tavern_lorebook_data',
+            ResourceType.IMAGE: 'image_data',
+            ResourceType.WORLD_SIMULATION_WORLD: 'world_data',
         }[resource_type]
+        return getattr(self._database, attribute)
 
     async def delete_account(self, user: User) -> None:
         resources = await self._database.resource.list_by_author(user.id)
