@@ -48,6 +48,9 @@ test = [
     "pylint~=4.0.6",
     "testcontainers~=4.15.0",
 ]
+docs = [
+    "zensical~=0.0.56",
+]
 
 [project.urls]
 Homepage = "https://github.com/Firefox2100/roleplay-catalogue"
