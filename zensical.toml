@@ -12,6 +12,21 @@ site_dir = "site"
 
 nav = [
   { "Home" = "index.md" },
+  { "Quick Start" = "quick-start.md" },
+  { "Deployment" = "deployment.md" },
+  { "Configuration" = "configuration.md" },
+  { "Features" = [
+    { "Character Cards" = "features/character-cards.md" },
+    { "Lore Books" = "features/lore-books.md" },
+    { "Chat Presets" = "features/chat-presets.md" },
+    { "Images and Covers" = "features/images.md" },
+    { "World Bundles" = "features/worlds.md" },
+    { "Versioning and Releases" = "features/versioning.md" },
+    { "Forking" = "features/forking.md" },
+    { "Collaborative Editing" = "features/collaborative-editing.md" },
+    { "Search and Filtering" = "features/search-and-filtering.md" },
+    { "Importing Resources" = "features/importing-resources.md" },
+  ] },
 ]
 
 # extra_css = ["stylesheets/extra.css"]

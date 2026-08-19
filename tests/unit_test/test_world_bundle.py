@@ -4,10 +4,19 @@ from zipfile import ZipFile
 
 import pytest
 
-from roleplay_catalogue.models import Resource, ResourceMetadata, ResourceType
+from roleplay_catalogue.models import (
+    ImageDataDocument,
+    Resource,
+    ResourceMetadata,
+    ResourceType,
+    ResourceVersion,
+    WorldBundleData,
+    WorldMediaReference,
+)
 from roleplay_catalogue.components.world_bundle import (
     WorldBundleError,
     apply_resource_metadata_to_world,
+    build_world_bundle,
     parse_world_bundle,
     resource_language_from_world,
 )
@@ -76,3 +85,91 @@ def test_catalogue_metadata_controls_exported_world_language_and_description() -
     assert updated.world['metadata']['tags'] == ['catalogue']
     assert resource_language_from_world('zh').value == 'zh-cn'
     assert resource_language_from_world('en').value == 'en-uk'
+
+
+class VersionRepo:
+    def __init__(self, versions=()):
+        self.versions = {version.resource_id: version for version in versions}
+
+    async def get_latest(self, resource_id):
+        return self.versions.get(resource_id)
+
+
+class ImageDataRepo:
+    def __init__(self, documents=()):
+        self.documents = {document.id: document for document in documents}
+
+    async def get(self, data_id):
+        return self.documents.get(data_id)
+
+
+class FakeDatabase:
+    def __init__(self, *, versions=(), image_documents=()):
+        self.resource_version = VersionRepo(versions)
+        self.image_data = ImageDataRepo(image_documents)
+
+
+class FakeStorage:
+    def __init__(self, objects):
+        self.objects = objects
+
+    async def fetch(self, key):
+        yield self.objects[key]
+
+
+async def test_build_world_bundle_embeds_resolvable_media_files() -> None:
+    image_version = ResourceVersion(
+        resourceId='cover-resource', resourceType=ResourceType.IMAGE, versionNumber=1,
+        dataId='cover-data', metadata={'name': 'Cover'}, publishedById='author',
+    )
+    document = ImageDataDocument(
+        id='cover-data', resourceId='cover-resource', objectKey='images/cover.png',
+        contentType='image/png', byteSize=3, sha256='b' * 64, width=1, height=1,
+    )
+    database = FakeDatabase(versions=[image_version], image_documents=[document])
+    storage = FakeStorage({'images/cover.png': b'png-bytes'})
+    data = WorldBundleData(
+        world={
+            'id': 'world-1', 'name': 'Test world',
+            'starting_time': '2026-01-01T00:00:00Z', 'language': 'en',
+        },
+        media=[WorldMediaReference(
+            mediaId='cover-1', imageResourceId='cover-resource', record={'id': 'cover-1'},
+        )],
+    )
+
+    archive_bytes = await build_world_bundle(data, database, storage)
+
+    with ZipFile(BytesIO(archive_bytes)) as archive:
+        manifest = json.loads(archive.read('manifest.json'))
+        assert manifest['world_id'] == 'world-1'
+        assert manifest['world_name'] == 'Test world'
+        world = json.loads(archive.read('world.json'))
+        assert world['name'] == 'Test world'
+        media_row = json.loads(archive.read('media/manifest.jsonl').decode().strip())
+        assert media_row['id'] == 'cover-1'
+        assert media_row['hash'] == 'b' * 64
+        assert media_row['type'] == 'image/png'
+        assert archive.read(media_row['file']) == b'png-bytes'
+
+
+async def test_build_world_bundle_leaves_unresolvable_media_rows_untouched() -> None:
+    database = FakeDatabase()
+    storage = FakeStorage({})
+    data = WorldBundleData(
+        world={
+            'id': 'world-1', 'name': 'Test world',
+            'starting_time': '2026-01-01T00:00:00Z', 'language': 'en',
+        },
+        media=[WorldMediaReference(
+            mediaId='missing-1', imageResourceId='missing-resource',
+            record={'id': 'missing-1', 'type': 'image/png', 'file': 'media/missing.png'},
+        )],
+    )
+
+    archive_bytes = await build_world_bundle(data, database, storage)
+
+    with ZipFile(BytesIO(archive_bytes)) as archive:
+        media_row = json.loads(archive.read('media/manifest.jsonl').decode().strip())
+        assert media_row == {'id': 'missing-1', 'type': 'image/png', 'file': 'media/missing.png'}
+        assert 'media/missing.png' not in archive.namelist()

@@ -12,9 +12,62 @@ This software is provided as a hosting platform solution, with no included conte
 
 One core idea of this software is to provide convenient features for authors and distributors of roleplay resources, as well as for users who want to find and use them. As a result, the features of the software are constantly evolving and improving, based on the feedback and needs of the community. Some of the current features include:
 
-- **Support for SillyTavern character cards**: Users can create, upload and download character cards in the SillyTavern V3 format. V2 format cards will be automatically converted to V3 format upon upload.
-- **Support for SillyTavern lore books**: Lore books are supported as a first class resource type, and can be linked from normal character cards, allowing reuse of the same lore book across multiple character cards.
-- **Support for SillyTavern chat completion presets**: Users can create, upload and download chat completion presets. There are rarely places for users to share their presets, and this software aims to fill that gap.
-- **Versioned release and forking**: Authors can create new versions of their resources, and users can fork existing resources to create their derived versions. This allows for easy collaboration and sharing of resources, while maintaining the integrity of the original work.
-- **Search and filtering**: Users can search for resources based on various criteria, such as tags, categories, authors, and ratings. They can also filter the results to find the most relevant resources for their needs.
-- **Collaborative editing**: Authors can invite other users to collaborate on their resources, allowing for multiple contributors to work together on a single resource.
+### Character Cards
+
+Create, upload, and download character cards in SillyTavern's V3 format (V2 cards auto-convert on import). Cards can include embedded lorebooks, PNG cover images, and up to 50 linked lorebooks from the catalogue. Fork existing cards to make derivative versions.
+
+- [Detailed guide: Character Cards](features/character-cards.md)
+
+### Lore Books
+
+Upload, version, and link lorebooks as first-class resources. Lorebooks are self-contained and can be linked from character cards (live draft or pinned release) so the definition travels with the character on publish.
+
+- [Detailed guide: Lore Books](features/lore-books.md)
+
+### Chat Presets
+
+SillyTavern generation presets (temperature, stop tokens, repetition penalty, etc.) stored and shared as JSON. Fork presets to tweak settings for your own characters.
+
+- [Detailed guide: Chat Presets](features/chat-presets.md)
+
+### Images & Covers
+
+Upload image resources (PNG, JPEG, WebP, GIF). Assign cover images to character cards, lorebooks, and worlds. Images are immutable after publish and deduplicated by SHA-256 across forks.
+
+- [Detailed guide: Images](features/images.md)
+
+### World Bundles
+
+Upload and share WorldSE-compatible `.zip` bundles. Embedded images are extracted into the catalogue. Fork worlds to derive new game settings from existing designs.
+
+- [Detailed guide: World Bundles](features/worlds.md)
+
+### Versioning & Releases
+
+Every resource follows a **draft → release** workflow. The draft is editable at any time; releasing creates an immutable snapshot with its own visibility, content diff, and S3 artifact.
+
+- [Detailed guide: Versioning](features/versioning.md)
+
+### Forking
+
+Fork any published version to create a derived resource under your account. Cover images are deduplicated, lorebooks carry over, and the fork starts private for safe editing before share.
+
+- [Detailed guide: Forking](features/forking.md)
+
+### Collaborative Editing
+
+Authors invite co-authors to edit a resource's draft. Co-authors can upload data, change metadata, and link lorebooks; only the author can publish or delete.
+
+- [Detailed guide: Collaborative Editing](features/collaborative-editing.md)
+
+### Search & Filtering
+
+Full-text search via MongoDB Community Search, tag / type / author filtering, pagination, and tag-autocomplete.
+
+- [Detailed guide: Search & Filtering](features/search-and-filtering.md)
+
+### Importing Resources
+
+Import existing SillyTavern content — character cards (JSON / PNG), lorebooks, presets, and world bundles. The catalogue **merges** incoming data into drafts to avoid overwriting hand-crafted edits.
+
+- [Detailed guide: Importing Resources](features/importing-resources.md)

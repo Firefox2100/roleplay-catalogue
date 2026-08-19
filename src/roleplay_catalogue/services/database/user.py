@@ -51,7 +51,7 @@ class UserRepository:
 
     async def create(self, user: User) -> User:
         await self._collection.insert_one(
-            user.model_dump(mode='json', by_alias=True), session=current_session(),
+            user.model_dump(mode='python', by_alias=True), session=current_session(),
         )
         return user
 
@@ -63,7 +63,7 @@ class UserRepository:
     async def update(self, user: User) -> User:
         await self._collection.replace_one(
             {'id': user.id},
-            user.model_dump(mode='json', by_alias=True),
+            user.model_dump(mode='python', by_alias=True),
             session=current_session(),
         )
         return user

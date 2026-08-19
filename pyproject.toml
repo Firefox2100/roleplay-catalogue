@@ -65,6 +65,8 @@ roleplay_catalogue = ["data/email_templates/**/*.html"]
 
 [tool.pytest]
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
 log_file = "audit.log"
 log_file_level = "DEBUG"
 log_file_mode = "a"

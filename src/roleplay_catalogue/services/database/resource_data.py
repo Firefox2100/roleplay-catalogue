@@ -19,7 +19,7 @@ class ResourceDataRepository(Generic[DataDocument]):
 
     async def create(self, data: DataDocument) -> DataDocument:
         await self._collection.insert_one(
-            data.model_dump(mode='json', by_alias=True), session=current_session(),
+            data.model_dump(mode='python', by_alias=True), session=current_session(),
         )
         return data
 
@@ -53,7 +53,7 @@ class ResourceDataRepository(Generic[DataDocument]):
     async def update(self, data: DataDocument) -> DataDocument:
         await self._collection.replace_one(
             {'id': getattr(data, 'id')},
-            data.model_dump(mode='json', by_alias=True),
+            data.model_dump(mode='python', by_alias=True),
             session=current_session(),
         )
         return data

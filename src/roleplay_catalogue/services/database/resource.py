@@ -14,7 +14,7 @@ class ResourceRepository:
 
     async def create(self, resource: Resource) -> Resource:
         await self._collection.insert_one(
-            resource.model_dump(mode='json', by_alias=True), session=current_session(),
+            resource.model_dump(mode='python', by_alias=True), session=current_session(),
         )
         return resource
 
@@ -111,7 +111,7 @@ class ResourceRepository:
     async def update(self, resource: Resource) -> Resource:
         await self._collection.replace_one(
             {'id': resource.id},
-            resource.model_dump(mode='json', by_alias=True),
+            resource.model_dump(mode='python', by_alias=True),
             session=current_session(),
         )
         return resource

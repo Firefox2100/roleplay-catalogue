@@ -12,6 +12,21 @@ site_dir = "site/zh"
 
 nav = [
   { "概览" = "index.md" },
+  { "快速开始" = "quick-start.md" },
+  { "部署" = "deployment.md" },
+  { "配置选项" = "configuration.md" },
+  { "功能指南" = [
+    { "角色卡" = "features/character-cards.md" },
+    { "背景设定书" = "features/lore-books.md" },
+    { "聊天预设" = "features/chat-presets.md" },
+    { "图片与封面" = "features/images.md" },
+    { "WorldSE 数据包" = "features/worlds.md" },
+    { "版本管理与发布" = "features/versioning.md" },
+    { "资源 Fork（衍生）" = "features/forking.md" },
+    { "协作者编辑" = "features/collaborative-editing.md" },
+    { "搜索与过滤" = "features/search-and-filtering.md" },
+    { "导入资源" = "features/importing-resources.md" },
+  ] },
 ]
 
 # extra_css = ["stylesheets/extra.css"]

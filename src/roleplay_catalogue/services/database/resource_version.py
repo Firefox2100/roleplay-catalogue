@@ -12,14 +12,14 @@ class ResourceVersionRepository:
 
     async def create(self, version: ResourceVersion) -> ResourceVersion:
         await self._collection.insert_one(
-            version.model_dump(mode='json', by_alias=True), session=current_session(),
+            version.model_dump(mode='python', by_alias=True), session=current_session(),
         )
         return version
 
     async def update(self, version: ResourceVersion) -> ResourceVersion:
         await self._collection.replace_one(
             {'id': version.id},
-            version.model_dump(mode='json', by_alias=True),
+            version.model_dump(mode='python', by_alias=True),
             session=current_session(),
         )
         return version
