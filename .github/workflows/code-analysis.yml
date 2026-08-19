@@ -1,6 +1,7 @@
 name: Code Analysis with SonarQube
 
 permissions:
+  contents: read
   checks: write
   pull-requests: write
 
@@ -17,14 +18,15 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           fetch-depth: 0
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
         with:
           python-version: "3.12"
+          cache: "pip"
 
       - name: Install dependencies
         run: |
@@ -35,19 +37,7 @@ jobs:
         continue-on-error: true
         run: |
           export PYTHONPATH=./src:$PYTHONPATH
-          pytest --junitxml=test-results.xml --cov=roleplay_catalogue --cov-report=xml --cov-report=html
-
-      - name: Upload test results
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-results
-          path: test-results.xml
-
-      - name: Upload coverage report
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-report
-          path: coverage.xml
+          pytest --junitxml=test-results.xml --cov=roleplay_catalogue --cov-report=xml
 
       - name: Extract Version
         run: |
@@ -55,7 +45,7 @@ jobs:
           echo "VERSION=$VERSION" >> $GITHUB_ENV
 
       - name: SonarQube Scan
-        uses: SonarSource/sonarqube-scan-action@7006c4492b2e0ee0f816d36501671557c97f5995
+        uses: SonarSource/sonarqube-scan-action@2f77a1ec69fb1d595b06f35ab27e97605bdef703
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         with:
@@ -63,7 +53,27 @@ jobs:
             -Dsonar.projectVersion=${{ env.VERSION }}
 
       - name: Publish test results
-        uses: mikepenz/action-junit-report@v5
-        if: always()
+        uses: mikepenz/action-junit-report@3585e9575db828022551b4231f165eb59a0e74e3
+        if: always() && hashFiles('test-results.xml') != ''
         with:
           report_paths: "test-results.xml"
+
+      - name: Generate coverage summary
+        uses: irongut/CodeCoverageSummary@51cc3a756ddcd398d447c044c02cb6aa83fdae95
+        if: always() && hashFiles('coverage.xml') != ''
+        with:
+          filename: coverage.xml
+          badge: true
+          format: markdown
+          output: both
+
+      - name: Publish coverage in job summary
+        if: always() && hashFiles('code-coverage-results.md') != ''
+        run: cat code-coverage-results.md >> $GITHUB_STEP_SUMMARY
+
+      - name: Publish coverage PR comment
+        uses: marocchino/sticky-pull-request-comment@5770ad5eb8f42dd2c4f34da00c94c5381e49af88
+        if: always() && github.event_name == 'pull_request' && hashFiles('code-coverage-results.md') != ''
+        with:
+          recreate: true
+          path: code-coverage-results.md

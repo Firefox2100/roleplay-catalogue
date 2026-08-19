@@ -1,6 +1,6 @@
 # Roleplay Catalogue
 
-[![License: GPL v3](https://www.gnu.org/graphics/gplv3-88x31.png)](https://www.gnu.org/licenses/gpl-3.0.en.html)
+[![License: GPL v3](https://www.gnu.org/graphics/gplv3-88x31.png)](https://www.gnu.org/licenses/gpl-3.0.en.html) [![Quality gate status](https://sonarcloud.io/api/project_badges/measure?project=Firefox2100_roleplay-catalogue&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=Firefox2100_roleplay-catalogue) [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=Firefox2100_roleplay-catalogue&metric=coverage)](https://sonarcloud.io/summary/new_code?id=Firefox2100_roleplay-catalogue) [![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=Firefox2100_roleplay-catalogue&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=Firefox2100_roleplay-catalogue)
 
 An open-source, self-hosted catalogue for roleplay resources. It provides a private platform for managing and sharing SillyTavern character cards, lore books, chat presets, images, and World Simulation Engine worlds — giving full control to the hoster instead of relying on commercial platforms.
 

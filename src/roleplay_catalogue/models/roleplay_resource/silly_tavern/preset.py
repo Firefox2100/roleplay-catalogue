@@ -1,3 +1,4 @@
+import math
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from ..resource import ResourceDataDocument
@@ -49,8 +50,8 @@ class SillyTavernPresetData(BaseModel):
                      'top_k', 'top_a', 'min_p', 'repetition_penalty')
     @classmethod
     def finite_number(cls, value: float) -> float:
-        if value != value or value in (float('inf'), float('-inf')):
-            raise ValueError('Sampling values must be finite')
+        if not math.isfinite(value):
+            raise ValueError("Sampling values must be finite")
         return value
 
     @model_validator(mode='after')
