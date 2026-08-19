@@ -2,10 +2,10 @@ from typing import Annotated
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-from roleplay_catalogue.components import AuthComponent
+from roleplay_catalogue.components import AccountComponent, AuthComponent
 from roleplay_catalogue.misc import UserCredentialMismatch
 from roleplay_catalogue.models import User
-from roleplay_catalogue.services import AccountService, DatabaseService, MailingService, StorageService
+from roleplay_catalogue.services import DatabaseService, MailingService, StorageService
 
 
 def get_auth_component(request: Request) -> AuthComponent:
@@ -24,8 +24,8 @@ def get_storage_service(request: Request) -> StorageService:
     return request.app.state.storage_service
 
 
-def get_account_service(request: Request) -> AccountService:
-    return request.app.state.account_service
+def get_account_component(request: Request) -> AccountComponent:
+    return request.app.state.account_component
 
 
 AuthDependency = Annotated[
@@ -53,8 +53,8 @@ StorageDependency = Annotated[
 
 
 AccountDependency = Annotated[
-    AccountService,
-    Depends(get_account_service),
+    AccountComponent,
+    Depends(get_account_component),
 ]
 
 

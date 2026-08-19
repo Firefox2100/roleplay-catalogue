@@ -37,7 +37,15 @@ INDEXES: tuple[IndexDefinition, ...] = (
     IndexDefinition(
         'resources', 'resources_catalogue_text',
         [('metadata.name', TEXT), ('metadata.description', TEXT)],
-        {'weights': {'metadata.name': 10, 'metadata.description': 2}, 'default_language': 'none'},
+        {
+            'weights': {'metadata.name': 10, 'metadata.description': 2},
+            'default_language': 'none',
+            # MongoDB's per-document language override otherwise defaults to a field
+            # named "language", which collides with ResourceMetadata.language (a
+            # locale like "en-uk", not a text-search stemmer language) and makes
+            # every insert into this collection fail.
+            'language_override': 'catalogueTextSearchLanguage',
+        },
     ),
     IndexDefinition('resource_versions', 'versions_id_unique', [('id', ASCENDING)], {'unique': True}),
     IndexDefinition(

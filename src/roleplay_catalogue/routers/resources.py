@@ -28,7 +28,7 @@ from roleplay_catalogue.models.roleplay_resource.silly_tavern import (
 from roleplay_catalogue.models.roleplay_resource.silly_tavern.card_v3 import (
     SillyTavernCardV3LoreBook,
 )
-from .resource_utils import (
+from roleplay_catalogue.components import (
     get_data_repository,
     get_editable_resource,
     get_owned_resource,
@@ -421,7 +421,4 @@ async def delete_resource(resource_id: str,
             await repository.delete(resource.draft_data_id)
         await database.resource.delete(resource.id)
 
-    if hasattr(database, 'transaction'):
-        await database.transaction(delete_records)
-    else:
-        await delete_records()
+    await database.transaction(delete_records)

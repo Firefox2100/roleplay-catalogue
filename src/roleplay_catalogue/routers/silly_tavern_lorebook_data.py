@@ -9,7 +9,7 @@ from roleplay_catalogue.models.roleplay_resource.silly_tavern import (
 from roleplay_catalogue.models.roleplay_resource.silly_tavern.card_v3 import (
     SillyTavernCardV3LoreBook,
 )
-from .resource_utils import get_editable_resource, get_readable_resource
+from roleplay_catalogue.components import get_editable_resource, get_readable_resource
 from .utils import (
     AuthenticatedUserDependency,
     DatabaseDependency,
@@ -122,7 +122,4 @@ async def delete_lorebook_data(data_id: str,
             'updated_at': utc_now(),
         }))
 
-    if hasattr(database, 'transaction'):
-        await database.transaction(delete_records)
-    else:
-        await delete_records()
+    await database.transaction(delete_records)

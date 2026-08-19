@@ -12,8 +12,8 @@ from starlette.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from roleplay_catalogue.misc import CONFIG
-from roleplay_catalogue.services import AccountService, DatabaseService, MailingService, StorageService
-from roleplay_catalogue.components import AuthComponent
+from roleplay_catalogue.services import DatabaseService, MailingService, StorageService
+from roleplay_catalogue.components import AccountComponent, AuthComponent
 from roleplay_catalogue.routers import (
     auth_router,
     card_import_router,
@@ -93,12 +93,12 @@ async def lifespan(application: FastAPI):
             activation_token_max_age=CONFIG.activation_token_max_age,
             password_reset_token_max_age=CONFIG.password_reset_token_max_age,
         )
-        account_service = AccountService(
+        account_component = AccountComponent(
             database_service, storage_service, CONFIG.pending_account_retention,
         )
         scheduler = AsyncIOScheduler()
         scheduler.add_job(
-            account_service.purge_expired_pending_accounts,
+            account_component.purge_expired_pending_accounts,
             'interval',
             seconds=CONFIG.account_cleanup_interval,
             max_instances=1,
@@ -117,7 +117,7 @@ async def lifespan(application: FastAPI):
         application.state.mailing_service = mailing_service
         application.state.storage_service = storage_service
         application.state.auth_component = auth_component
-        application.state.account_service = account_service
+        application.state.account_component = account_component
 
         try:
             await database_service.initialize()

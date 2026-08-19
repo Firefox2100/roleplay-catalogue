@@ -21,8 +21,7 @@ from roleplay_catalogue.models.roleplay_resource.silly_tavern import (
     SillyTavernLorebookDataDocument,
     SillyTavernLorebookV3,
 )
-from .images import create_image_resource
-from .resource_utils import get_editable_resource
+from roleplay_catalogue.components import create_image_resource, get_editable_resource
 from .utils import AuthenticatedUserDependency, DatabaseDependency, StorageDependency
 
 

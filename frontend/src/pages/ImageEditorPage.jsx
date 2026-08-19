@@ -7,6 +7,7 @@ import {
 import { useAuth } from '../auth/useAuth.js'
 import { ResourceImage } from '../components/ResourceImage.jsx'
 import { TagEditor } from '../components/TagEditor.jsx'
+import { CoAuthorEditor } from '../components/CoAuthorEditor.jsx'
 
 const VISIBILITIES = ['private', 'authenticated', 'public']
 
@@ -60,6 +61,8 @@ export function ImageEditorPage() {
     return <div className="page-loading" role="status">{t('imageEditor.loading')}</div>
   }
 
+  const isOwner = user.id === resource.authorId
+
   async function save(event) {
     event.preventDefault()
     setIsSaving(true)
@@ -93,7 +96,7 @@ export function ImageEditorPage() {
           <button className="save-button" type="submit" disabled={isSaving}>
             {isSaving ? t('editor.saving') : t('editor.save')}
           </button>
-          <button className="danger-button" type="button" onClick={removeResource}>{t('editor.delete')}</button>
+          {isOwner && <button className="danger-button" type="button" onClick={removeResource}>{t('editor.delete')}</button>}
         </div>
         {error && <p className="editor-message error" role="alert">{error}</p>}
         {message && <p className="editor-message success" role="status">{message}</p>}
@@ -125,6 +128,7 @@ export function ImageEditorPage() {
             <div><label htmlFor="image-editor-tags">{t('resource.tags')}</label>
               <TagEditor id="image-editor-tags" value={fields.tags}
                 onChange={(tags) => setFields((current) => ({ ...current, tags }))} /></div>
+            <CoAuthorEditor resourceId={resource.id} authorId={resource.authorId} currentUserId={user.id} />
           </div>
         </div>
       </form>

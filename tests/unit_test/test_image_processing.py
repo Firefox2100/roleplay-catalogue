@@ -4,8 +4,8 @@ from io import BytesIO
 import pytest
 from PIL import Image, PngImagePlugin
 
-from roleplay_catalogue.routers.images import convert_to_clean_png
-from roleplay_catalogue.routers.resource_versions import package_card_as_png
+from roleplay_catalogue.components import package_card_as_png
+from roleplay_catalogue.components.image_ingestion import convert_to_clean_png
 
 
 def test_source_image_is_reencoded_as_clean_png() -> None:

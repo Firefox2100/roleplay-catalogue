@@ -1,41 +1,34 @@
-from asyncio import to_thread
-from base64 import b64encode
 from hashlib import sha256
-from io import BytesIO
-from typing import Any
 from urllib.parse import quote
 from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, Query, Request, status
 from fastapi.responses import Response, StreamingResponse
-from PIL import Image, PngImagePlugin
 from pydantic import Field, field_validator
 
-from roleplay_catalogue.models import CommonModel, LorebookReference, ResourceType, ResourceVersion, ResourceVisibility
+from roleplay_catalogue.models import CommonModel, ResourceType, ResourceVersion, ResourceVisibility
 from roleplay_catalogue.models import Resource, ResourceMetadata, ResourceVersionReference
 from roleplay_catalogue.models.roleplay_resource.resource import utc_now
 from roleplay_catalogue.models.roleplay_resource.silly_tavern import (
     SillyTavernCardV3,
     SillyTavernLorebookV3,
 )
-from roleplay_catalogue.models.roleplay_resource.silly_tavern.card_v3 import (
-    SillyTavernCardV3Data,
-    SillyTavernCardV3LoreBook,
-)
-from roleplay_catalogue.services import (
+from roleplay_catalogue.components import (
     apply_resource_metadata_to_world,
-    build_content_diff,
+    build_character_artifact,
     build_world_bundle,
-    render_release_text,
-)
-from .resource_utils import (
+    compute_release_content_diff,
+    create_image_resource,
     get_data_repository,
     get_editable_resource,
     get_owned_resource,
     get_readable_version,
+    merge_linked_lorebooks,
+    read_storage_object,
+    resolve_download_asset,
     resource_editor_ids,
+    snapshot_lorebook_references,
 )
-from .images import create_image_resource
 from .utils import AuthenticatedUserDependency, DatabaseDependency, OptionalAuthenticatedUserDependency, StorageDependency
 
 
@@ -64,219 +57,6 @@ class SignedDownloadResponse(CommonModel):
 
 def attachment_header(file_name: str) -> str:
     return f"attachment; filename*=UTF-8''{quote(file_name, safe='')}"
-
-
-async def read_storage_object(storage: StorageDependency, key: str) -> bytes:
-    return b''.join([chunk async for chunk in storage.fetch(key)])
-
-
-def package_card_as_png(cover: bytes, card_json: bytes) -> bytes:
-    with Image.open(BytesIO(cover)) as opened:
-        opened.load()
-        image = opened.convert('RGBA' if opened.mode in ('RGBA', 'LA') else 'RGB')
-        metadata = PngImagePlugin.PngInfo()
-        metadata.add_text('ccv3', b64encode(card_json).decode('ascii'))
-        output = BytesIO()
-        image.save(output, format='PNG', pnginfo=metadata, optimize=True)
-        return output.getvalue()
-
-
-async def build_character_artifact(*, database: DatabaseDependency,
-                                   storage: StorageDependency,
-                                   card: SillyTavernCardV3,
-                                   cover_image_resource_id: str | None,
-                                   ) -> tuple[bytes, str, str]:
-    card_json = card.model_dump_json(exclude_none=True).encode('utf-8')
-    if not cover_image_resource_id:
-        return card_json, 'application/json', '.json'
-    image_version = await database.resource_version.get_latest(cover_image_resource_id)
-    image_document = await database.image_data.get(image_version.data_id) if image_version else None
-    if not image_document:
-        raise HTTPException(status.HTTP_409_CONFLICT, 'Cover image content is missing')
-    cover = await read_storage_object(storage, image_document.object_key)
-    return await to_thread(package_card_as_png, cover, card_json), 'image/png', '.png'
-
-
-async def merge_linked_lorebooks(character: SillyTavernCardV3Data,
-                                 links: tuple[LorebookReference, ...],
-                                 database: DatabaseDependency,
-                                 *, character_author_name: str,
-                                 character_editor_ids: frozenset[str],
-                                 require_releases: bool = False,
-                                 required_visibility: ResourceVisibility | None = None,
-                                 ) -> SillyTavernCardV3Data:
-    """Embed linked books in selection order, retaining private-book settings as the base."""
-    books: list[SillyTavernCardV3LoreBook] = []
-    authors = [character_author_name] if character.character_book else []
-    for link in links:
-        resource = await database.resource.get(link.resource_id)
-        if not resource or resource.resource_type != ResourceType.SILLY_TAVERN_LOREBOOK:
-            raise HTTPException(status.HTTP_409_CONFLICT, 'A linked lorebook no longer exists')
-        if require_releases and link.version_id is None:
-            raise HTTPException(
-                status.HTTP_409_CONFLICT,
-                'Character releases cannot link lorebook drafts; select a lorebook release first',
-            )
-        version = await database.resource_version.get(link.version_id) if link.version_id else None
-        if version and (version.resource_id != resource.id or
-                        version.resource_type != ResourceType.SILLY_TAVERN_LOREBOOK):
-            raise HTTPException(status.HTTP_409_CONFLICT, 'A linked lorebook release is invalid')
-        if version and version.visibility == ResourceVisibility.PRIVATE and \
-                not (resource_editor_ids(resource) & character_editor_ids):
-            raise HTTPException(status.HTTP_409_CONFLICT, 'A linked lorebook release is no longer readable')
-        if version and required_visibility:
-            permitted = {
-                ResourceVisibility.PRIVATE: set(ResourceVisibility),
-                ResourceVisibility.AUTHENTICATED: {
-                    ResourceVisibility.AUTHENTICATED, ResourceVisibility.PUBLIC,
-                },
-                ResourceVisibility.PUBLIC: {ResourceVisibility.PUBLIC},
-            }[required_visibility]
-            if version.visibility not in permitted:
-                raise HTTPException(
-                    status.HTTP_409_CONFLICT,
-                    'A linked lorebook release is less visible than the character release',
-                )
-        if link.version_id is None and not (resource_editor_ids(resource) & character_editor_ids):
-            raise HTTPException(status.HTTP_409_CONFLICT, 'Only editable lorebook drafts may be linked')
-        document = None
-        if link.version_id is None and resource.draft_data_id:
-            document = await database.silly_tavern_lorebook_data.get(resource.draft_data_id)
-        elif version:
-            document = (
-                await database.silly_tavern_lorebook_data.get(version.data_id)
-            )
-        if not document:
-            raise HTTPException(status.HTTP_409_CONFLICT, 'A linked lorebook has no selected content')
-        books.append(document.data)
-        lorebook_author = await database.user.get(resource.author_id)
-        if lorebook_author and lorebook_author.username not in authors:
-            authors.append(lorebook_author.username)
-
-    if not books:
-        if not character.character_book:
-            return character
-        return character.model_copy(update={'character_book': character.character_book.model_copy(
-            update={'author': ', '.join(authors)},
-        )})
-    base = character.character_book or books[0]
-    linked_entries = [entry for book in books for entry in book.entries]
-    if character.character_book is None:
-        linked_entries = [entry for book in books[1:] for entry in book.entries]
-    merged = base.model_copy(update={
-        'entries': [*base.entries, *linked_entries],
-        'author': ', '.join(authors),
-    })
-    return character.model_copy(update={'character_book': merged})
-
-
-async def render_merged_character_data(character: SillyTavernCardV3Data,
-                                       links: tuple[LorebookReference, ...],
-                                       database: DatabaseDependency,
-                                       *, character_author_name: str,
-                                       ) -> SillyTavernCardV3Data:
-    """Embed pinned lorebook releases for content-diff rendering only.
-
-    Unlike merge_linked_lorebooks, this never raises and does not re-check current visibility:
-    it renders what a past or new release's merged content looks like for ResourceVersion's
-    content_diff. A link's release is a permanent, immutable snapshot (published resources
-    cannot be deleted), so every pinned link is expected to resolve; one that nonetheless
-    cannot be resolved is skipped rather than blocking the diff or the publish it belongs to.
-    """
-    books: list[SillyTavernCardV3LoreBook] = []
-    authors = [character_author_name] if character.character_book else []
-    for link in links:
-        if not link.version_id:
-            continue
-        version = await database.resource_version.get(link.version_id)
-        document = (
-            await database.silly_tavern_lorebook_data.get(version.data_id) if version else None
-        )
-        if not document:
-            continue
-        books.append(document.data)
-        if link.author and link.author not in authors:
-            authors.append(link.author)
-
-    if not books:
-        return character
-    base = character.character_book or books[0]
-    linked_entries = [entry for book in books for entry in book.entries]
-    if character.character_book is None:
-        linked_entries = [entry for book in books[1:] for entry in book.entries]
-    merged = base.model_copy(update={
-        'entries': [*base.entries, *linked_entries],
-        'author': ', '.join(authors),
-    })
-    return character.model_copy(update={'character_book': merged})
-
-
-async def compute_release_content_diff(*, resource: Resource,
-                                       repository: Any,
-                                       database: DatabaseDependency,
-                                       latest: ResourceVersion | None,
-                                       current_data: Any,
-                                       release_lorebooks: tuple[LorebookReference, ...],
-                                       author_username: str | None,
-                                       ) -> str | None:
-    """Render the content_diff for a new release of `resource` against `latest`, if any."""
-    previous_document = await repository.get(latest.data_id) if latest else None
-    if resource.resource_type == ResourceType.SILLY_TAVERN_CHARACTER:
-        diff_current = await render_merged_character_data(
-            current_data, release_lorebooks, database, character_author_name=author_username,
-        )
-        diff_previous = None
-        if previous_document:
-            diff_previous = await render_merged_character_data(
-                previous_document.data, latest.linked_lorebooks, database,
-                character_author_name=author_username,
-            )
-    else:
-        diff_current = current_data
-        diff_previous = previous_document.data if previous_document else None
-    return build_content_diff(render_release_text(diff_previous), render_release_text(diff_current))
-
-
-async def snapshot_lorebook_references(links: tuple[LorebookReference, ...],
-                                       database: DatabaseDependency,
-                                       ) -> tuple[LorebookReference, ...]:
-    snapshots = []
-    for link in links:
-        if not link.version_id:
-            raise HTTPException(
-                status.HTTP_409_CONFLICT,
-                'Character releases cannot link lorebook drafts; select a lorebook release first',
-            )
-        version = await database.resource_version.get(link.version_id)
-        resource = await database.resource.get(link.resource_id)
-        author = await database.user.get(resource.author_id) if resource else None
-        if not version or not resource or version.resource_id != resource.id or not author:
-            raise HTTPException(status.HTTP_409_CONFLICT, 'A linked lorebook release is invalid')
-        snapshots.append(link.model_copy(update={
-            'name': version.metadata.name,
-            'author': author.username,
-            'version': version.version,
-        }))
-    return tuple(snapshots)
-
-
-async def resolve_download_asset(version: ResourceVersion,
-                                 database: DatabaseDependency,
-                                 ) -> tuple[str, str, str, int | None, str | None]:
-    if version.artifact_object_key:
-        return (
-            version.artifact_object_key,
-            version.artifact_content_type or 'application/octet-stream',
-            version.artifact_file_name or f'{version.metadata.name}.{version.version}',
-            version.artifact_byte_size,
-            version.artifact_sha256,
-        )
-    if version.resource_type == ResourceType.IMAGE:
-        document = await database.image_data.get(version.data_id)
-        if document:
-            return (document.object_key, document.content_type,
-                    f'{version.metadata.name}.png', document.byte_size, document.sha256)
-    raise HTTPException(status.HTTP_404_NOT_FOUND, 'Release artifact not found')
 
 
 @resource_version_router.get('/draft/{resource_id}/download')
@@ -450,9 +230,7 @@ async def publish_resource(resource_id: str, payload: PublishResourceRequest,
         await storage.upload(object_key, artifact, content_type)
         uploaded = True
         await storage.wait_until_available(object_key)
-        if hasattr(database, 'transaction'):
-            return await database.transaction(persist_release)
-        return await persist_release()
+        return await database.transaction(persist_release)
     except Exception:
         if uploaded:
             await storage.remove(object_key)

@@ -151,6 +151,9 @@ class MemoryDatabaseService:
         self.silly_tavern_preset_data = MemoryDataRepository()
         self.image_data = MemoryDataRepository()
 
+    async def transaction(self, operation):
+        return await operation()
+
 
 class MemoryStorageService:
     def __init__(self):

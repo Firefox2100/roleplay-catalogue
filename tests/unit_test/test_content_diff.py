@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 
-from roleplay_catalogue.services import build_content_diff, render_release_text
+from roleplay_catalogue.components import build_content_diff, render_release_text
 
 
 class Payload(BaseModel):

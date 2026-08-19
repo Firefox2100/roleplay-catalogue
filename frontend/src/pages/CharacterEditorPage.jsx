@@ -9,6 +9,7 @@ import {
 import { useAuth } from '../auth/useAuth.js'
 import { TagEditor } from '../components/TagEditor.jsx'
 import { ResourceImage } from '../components/ResourceImage.jsx'
+import { CoAuthorEditor } from '../components/CoAuthorEditor.jsx'
 
 const EMPTY_CARD = {
   name: '', creator: '', character_version: '', nickname: '', tags: '',
@@ -183,6 +184,8 @@ export function CharacterEditorPage() {
   if (isAuthLoading || isLoading) {
     return <div className="page-loading" role="status">{t('editor.loading')}</div>
   }
+
+  const isOwner = user.id === resource.authorId
 
   function updateCard(field, value) {
     setCard((current) => ({ ...current, [field]: value }))
@@ -371,9 +374,9 @@ export function CharacterEditorPage() {
             <h1>{resource?.metadata.name}</h1>
           </div>
           <div className="editor-actions">
-            <button className="danger-button" type="button" onClick={removeResource}>{t('editor.delete')}</button>
-            <button type="button" disabled={isPublishing}
-              onClick={() => setIsPublishOpen(true)}>{t('editor.publish')}</button>
+            {isOwner && <button className="danger-button" type="button" onClick={removeResource}>{t('editor.delete')}</button>}
+            {isOwner && <button type="button" disabled={isPublishing}
+              onClick={() => setIsPublishOpen(true)}>{t('editor.publish')}</button>}
             <button type="button" disabled={isImportingCard}
               onClick={() => cardInput.current?.click()}>
               {isImportingCard ? t('editor.importing') : t('editor.upload')}
@@ -421,6 +424,7 @@ export function CharacterEditorPage() {
                 onChange={(tags) => setResourceFields((fields) => ({ ...fields, tags }))} />
             </div>
           </div>
+          <CoAuthorEditor resourceId={resource.id} authorId={resource.authorId} currentUserId={user.id} />
         </section>
 
         <div className="editor-summary">
@@ -552,12 +556,14 @@ export function CharacterEditorPage() {
                     <strong>{version.version}</strong>
                     <small>{t('editor.releaseNumber', { number: version.versionNumber })}</small>
                   </div>
-                  <select value={version.visibility} aria-label={t('resource.visibility')}
-                    onChange={(event) => changeVersionVisibility(version.id, event.target.value)}>
-                    <option value="private">{t('resource.visibilities.private')}</option>
-                    <option value="authenticated">{t('resource.visibilities.authenticated')}</option>
-                    <option value="public">{t('resource.visibilities.public')}</option>
-                  </select>
+                  {isOwner ? (
+                    <select value={version.visibility} aria-label={t('resource.visibility')}
+                      onChange={(event) => changeVersionVisibility(version.id, event.target.value)}>
+                      <option value="private">{t('resource.visibilities.private')}</option>
+                      <option value="authenticated">{t('resource.visibilities.authenticated')}</option>
+                      <option value="public">{t('resource.visibilities.public')}</option>
+                    </select>
+                  ) : <small>{t(`resource.visibilities.${version.visibility}`)}</small>}
                 </article>
               ))}
             </div>

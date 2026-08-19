@@ -1,5 +1,5 @@
 from roleplay_catalogue.models import Resource, ResourceMetadata, ResourceVisibility, User
-from roleplay_catalogue.routers.resource_utils import (
+from roleplay_catalogue.components import (
     can_read_resource,
     is_resource_editor,
     resource_editor_ids,

@@ -9,6 +9,7 @@ import {
 import { useAuth } from '../auth/useAuth.js'
 import { ResourceImage } from '../components/ResourceImage.jsx'
 import { TagEditor } from '../components/TagEditor.jsx'
+import { CoAuthorEditor } from '../components/CoAuthorEditor.jsx'
 
 
 const EMPTY_BOOK = {
@@ -108,6 +109,8 @@ export function LorebookEditorPage() {
     return <Navigate to="/login" state={{ from: location.pathname }} replace />
   }
   if (isAuthLoading || isLoading) return <div className="page-loading">{t('lorebookEditor.loading')}</div>
+
+  const isOwner = user.id === resource.authorId
 
   function updateEntry(localId, field, value) {
     setEntries((current) => current.map((entry) => (
@@ -222,8 +225,8 @@ export function LorebookEditorPage() {
         <div className="editor-toolbar">
           <div><span className="eyebrow">{t('lorebookEditor.draft')}</span><h1>{resource.metadata.name}</h1></div>
           <div className="editor-actions">
-            <button className="danger-button" type="button" onClick={removeResource}>{t('editor.delete')}</button>
-            <button type="button" onClick={() => setIsPublishOpen(true)}>{t('editor.publish')}</button>
+            {isOwner && <button className="danger-button" type="button" onClick={removeResource}>{t('editor.delete')}</button>}
+            {isOwner && <button type="button" onClick={() => setIsPublishOpen(true)}>{t('editor.publish')}</button>}
             <button type="button" disabled={busy === 'import'} onClick={() => importInput.current?.click()}>
               {busy === 'import' ? t('editor.importing') : t('editor.upload')}
             </button>
@@ -261,6 +264,7 @@ export function LorebookEditorPage() {
               <TagEditor id="lorebook-tags" value={resourceFields.tags}
                 onChange={(tags) => setResourceFields((current) => ({ ...current, tags }))} /></div>
           </div>
+          <CoAuthorEditor resourceId={resource.id} authorId={resource.authorId} currentUserId={user.id} />
         </section>
 
         <div className="editor-summary">
@@ -335,9 +339,11 @@ export function LorebookEditorPage() {
               <div className="release-cover">{version.coverImageResourceId
                 ? <ResourceImage imageResourceId={version.coverImageResourceId} /> : <span>◇</span>}</div>
               <div><strong>{version.version}</strong><small>{t('editor.releaseNumber', { number: version.versionNumber })}</small></div>
-              <select value={version.visibility} onChange={(event) => changeVisibility(version.id, event.target.value)}>
-                {['private', 'authenticated', 'public'].map((visibility) => <option key={visibility} value={visibility}>{t(`resource.visibilities.${visibility}`)}</option>)}
-              </select>
+              {isOwner ? (
+                <select value={version.visibility} onChange={(event) => changeVisibility(version.id, event.target.value)}>
+                  {['private', 'authenticated', 'public'].map((visibility) => <option key={visibility} value={visibility}>{t(`resource.visibilities.${visibility}`)}</option>)}
+                </select>
+              ) : <small>{t(`resource.visibilities.${version.visibility}`)}</small>}
             </article>)}</div>}
         </section>
 

@@ -3,7 +3,7 @@ from types import SimpleNamespace
 
 from roleplay_catalogue.misc import UserStatus
 from roleplay_catalogue.models import Resource, ResourceType, ResourceVersion, User
-from roleplay_catalogue.services import AccountService
+from roleplay_catalogue.components import AccountComponent
 
 
 class Repository:
@@ -95,11 +95,11 @@ async def test_account_deletion_cascades_resources_versions_data_and_storage() -
         silly_tavern_character_data=character_data,
         silly_tavern_lorebook_data=Repository(), image_data=image_data,
         activation_token=TokenRepository(), password_reset_token=TokenRepository(),
-        api_key=TokenRepository(),
+        api_key=TokenRepository(), transaction=lambda operation: operation(),
     )
     storage = Storage({'releases/character.json', 'images/image.png'})
 
-    await AccountService(database, storage, 86400).delete_account(user)
+    await AccountComponent(database, storage, 86400).delete_account(user)
 
     assert not database.user.documents
     assert not database.resource.documents
@@ -120,10 +120,10 @@ async def test_pending_account_cleanup_uses_account_creation_time() -> None:
         resource_version=VersionRepository(), silly_tavern_character_data=Repository(),
         silly_tavern_lorebook_data=Repository(), image_data=Repository(),
         activation_token=TokenRepository(), password_reset_token=TokenRepository(),
-        api_key=TokenRepository(),
+        api_key=TokenRepository(), transaction=lambda operation: operation(),
     )
 
-    purged = await AccountService(database, Storage(set()), 86400).purge_expired_pending_accounts()
+    purged = await AccountComponent(database, Storage(set()), 86400).purge_expired_pending_accounts()
 
     assert purged == 1
     assert not database.user.documents

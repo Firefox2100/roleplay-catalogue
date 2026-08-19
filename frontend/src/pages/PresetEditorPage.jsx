@@ -7,6 +7,7 @@ import {
 } from '../api/resources.js'
 import { useAuth } from '../auth/useAuth.js'
 import { TagEditor } from '../components/TagEditor.jsx'
+import { CoAuthorEditor } from '../components/CoAuthorEditor.jsx'
 
 const DEFAULT_DATA = {
   temperature: 1, frequency_penalty: 0, presence_penalty: 0, top_p: 1, top_k: 0,
@@ -61,6 +62,8 @@ export function PresetEditorPage() {
   if (authLoading || busy === 'load') return <div className="page-loading">{t('preset.loading')}</div>
   if (!resource || !metadata) return <div className="page-loading error">{error || t('preset.loadFailed')}</div>
 
+  const isOwner = user.id === resource.authorId
+
   function setPrompt(index, field, value) {
     setData((current) => ({ ...current, prompts: current.prompts.map((prompt, i) => i === index ? { ...prompt, [field]: value } : prompt) }))
   }
@@ -109,7 +112,7 @@ export function PresetEditorPage() {
   const order = data.prompt_order?.[0]?.order ?? []
   return <section className="character-editor-page"><div className="character-editor">
     <header className="editor-toolbar"><div><span className="eyebrow">{t('preset.draft')}</span><h1>{metadata.name}</h1></div><div className="editor-actions">
-      <button className="danger-button" type="button" onClick={async () => { if (confirm(t('editor.deleteConfirm'))) { await deleteResource(resourceId, resource.resourceType); window.location.assign('/resources/mine') } }}>{t('editor.delete')}</button>
+      {isOwner && <button className="danger-button" type="button" onClick={async () => { if (confirm(t('editor.deleteConfirm'))) { await deleteResource(resourceId, resource.resourceType); window.location.assign('/resources/mine') } }}>{t('editor.delete')}</button>}
       <button type="button" onClick={() => fileInput.current?.click()}>{t('editor.upload')}</button><a className="editor-action-link" href={draftDownloadUrl(resourceId)}>{t('editor.export')}</a>
       <button className="save-button" type="button" disabled={Boolean(busy)} onClick={save}>{busy === 'save' ? t('editor.saving') : t('editor.save')}</button>
     </div></header>
@@ -121,7 +124,9 @@ export function PresetEditorPage() {
       <label>{t('resource.language')}<select value={metadata.language} onChange={(event) => setMetadata({ ...metadata, language: event.target.value })}><option value="en-uk">{t('resource.languages.enUK')}</option><option value="zh-cn">{t('resource.languages.zhCN')}</option></select></label>
       <label className="wide-field">{t('resource.description')}<textarea rows={3} value={metadata.description} onChange={(event) => setMetadata({ ...metadata, description: event.target.value })} /></label>
       <div className="wide-field"><label>{t('resource.tags')}</label><TagEditor value={metadata.tags} onChange={(tags) => setMetadata({ ...metadata, tags })} /></div>
-    </div></section>
+    </div>
+    <CoAuthorEditor resourceId={resource.id} authorId={resource.authorId} currentUserId={user.id} />
+    </section>
     <section className="preset-settings"><h2>{t('preset.sampling')}</h2><div className="editor-field-grid">{SAMPLERS.map((field) => <label key={field}>{t(`preset.fields.${field}`)}<input type="number" step="any" value={data[field]} onChange={(event) => setData({ ...data, [field]: Number(event.target.value) })} /></label>)}
       <label className="checkbox-field"><input type="checkbox" checked={data.stream_openai} onChange={(event) => setData({ ...data, stream_openai: event.target.checked })} />{t('preset.fields.stream_openai')}</label></div></section>
     <section className="preset-prompts"><div className="section-heading"><div><h2>{t('preset.prompts')}</h2><p>{t('preset.promptsHelp')}</p></div><button className="add-list-button" type="button" onClick={addPrompt}>＋ {t('preset.addPrompt')}</button></div>
@@ -134,6 +139,8 @@ export function PresetEditorPage() {
         <label className="wide-field">{t('preset.content')}<textarea rows={6} disabled={prompt.marker} value={prompt.content ?? ''} onChange={(event) => setPrompt(index, 'content', event.target.value)} /></label>
       </div></article>)}</section>
     <section className="preset-settings"><h2>{t('preset.advanced')}</h2><p>{t('preset.advancedHelp')}</p><JsonEditor value={advanced} onChange={(value) => setData({ ...Object.fromEntries(Object.entries(data).filter(([key]) => KNOWN.has(key))), ...value })} /></section>
-    <section className="release-history"><h2>{t('editor.releases')}</h2><div className="world-publish-row"><input value={releaseVersion} onChange={(event) => setReleaseVersion(event.target.value)} /><button className="save-button" disabled={Boolean(busy)} type="button" onClick={publish}>{t('editor.publish')}</button></div><div className="release-grid">{versions.map((version) => <div className="release-tile" key={version.id}><strong>{version.version}</strong></div>)}</div></section>
+    <section className="release-history"><h2>{t('editor.releases')}</h2>
+      {isOwner && <div className="world-publish-row"><input value={releaseVersion} onChange={(event) => setReleaseVersion(event.target.value)} /><button className="save-button" disabled={Boolean(busy)} type="button" onClick={publish}>{t('editor.publish')}</button></div>}
+      <div className="release-grid">{versions.map((version) => <div className="release-tile" key={version.id}><strong>{version.version}</strong></div>)}</div></section>
   </div></section>
 }

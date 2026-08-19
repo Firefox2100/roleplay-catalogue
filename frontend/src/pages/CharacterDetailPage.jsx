@@ -7,6 +7,8 @@ import {
   versionCoverUrl, versionDownloadUrl,
 } from '../api/resources.js'
 import { ResourceImage } from '../components/ResourceImage.jsx'
+import { ResourceAuthors } from '../components/ResourceAuthors.jsx'
+import { ReleaseDiff } from '../components/ReleaseDiff.jsx'
 import { useAuth } from '../auth/useAuth.js'
 import { copyText } from '../utils/clipboard.js'
 
@@ -140,8 +142,9 @@ export function CharacterDetailPage() {
           <TextField label={t('resource.language')} value={t(`resource.languages.${version.metadata.language === 'zh-cn' ? 'zhCN' : 'enUK'}`)} />
           {!!version.metadata.tags?.length && <div className="detail-tags">
             {version.metadata.tags.map((tag) => <span key={tag}>{tag}</span>)}</div>}
-          <TextField label={t('details.author')} value={resource.authorUsername} />
+          <ResourceAuthors resource={resource} />
         </section>
+        <ReleaseDiff diff={version.contentDiff} />
         <div className="editor-summary">
           <div className="character-image-picker detail-cover">
             {version.coverImageResourceId

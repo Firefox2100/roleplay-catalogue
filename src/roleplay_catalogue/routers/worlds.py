@@ -9,13 +9,13 @@ from roleplay_catalogue.models import (
     WorldDataDocument,
 )
 from roleplay_catalogue.models.roleplay_resource.resource import utc_now
-from roleplay_catalogue.services import (
+from roleplay_catalogue.components import (
     WorldBundleError,
+    create_image_resource,
+    get_editable_resource,
     parse_world_bundle,
     resource_language_from_world,
 )
-from .images import create_image_resource
-from .resource_utils import get_editable_resource
 from .utils import AuthenticatedUserDependency, DatabaseDependency, StorageDependency
 
 
@@ -94,9 +94,6 @@ async def import_world_bundle(resource_id: str,
             'updated_at': utc_now(),
         }))
 
-    if hasattr(database, 'transaction'):
-        await database.transaction(persist)
-    else:
-        await persist()
+    await database.transaction(persist)
     updated_resource = await database.resource.get(resource.id)
     return WorldImportResponse(resource=updated_resource, draft=draft)

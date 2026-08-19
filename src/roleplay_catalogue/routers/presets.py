@@ -12,7 +12,7 @@ from roleplay_catalogue.models import (
     SillyTavernPresetDataDocument,
 )
 from roleplay_catalogue.models.roleplay_resource.resource import utc_now
-from .resource_utils import get_editable_resource
+from roleplay_catalogue.components import get_editable_resource
 from .utils import AuthenticatedUserDependency, DatabaseDependency
 
 
@@ -63,5 +63,5 @@ async def import_preset(resource_id: str,
             'draft_data_id': draft.id, 'updated_at': utc_now(),
         }))
 
-    updated = await database.transaction(persist) if hasattr(database, 'transaction') else await persist()
+    updated = await database.transaction(persist)
     return PresetImportResponse(resource=updated, draft=draft)

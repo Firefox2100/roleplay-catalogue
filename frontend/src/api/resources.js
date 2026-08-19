@@ -59,6 +59,23 @@ export async function suggestResourceTags(search, limit = 10) {
   return (await request(`/api/resources/tags?${query}`)).json()
 }
 
+export async function addCoAuthor(resourceId, username) {
+  const response = await request(`/api/resources/${resourceId}/co-authors`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...await csrfHeaders() },
+    body: JSON.stringify({ username }),
+  })
+  return response.json()
+}
+
+export async function removeCoAuthor(resourceId, coAuthorId) {
+  const response = await request(`/api/resources/${resourceId}/co-authors/${coAuthorId}`, {
+    method: 'DELETE',
+    headers: await csrfHeaders(),
+  })
+  return response.json()
+}
+
 export async function updateResource(resourceId, metadata) {
   const csrfResponse = await request('/api/auth/csrf')
   const csrfToken = (await csrfResponse.json()).csrfToken

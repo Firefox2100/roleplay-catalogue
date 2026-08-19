@@ -5,7 +5,7 @@ from zipfile import ZipFile
 import pytest
 
 from roleplay_catalogue.models import Resource, ResourceMetadata, ResourceType
-from roleplay_catalogue.services.world_bundle import (
+from roleplay_catalogue.components.world_bundle import (
     WorldBundleError,
     apply_resource_metadata_to_world,
     parse_world_bundle,

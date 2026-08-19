@@ -7,6 +7,7 @@ import {
 } from '../api/resources.js'
 import { useAuth } from '../auth/useAuth.js'
 import { TagEditor } from '../components/TagEditor.jsx'
+import { CoAuthorEditor } from '../components/CoAuthorEditor.jsx'
 
 const SECTION_TEMPLATES = {
   locations: () => ({ id: crypto.randomUUID(), name: '', description: '', parent_location_id: null }),
@@ -177,6 +178,8 @@ export function WorldEditorPage() {
   if (!user) return <Navigate to="/login" state={{ from: location.pathname }} replace />
   if (!resource || !bundle || !metadata) return <div className="page-loading">{error || t('world.loadFailed')}</div>
 
+  const isOwner = user.id === resource.authorId
+
   async function save() {
     setBusy('save'); setError(''); setMessage('')
     try {
@@ -206,7 +209,7 @@ export function WorldEditorPage() {
   return <section className="world-editor-page"><div className="world-editor">
     <header className="editor-toolbar"><div><span className="eyebrow">{t('world.model')}</span><h1>{metadata.name}</h1></div>
       <div className="editor-actions">
-        <button className="danger-button" type="button" onClick={async () => { if (confirm(t('editor.deleteConfirm'))) { await deleteResource(resourceId, resource.resourceType); window.location.assign('/resources/mine') } }}>{t('editor.delete')}</button>
+        {isOwner && <button className="danger-button" type="button" onClick={async () => { if (confirm(t('editor.deleteConfirm'))) { await deleteResource(resourceId, resource.resourceType); window.location.assign('/resources/mine') } }}>{t('editor.delete')}</button>}
         <button type="button" onClick={() => importInput.current?.click()} disabled={Boolean(busy)}>{t('editor.upload')}</button>
         <a className="editor-action-link" href={draftDownloadUrl(resourceId)}>{t('editor.export')}</a>
         <button className="save-button" type="button" onClick={save} disabled={Boolean(busy)}>{busy === 'save' ? t('editor.saving') : t('editor.save')}</button>
@@ -219,6 +222,7 @@ export function WorldEditorPage() {
         <label>{t('resource.language')}<select value={metadata.language ?? 'en-uk'} onChange={(event) => setMetadata({ ...metadata, language: event.target.value })}><option value="en-uk">{t('resource.languages.enUK')}</option><option value="zh-cn">{t('resource.languages.zhCN')}</option></select></label>
         <label className="wide-field">{t('resource.description')}<textarea rows={3} value={metadata.description} onChange={(event) => setMetadata({ ...metadata, description: event.target.value })} /></label>
         <div className="wide-field resource-tag-field"><label>{t('resource.tags')}</label><TagEditor value={metadata.tags} onChange={(tags) => setMetadata({ ...metadata, tags })} /></div></div>
+      <CoAuthorEditor resourceId={resource.id} authorId={resource.authorId} currentUserId={user.id} />
     </section>
     <section className="world-settings"><h2>{t('world.settings')}</h2><div className="editor-field-grid">
       {Object.entries(bundle.world).filter(([field]) => !['id', 'creation_time', 'cover_media_id', 'language'].includes(field)).map(([field, value]) => <WorldField key={field} field={field} value={value} section="world" registry={registry} t={t} onChange={(newValue) => setBundle({ ...bundle, world: { ...bundle.world, [field]: newValue } })} />)}
@@ -237,7 +241,7 @@ export function WorldEditorPage() {
       </article>)}</div>
     </section>
     <section className="release-history"><div className="section-heading"><div><h2>{t('editor.releases')}</h2><p>{t('editor.releasesHelp')}</p></div></div>
-      <div className="world-publish-row"><input value={releaseVersion} onChange={(event) => setReleaseVersion(event.target.value)} /><button className="save-button" type="button" disabled={Boolean(busy) || !releaseVersion.trim()} onClick={publish}>{busy === 'publish' ? t('editor.publishing') : t('editor.publish')}</button></div>
+      {isOwner && <div className="world-publish-row"><input value={releaseVersion} onChange={(event) => setReleaseVersion(event.target.value)} /><button className="save-button" type="button" disabled={Boolean(busy) || !releaseVersion.trim()} onClick={publish}>{busy === 'publish' ? t('editor.publishing') : t('editor.publish')}</button></div>}
       <div className="release-grid">{versions.map((version) => <div className="release-tile" key={version.id}><div><strong>{version.version}</strong><small>#{version.versionNumber}</small></div></div>)}</div>
     </section>
   </div></section>

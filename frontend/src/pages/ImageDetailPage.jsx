@@ -6,6 +6,7 @@ import {
   listResourceVersions, versionDownloadUrl,
 } from '../api/resources.js'
 import { ResourceImage } from '../components/ResourceImage.jsx'
+import { ResourceAuthors } from '../components/ResourceAuthors.jsx'
 import { copyText } from '../utils/clipboard.js'
 
 
@@ -65,7 +66,7 @@ export function ImageDetailPage() {
             {version.metadata.description && <section><h2>{t('resource.description')}</h2>
               <p>{version.metadata.description}</p></section>}
             <section><h2>{t('resource.language')}</h2><p>{t(`resource.languages.${version.metadata.language === 'zh-cn' ? 'zhCN' : 'enUK'}`)}</p></section>
-            <section><h2>{t('details.author')}</h2><p>{resource.authorUsername}</p></section>
+            <ResourceAuthors resource={resource} />
             {!!version.metadata.tags?.length && <div className="detail-tags">
               {version.metadata.tags.map((tag) => <span key={tag}>{tag}</span>)}</div>}
           </div>
