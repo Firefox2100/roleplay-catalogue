@@ -12,7 +12,7 @@ from roleplay_catalogue.models import (
     SillyTavernPresetDataDocument,
 )
 from roleplay_catalogue.models.roleplay_resource.resource import utc_now
-from .resource_utils import get_owned_resource
+from .resource_utils import get_editable_resource
 from .utils import AuthenticatedUserDependency, DatabaseDependency
 
 
@@ -29,7 +29,7 @@ async def import_preset(resource_id: str,
                         user: AuthenticatedUserDependency,
                         database: DatabaseDependency,
                         file: UploadFile = File(...)) -> PresetImportResponse:
-    resource = await get_owned_resource(
+    resource = await get_editable_resource(
         database, resource_id, user, ResourceType.SILLY_TAVERN_PRESET,
     )
     payload = await file.read(CONFIG.preset_max_bytes + 1)

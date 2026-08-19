@@ -55,6 +55,7 @@ class AccountService:
                     await self._database.resource.clear_cover_reference(resource.id)
                 await self._database.resource.delete(resource.id)
 
+            await self._database.resource.remove_co_author(user.id)
             await self._database.activation_token.delete(user.username)
             await self._database.password_reset_token.delete(user.id)
             await self._database.api_key.delete_for_user(user.id)

@@ -22,6 +22,7 @@ from roleplay_catalogue.models import (
 from roleplay_catalogue.models.roleplay_resource.resource import utc_now
 from .resource_utils import (
     get_data_repository,
+    get_editable_resource,
     get_owned_resource,
     get_readable_resource,
     get_readable_version,
@@ -202,7 +203,7 @@ async def upload_character_cover(character_resource_id: str,
                                  database: DatabaseDependency,
                                  storage: StorageDependency,
                                  ) -> Resource:
-    character = await get_owned_resource(database, character_resource_id, user)
+    character = await get_editable_resource(database, character_resource_id, user)
     if character.resource_type not in (
             ResourceType.SILLY_TAVERN_CHARACTER,
             ResourceType.SILLY_TAVERN_LOREBOOK,
@@ -231,13 +232,13 @@ async def select_character_cover(character_resource_id: str,
                                  user: AuthenticatedUserDependency,
                                  database: DatabaseDependency,
                                  ) -> Resource:
-    character = await get_owned_resource(database, character_resource_id, user)
+    character = await get_editable_resource(database, character_resource_id, user)
     if character.resource_type not in (
             ResourceType.SILLY_TAVERN_CHARACTER,
             ResourceType.SILLY_TAVERN_LOREBOOK,
     ):
         raise HTTPException(status.HTTP_409_CONFLICT, 'Resource type does not support covers')
-    image = await get_owned_resource(
+    image = await get_editable_resource(
         database, payload.image_resource_id, user, ResourceType.IMAGE,
     )
     if not await database.resource_version.get_latest(image.id):
@@ -254,7 +255,7 @@ async def update_image_metadata(image_resource_id: str,
                                 user: AuthenticatedUserDependency,
                                 database: DatabaseDependency,
                                 ) -> Resource:
-    image = await get_owned_resource(database, image_resource_id, user, ResourceType.IMAGE)
+    image = await get_editable_resource(database, image_resource_id, user, ResourceType.IMAGE)
     if not payload.name.strip():
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, 'Image name must not be blank')
     metadata = ResourceMetadata(

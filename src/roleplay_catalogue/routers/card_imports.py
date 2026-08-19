@@ -22,7 +22,7 @@ from roleplay_catalogue.models.roleplay_resource.silly_tavern import (
     SillyTavernLorebookV3,
 )
 from .images import create_image_resource
-from .resource_utils import get_owned_resource
+from .resource_utils import get_editable_resource
 from .utils import AuthenticatedUserDependency, DatabaseDependency, StorageDependency
 
 
@@ -124,7 +124,7 @@ async def import_character_card(resource_id: str,
                                 storage: StorageDependency,
                                 file: UploadFile = File(...),
                                 ) -> CardImportResponse:
-    resource = await get_owned_resource(
+    resource = await get_editable_resource(
         database, resource_id, user, ResourceType.SILLY_TAVERN_CHARACTER,
     )
     payload = await file.read(CONFIG.image_max_bytes + 1)
@@ -208,7 +208,7 @@ async def import_lorebook(resource_id: str,
                           database: DatabaseDependency,
                           file: UploadFile = File(...),
                           ) -> LorebookImportResponse:
-    resource = await get_owned_resource(
+    resource = await get_editable_resource(
         database, resource_id, user, ResourceType.SILLY_TAVERN_LOREBOOK,
     )
     payload = await file.read(CONFIG.image_max_bytes + 1)

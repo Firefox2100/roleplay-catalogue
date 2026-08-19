@@ -29,7 +29,11 @@ from roleplay_catalogue.models.roleplay_resource.silly_tavern.card_v3 import (
     SillyTavernCardV3LoreBook,
 )
 from .resource_utils import (
-    get_data_repository, get_owned_resource, get_readable_resource, get_readable_version,
+    get_data_repository,
+    get_editable_resource,
+    get_owned_resource,
+    get_readable_resource,
+    get_readable_version,
 )
 from .utils import (
     AuthenticatedUserDependency,
@@ -93,11 +97,18 @@ class ResourceDataUpsertRequest(CommonModel):
 
 class ResourceListItem(Resource):
     author_username: str = Field(..., alias='authorUsername')
+    co_author_usernames: list[str] = Field(default_factory=list, alias='coAuthorUsernames')
 
 
 class ResourceListResponse(CommonModel):
     items: list[ResourceListItem]
     next_offset: int | None = Field(None, alias='nextOffset')
+
+
+class CoAuthorAddRequest(CommonModel):
+    model_config = ConfigDict(extra='forbid', serialize_by_alias=True)
+
+    username: str = Field(..., min_length=1, max_length=100)
 
 
 ResourceDataResponse = (
@@ -208,10 +219,17 @@ async def list_resources(database: DatabaseDependency,
     )
     has_more = len(resources) > limit
     resources = resources[:limit]
-    users = await database.user.get_many({resource.author_id for resource in resources})
+    users = await database.user.get_many({
+        user_id for resource in resources
+        for user_id in (resource.author_id, *resource.co_author_ids)
+    })
     items = [ResourceListItem(
         **resource.model_dump(by_alias=True),
         authorUsername=users[resource.author_id].username,
+        coAuthorUsernames=[
+            users[co_author_id].username for co_author_id in resource.co_author_ids
+            if co_author_id in users
+        ],
     ) for resource in resources if resource.author_id in users]
     return ResourceListResponse(
         items=items,
@@ -241,9 +259,14 @@ async def get_resource(resource_id: str,
     author = await database.user.get(resource.author_id)
     if not author:
         raise HTTPException(status.HTTP_404_NOT_FOUND, 'Resource author not found')
+    co_authors = await database.user.get_many(set(resource.co_author_ids))
     return ResourceListItem(
         **resource.model_dump(by_alias=True),
         authorUsername=author.username,
+        coAuthorUsernames=[
+            co_authors[co_author_id].username for co_author_id in resource.co_author_ids
+            if co_author_id in co_authors
+        ],
     )
 
 
@@ -252,7 +275,7 @@ async def get_resource_data(resource_id: str,
                             database: DatabaseDependency,
                             user: AuthenticatedUserDependency,
                             ) -> ResourceDataResponse:
-    resource = await get_owned_resource(database, resource_id, user)
+    resource = await get_editable_resource(database, resource_id, user)
     if not resource.draft_data_id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, 'Resource has no draft data')
 
@@ -270,7 +293,7 @@ async def upsert_resource_data(resource_id: str,
                                database: DatabaseDependency,
                                user: AuthenticatedUserDependency,
                                ) -> ResourceDataResponse:
-    resource = await get_owned_resource(database, resource_id, user)
+    resource = await get_editable_resource(database, resource_id, user)
     data = validate_resource_data(resource.resource_type, payload.data)
     repository = get_data_repository(database, resource.resource_type)
 
@@ -300,7 +323,7 @@ async def update_resource(resource_id: str,
                           database: DatabaseDependency,
                           user: AuthenticatedUserDependency,
                           ) -> Resource:
-    resource = await get_owned_resource(database, resource_id, user)
+    resource = await get_editable_resource(database, resource_id, user)
     linked_lorebooks = resource.linked_lorebooks
     if payload.linked_lorebooks is not None:
         if resource.resource_type != ResourceType.SILLY_TAVERN_CHARACTER:
@@ -310,7 +333,7 @@ async def update_resource(resource_id: str,
         linked_lorebooks = tuple(payload.linked_lorebooks)
         for link in linked_lorebooks:
             if link.version_id is None:
-                await get_owned_resource(
+                await get_editable_resource(
                     database, link.resource_id, user, ResourceType.SILLY_TAVERN_LOREBOOK,
                 )
                 continue
@@ -327,6 +350,48 @@ async def update_resource(resource_id: str,
             tags=tuple(tag.strip() for tag in payload.tags if tag.strip()),
         ),
         'linked_lorebooks': linked_lorebooks,
+        'updated_at': utc_now(),
+    })
+    return await database.resource.update(updated)
+
+
+@resource_router.post('/{resource_id}/co-authors', response_model=Resource,
+                      status_code=status.HTTP_201_CREATED)
+async def add_co_author(resource_id: str,
+                        payload: CoAuthorAddRequest,
+                        database: DatabaseDependency,
+                        user: AuthenticatedUserDependency,
+                        ) -> Resource:
+    resource = await get_owned_resource(database, resource_id, user)
+    co_author = await database.user.get_by_username(payload.username.strip())
+    if not co_author:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, 'User not found')
+    if co_author.id == resource.author_id:
+        raise HTTPException(status.HTTP_409_CONFLICT, 'The resource owner is already an author')
+    if co_author.id in resource.co_author_ids:
+        raise HTTPException(status.HTTP_409_CONFLICT, 'User is already a co-author')
+    updated = resource.model_copy(update={
+        'co_author_ids': (*resource.co_author_ids, co_author.id),
+        'updated_at': utc_now(),
+    })
+    return await database.resource.update(updated)
+
+
+@resource_router.delete('/{resource_id}/co-authors/{co_author_id}', response_model=Resource)
+async def remove_co_author(resource_id: str,
+                           co_author_id: str,
+                           database: DatabaseDependency,
+                           user: AuthenticatedUserDependency,
+                           ) -> Resource:
+    resource = await database.resource.get(resource_id)
+    if not resource or (resource.author_id != user.id and user.id != co_author_id):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, 'Resource not found')
+    if co_author_id not in resource.co_author_ids:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, 'Co-author not found')
+    updated = resource.model_copy(update={
+        'co_author_ids': tuple(
+            existing_id for existing_id in resource.co_author_ids if existing_id != co_author_id
+        ),
         'updated_at': utc_now(),
     })
     return await database.resource.update(updated)

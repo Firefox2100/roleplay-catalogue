@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, status
 from roleplay_catalogue.models import ImageData, ImageDataDocument, ResourceType
 from roleplay_catalogue.models.roleplay_resource.resource import utc_now
-from .resource_utils import get_owned_resource, get_readable_resource
+from .resource_utils import get_editable_resource, get_readable_resource
 from .utils import (
     AuthenticatedUserDependency,
     DatabaseDependency,
@@ -25,7 +25,7 @@ async def create_image_data(resource_id: str,
                             database: DatabaseDependency,
                             user: AuthenticatedUserDependency,
                             ) -> ImageDataDocument:
-    resource = await get_owned_resource(database, resource_id, user, ResourceType.IMAGE)
+    resource = await get_editable_resource(database, resource_id, user, ResourceType.IMAGE)
     if resource.draft_data_id:
         raise HTTPException(status.HTTP_409_CONFLICT, 'Resource already has image data')
     if await database.resource_version.exists_for_resource(resource.id):
@@ -48,7 +48,7 @@ async def list_image_data(resource_id: str,
                           database: DatabaseDependency,
                           user: AuthenticatedUserDependency,
                           ) -> list[ImageDataDocument]:
-    await get_owned_resource(database, resource_id, user, ResourceType.IMAGE)
+    await get_editable_resource(database, resource_id, user, ResourceType.IMAGE)
     return await database.image_data.list_for_resource(resource_id)
 
 
@@ -65,7 +65,7 @@ async def get_image_data(data_id: str,
     elif not user:
         raise HTTPException(status.HTTP_404_NOT_FOUND, 'Image data not found')
     else:
-        await get_owned_resource(database, document.resource_id, user)
+        await get_editable_resource(database, document.resource_id, user)
     return document
 
 
@@ -77,7 +77,7 @@ async def delete_image_data(data_id: str,
     document = await database.image_data.get(data_id)
     if not document:
         raise HTTPException(status.HTTP_404_NOT_FOUND, 'Image data not found')
-    resource = await get_owned_resource(database, document.resource_id, user, ResourceType.IMAGE)
+    resource = await get_editable_resource(database, document.resource_id, user, ResourceType.IMAGE)
     if document.resource_version_id or resource.draft_data_id != document.id:
         raise HTTPException(status.HTTP_409_CONFLICT, 'Published data is immutable')
 

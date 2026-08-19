@@ -50,6 +50,18 @@ the normal CSRF header:
 Account deletion cascades through authored resources, release snapshots, draft data, image objects,
 and generated release artifacts. Email address changes are intentionally unsupported.
 
+## Resource co-authors
+
+A resource's author may grant other users editing permission on its draft:
+
+- `POST /resources/{resourceId}/co-authors` with `{ "username": "..." }`, author only.
+- `DELETE /resources/{resourceId}/co-authors/{coAuthorId}`, author or the co-author themselves.
+
+Co-authors can view and edit the draft exactly like the author, including uploading data, editing
+metadata, and linking it as a draft dependency from another resource they can edit. They cannot
+publish a release or delete the resource; those actions remain author-only. Deleting a user account
+removes it from every other resource's co-author list.
+
 ## Container deployment
 
 The multistage [Dockerfile](Dockerfile) builds the Vite frontend, builds the Python project and all

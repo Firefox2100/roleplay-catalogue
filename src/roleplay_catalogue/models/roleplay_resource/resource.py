@@ -90,6 +90,15 @@ class Resource(CommonModel):
         description='User who owns and authors the mutable resource',
         alias='authorId',
     )
+    co_author_ids: tuple[str, ...] = Field(
+        default_factory=tuple,
+        description=(
+            'Users granted editing permission by the author. Co-authors may view and edit the '
+            'draft, including linking it as a draft from another resource, but may not publish a '
+            'release or delete the resource.'
+        ),
+        alias='coAuthorIds',
+    )
     metadata: ResourceMetadata = Field(
         ...,
         description='Current mutable metadata',
@@ -217,6 +226,17 @@ class ResourceVersion(CommonModel):
         None,
         description='Previous published version in this resource history',
         alias='previousVersionId',
+    )
+    content_diff: str | None = Field(
+        None,
+        description=(
+            'Unified text diff of this release\'s complete content against previous_version_id, '
+            'including any linked or merged resources embedded in the release (for example a '
+            "character's linked lorebooks). The first release in a resource's history is diffed "
+            "as if the previous release were empty, mirroring git's treatment of an initial "
+            'commit. Null for resource types with no textual content, such as images.'
+        ),
+        alias='contentDiff',
     )
     published_at: datetime = Field(
         default_factory=utc_now,

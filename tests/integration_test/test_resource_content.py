@@ -8,6 +8,7 @@ from roleplay_catalogue.routers.utils import (
     authenticate_user,
     get_database_service,
     get_storage_service,
+    optionally_authenticate_user,
 )
 
 
@@ -692,3 +693,225 @@ async def test_image_metadata_and_sole_version_are_updated_together() -> None:
     assert response.status_code == 200
     assert response.json()['metadata']['visibility'] == 'public'
     assert database.resource_version.documents[version.id].metadata.name == 'Renamed image'
+
+
+async def test_character_release_content_diff_tracks_changes_against_previous_release() -> None:
+    database = MemoryDatabaseService()
+    storage = MemoryStorageService()
+    app.dependency_overrides[get_database_service] = lambda: database
+    app.dependency_overrides[get_storage_service] = lambda: storage
+    app.dependency_overrides[authenticate_user] = authenticated_user
+
+    def removed_lines(diff: str) -> list[str]:
+        return [
+            line for line in diff.splitlines()
+            if line.startswith('-') and not line.startswith('---')
+        ]
+
+    async with AsyncClient(
+            transport=ASGITransport(app=app),
+            base_url='http://test',
+    ) as client:
+        headers = await get_csrf_headers(client)
+
+        response = await client.post('/resources', headers=headers, json={
+            'resourceType': 'sillytavern/lorebook', 'name': 'Linked lore',
+            'description': '', 'visibility': 'public', 'tags': [],
+        })
+        assert response.status_code == 201
+        lorebook_id = response.json()['id']
+        response = await client.put(
+            f'/resources/{lorebook_id}/data', headers=headers, json={'data': {
+                'name': 'Linked lore', 'entries': [{
+                    'keys': ['shared'], 'content': 'Shared linked context', 'enabled': True,
+                    'insertion_order': 10, 'use_regex': False, 'constant': False,
+                }],
+            }},
+        )
+        assert response.status_code == 200
+        response = await client.post(
+            f'/versions/{lorebook_id}', headers=headers, json={'version': 'v1.0.0'},
+        )
+        assert response.status_code == 201
+        lorebook_diff = response.json()['contentDiff']
+        assert lorebook_diff is not None
+        assert 'Shared linked context' in lorebook_diff
+        assert removed_lines(lorebook_diff) == []
+        lorebook_version_id = response.json()['id']
+
+        response = await client.post('/resources', headers=headers, json={
+            'resourceType': 'sillytavern/character', 'name': 'Example character',
+            'description': '', 'visibility': 'public', 'tags': [],
+        })
+        assert response.status_code == 201
+        character_id = response.json()['id']
+        response = await client.put(f'/resources/{character_id}', headers=headers, json={
+            'name': 'Example character', 'description': '', 'visibility': 'public', 'tags': [],
+            'linkedLorebooks': [{'resourceId': lorebook_id, 'versionId': lorebook_version_id}],
+        })
+        assert response.status_code == 200
+        response = await client.put(
+            f'/resources/{character_id}/data', headers=headers,
+            json={'data': {'name': 'First draft'}},
+        )
+        assert response.status_code == 200
+
+        response = await client.post(
+            f'/versions/{character_id}', headers=headers, json={'version': 'v1.0.0'},
+        )
+        assert response.status_code == 201
+        first_release = response.json()
+        assert first_release['previousVersionId'] is None
+        first_diff = first_release['contentDiff']
+        assert first_diff is not None
+        assert '"name": "First draft"' in first_diff
+        assert 'Shared linked context' in first_diff
+        assert removed_lines(first_diff) == []
+
+        response = await client.put(
+            f'/resources/{character_id}/data', headers=headers,
+            json={'data': {'name': 'Second draft'}},
+        )
+        assert response.status_code == 200
+
+        response = await client.post(
+            f'/versions/{character_id}', headers=headers, json={'version': 'v1.1.0'},
+        )
+        assert response.status_code == 201
+        second_release = response.json()
+        assert second_release['previousVersionId'] == first_release['id']
+        second_diff = second_release['contentDiff']
+        assert second_diff is not None
+        assert '-  "name": "First draft"' in second_diff
+        assert '+  "name": "Second draft"' in second_diff
+        assert 'Shared linked context' not in second_diff
+
+
+async def test_owner_can_grant_and_revoke_co_author_edit_access() -> None:
+    database = MemoryDatabaseService()
+    database.user.documents[OTHER_USER.id] = OTHER_USER
+    app.dependency_overrides[get_database_service] = lambda: database
+    app.dependency_overrides[authenticate_user] = authenticated_user
+    app.dependency_overrides[optionally_authenticate_user] = authenticated_user
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url='http://test') as client:
+        headers = await get_csrf_headers(client)
+        resource = (await client.post('/resources', headers=headers, json={
+            'resourceType': 'sillytavern/character', 'name': 'Shared draft',
+            'description': '', 'visibility': 'private', 'tags': [],
+        })).json()
+        resource_id = resource['id']
+
+        response = await client.post(
+            f'/resources/{resource_id}/co-authors', headers=headers,
+            json={'username': 'unknown-user'},
+        )
+        assert response.status_code == 404
+
+        response = await client.post(
+            f'/resources/{resource_id}/co-authors', headers=headers,
+            json={'username': USER.username},
+        )
+        assert response.status_code == 409
+
+        response = await client.post(
+            f'/resources/{resource_id}/co-authors', headers=headers,
+            json={'username': OTHER_USER.username},
+        )
+        assert response.status_code == 201
+        assert response.json()['coAuthorIds'] == [OTHER_USER.id]
+
+        response = await client.post(
+            f'/resources/{resource_id}/co-authors', headers=headers,
+            json={'username': OTHER_USER.username},
+        )
+        assert response.status_code == 409
+
+        app.dependency_overrides[authenticate_user] = other_authenticated_user
+        app.dependency_overrides[optionally_authenticate_user] = other_authenticated_user
+        headers = await get_csrf_headers(client)
+
+        response = await client.get(f'/resources/{resource_id}')
+        assert response.status_code == 200
+        assert response.json()['coAuthorUsernames'] == [OTHER_USER.username]
+
+        response = await client.put(
+            f'/resources/{resource_id}/data', headers=headers,
+            json={'data': {'name': 'Co-authored draft'}},
+        )
+        assert response.status_code == 200
+
+        response = await client.put(f'/resources/{resource_id}', headers=headers, json={
+            'name': 'Shared draft', 'description': 'Edited by a co-author',
+            'visibility': 'private', 'tags': [],
+        })
+        assert response.status_code == 200
+        assert response.json()['metadata']['description'] == 'Edited by a co-author'
+
+        response = await client.post(
+            f'/versions/{resource_id}', headers=headers, json={'version': 'v1'},
+        )
+        assert response.status_code == 404
+
+        response = await client.delete(f'/resources/{resource_id}', headers=headers)
+        assert response.status_code == 404
+
+        response = await client.post(
+            f'/resources/{resource_id}/co-authors', headers=headers,
+            json={'username': OTHER_USER.username},
+        )
+        assert response.status_code == 404
+
+        response = await client.delete(
+            f'/resources/{resource_id}/co-authors/{OTHER_USER.id}', headers=headers,
+        )
+        assert response.status_code == 200
+        assert response.json()['coAuthorIds'] == []
+
+        response = await client.put(
+            f'/resources/{resource_id}/data', headers=headers,
+            json={'data': {'name': 'No longer allowed'}},
+        )
+        assert response.status_code == 404
+
+
+async def test_co_author_can_link_their_editable_lorebook_draft() -> None:
+    database = MemoryDatabaseService()
+    database.user.documents[OTHER_USER.id] = OTHER_USER
+    app.dependency_overrides[get_database_service] = lambda: database
+    app.dependency_overrides[authenticate_user] = authenticated_user
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url='http://test') as client:
+        headers = await get_csrf_headers(client)
+        lorebook = (await client.post('/resources', headers=headers, json={
+            'resourceType': 'sillytavern/lorebook', 'name': 'Co-authored lore',
+            'description': '', 'visibility': 'private', 'tags': [],
+        })).json()
+        await client.put(f"/resources/{lorebook['id']}/data", headers=headers, json={'data': {
+            'entries': [{'keys': ['shared'], 'content': 'Draft lore', 'enabled': True,
+                         'insertion_order': 0, 'use_regex': False, 'constant': False}],
+        }})
+        response = await client.post(
+            f"/resources/{lorebook['id']}/co-authors", headers=headers,
+            json={'username': OTHER_USER.username},
+        )
+        assert response.status_code == 201
+
+        app.dependency_overrides[authenticate_user] = other_authenticated_user
+        headers = await get_csrf_headers(client)
+        character = (await client.post('/resources', headers=headers, json={
+            'resourceType': 'sillytavern/character', 'name': 'Links co-authored lore',
+            'description': '', 'visibility': 'private', 'tags': [],
+        })).json()
+        await client.put(f"/resources/{character['id']}/data", headers=headers,
+                         json={'data': {'name': 'Links co-authored lore'}})
+
+        response = await client.put(f"/resources/{character['id']}", headers=headers, json={
+            'name': 'Links co-authored lore', 'description': '', 'visibility': 'private',
+            'tags': [], 'linkedLorebooks': [{'resourceId': lorebook['id'], 'versionId': None}],
+        })
+        assert response.status_code == 200
+
+        response = await client.get(f"/versions/draft/{character['id']}/download")
+        assert response.status_code == 200
+        assert b'Draft lore' in response.content

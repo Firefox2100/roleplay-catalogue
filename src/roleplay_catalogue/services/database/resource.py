@@ -41,6 +41,7 @@ class ResourceRepository:
                 '$or': [
                     {'metadata.visibility': {'$in': visibility}},
                     {'authorId': user_id},
+                    {'coAuthorIds': user_id},
                 ]
             }
         else:
@@ -88,6 +89,7 @@ class ResourceRepository:
             visibility_query = {'$or': [
                 {'metadata.visibility': {'$in': visibility}},
                 {'authorId': user_id},
+                {'coAuthorIds': user_id},
             ]}
         else:
             visibility_query = {'metadata.visibility': ResourceVisibility.PUBLIC.value}
@@ -131,6 +133,13 @@ class ResourceRepository:
             {'_id': 1},
             session=current_session(),
         ) is not None
+
+    async def remove_co_author(self, user_id: str) -> None:
+        await self._collection.update_many(
+            {'coAuthorIds': user_id},
+            {'$pull': {'coAuthorIds': user_id}},
+            session=current_session(),
+        )
 
     async def list_by_author(self, author_id: str) -> list[Resource]:
         cursor = self._collection.find(

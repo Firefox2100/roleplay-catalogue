@@ -6,6 +6,15 @@ from roleplay_catalogue.models import Resource, ResourceType, ResourceVersion, R
 from roleplay_catalogue.services import DatabaseService
 
 
+def resource_editor_ids(resource: Resource) -> frozenset[str]:
+    """Users who may view and edit resource's draft: its author and its co-authors."""
+    return frozenset({resource.author_id, *resource.co_author_ids})
+
+
+def is_resource_editor(resource: Resource, user: User | None) -> bool:
+    return user is not None and user.id in resource_editor_ids(resource)
+
+
 def can_read_resource(resource: Resource,
                       user: User | None,
                       ) -> bool:
@@ -14,7 +23,7 @@ def can_read_resource(resource: Resource,
     if not user:
         return False
     return (resource.metadata.visibility == ResourceVisibility.AUTHENTICATED or
-            resource.author_id == user.id)
+            is_resource_editor(resource, user))
 
 
 async def get_readable_resource(database: DatabaseService,
@@ -32,8 +41,23 @@ async def get_owned_resource(database: DatabaseService,
                              user: User,
                              expected_type: ResourceType | None = None,
                              ) -> Resource:
+    """Owner-only access, for actions co-authors may not take: publish, delete, manage co-authors."""
     resource = await database.resource.get(resource_id)
     if not resource or resource.author_id != user.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, 'Resource not found')
+    if expected_type is not None and resource.resource_type != expected_type:
+        raise HTTPException(status.HTTP_409_CONFLICT, 'Resource type does not match this endpoint')
+    return resource
+
+
+async def get_editable_resource(database: DatabaseService,
+                                resource_id: str,
+                                user: User,
+                                expected_type: ResourceType | None = None,
+                                ) -> Resource:
+    """Author-or-co-author access, for viewing and editing the draft."""
+    resource = await database.resource.get(resource_id)
+    if not resource or not is_resource_editor(resource, user):
         raise HTTPException(status.HTTP_404_NOT_FOUND, 'Resource not found')
     if expected_type is not None and resource.resource_type != expected_type:
         raise HTTPException(status.HTTP_409_CONFLICT, 'Resource type does not match this endpoint')
@@ -50,7 +74,7 @@ async def get_readable_version(database: DatabaseService,
     resource = await database.resource.get(version.resource_id)
     if not resource:
         raise HTTPException(status.HTTP_404_NOT_FOUND, 'Resource version not found')
-    if user and resource.author_id == user.id:
+    if is_resource_editor(resource, user):
         return version
     if version.visibility == ResourceVisibility.PRIVATE:
         raise HTTPException(status.HTTP_404_NOT_FOUND, 'Resource version not found')

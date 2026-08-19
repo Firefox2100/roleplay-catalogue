@@ -26,6 +26,15 @@ class ResourceRepository(Repository):
             if item.cover_image_resource_id == image_id:
                 self.documents[item_id] = item.model_copy(update={'cover_image_resource_id': None})
 
+    async def remove_co_author(self, user_id):
+        for item_id, item in list(self.documents.items()):
+            if user_id in item.co_author_ids:
+                self.documents[item_id] = item.model_copy(update={
+                    'co_author_ids': tuple(
+                        existing_id for existing_id in item.co_author_ids if existing_id != user_id
+                    ),
+                })
+
 
 class VersionRepository(Repository):
     async def list_all_for_resource(self, resource_id):

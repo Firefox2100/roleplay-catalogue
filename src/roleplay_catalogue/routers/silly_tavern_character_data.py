@@ -7,7 +7,7 @@ from roleplay_catalogue.models.roleplay_resource.silly_tavern import (
     SillyTavernCharacterData,
     SillyTavernCharacterDataDocument,
 )
-from .resource_utils import get_owned_resource, get_readable_resource
+from .resource_utils import get_editable_resource, get_readable_resource
 from .utils import (
     AuthenticatedUserDependency,
     DatabaseDependency,
@@ -35,7 +35,7 @@ async def create_character_data(resource_id: str,
                                 database: DatabaseDependency,
                                 user: AuthenticatedUserDependency,
                                 ) -> SillyTavernCharacterDataDocument:
-    resource = await get_owned_resource(
+    resource = await get_editable_resource(
         database, resource_id, user, ResourceType.SILLY_TAVERN_CHARACTER,
     )
     if resource.draft_data_id:
@@ -58,7 +58,7 @@ async def list_character_data(resource_id: str,
                               database: DatabaseDependency,
                               user: AuthenticatedUserDependency,
                               ) -> list[SillyTavernCharacterDataDocument]:
-    await get_owned_resource(
+    await get_editable_resource(
         database, resource_id, user, ResourceType.SILLY_TAVERN_CHARACTER,
     )
     return await database.silly_tavern_character_data.list_for_resource(resource_id)
@@ -80,7 +80,7 @@ async def get_character_data(data_id: str,
     elif not user:
         raise HTTPException(status.HTTP_404_NOT_FOUND, 'Character data not found')
     else:
-        await get_owned_resource(database, document.resource_id, user)
+        await get_editable_resource(database, document.resource_id, user)
     return document
 
 
@@ -96,7 +96,7 @@ async def update_character_data(data_id: str,
     document = await database.silly_tavern_character_data.get(data_id)
     if not document:
         raise HTTPException(status.HTTP_404_NOT_FOUND, 'Character data not found')
-    resource = await get_owned_resource(
+    resource = await get_editable_resource(
         database, document.resource_id, user, ResourceType.SILLY_TAVERN_CHARACTER,
     )
     if document.resource_version_id or resource.draft_data_id != document.id:
@@ -115,7 +115,7 @@ async def delete_character_data(data_id: str,
     document = await database.silly_tavern_character_data.get(data_id)
     if not document:
         raise HTTPException(status.HTTP_404_NOT_FOUND, 'Character data not found')
-    resource = await get_owned_resource(database, document.resource_id, user)
+    resource = await get_editable_resource(database, document.resource_id, user)
     if document.resource_version_id or resource.draft_data_id != document.id:
         raise HTTPException(status.HTTP_409_CONFLICT, 'Published data is immutable')
 

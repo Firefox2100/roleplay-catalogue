@@ -15,7 +15,7 @@ from roleplay_catalogue.services import (
     resource_language_from_world,
 )
 from .images import create_image_resource
-from .resource_utils import get_owned_resource
+from .resource_utils import get_editable_resource
 from .utils import AuthenticatedUserDependency, DatabaseDependency, StorageDependency
 
 
@@ -33,7 +33,7 @@ async def import_world_bundle(resource_id: str,
                               database: DatabaseDependency,
                               storage: StorageDependency,
                               file: UploadFile = File(...)) -> WorldImportResponse:
-    resource = await get_owned_resource(
+    resource = await get_editable_resource(
         database, resource_id, user, ResourceType.WORLD_SIMULATION_WORLD,
     )
     payload = await file.read(CONFIG.world_bundle_max_bytes + 1)
