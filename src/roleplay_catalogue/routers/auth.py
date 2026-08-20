@@ -4,9 +4,11 @@ from secrets import token_urlsafe
 
 from fastapi import APIRouter, HTTPException, Request, Response, status
 from fastapi.responses import RedirectResponse
-from pydantic import Field
+from pydantic import Field, field_validator
 
 from roleplay_catalogue.misc import (
+    PASSWORD_MAX_LENGTH,
+    PASSWORD_MIN_LENGTH,
     InvalidActivationToken,
     InvalidPasswordResetToken,
     UserAlreadyExists,
@@ -14,6 +16,7 @@ from roleplay_catalogue.misc import (
     UserNotFound,
     UserRole,
     UserStatus,
+    password_strength_error,
 )
 from roleplay_catalogue.models import CommonModel
 from roleplay_catalogue.middleware import CSRF_SESSION_KEY
@@ -39,7 +42,17 @@ class LoginRequest(CommonModel):
 class RegistrationRequest(CommonModel):
     username: str = Field(..., min_length=1, max_length=100, description='Username')
     email: str = Field(..., min_length=3, max_length=320, description='Email address')
-    password: str = Field(..., min_length=8, max_length=1024, description='Password')
+    password: str = Field(
+        ..., min_length=PASSWORD_MIN_LENGTH, max_length=PASSWORD_MAX_LENGTH, description='Password',
+    )
+
+    @field_validator('password')
+    @classmethod
+    def password_must_be_strong(cls, value: str) -> str:
+        error = password_strength_error(value)
+        if error:
+            raise ValueError(error)
+        return value
 
 
 class CurrentUserResponse(CommonModel):
@@ -57,12 +70,34 @@ class PasswordResetRequest(CommonModel):
 class PasswordResetConfirmRequest(CommonModel):
     user_id: str = Field(..., alias='userId')
     token: str = Field(..., min_length=1, max_length=1024)
-    new_password: str = Field(..., min_length=8, max_length=1024, alias='newPassword')
+    new_password: str = Field(
+        ..., min_length=PASSWORD_MIN_LENGTH, max_length=PASSWORD_MAX_LENGTH, alias='newPassword',
+    )
+
+    @field_validator('new_password')
+    @classmethod
+    def new_password_must_be_strong(cls, value: str) -> str:
+        error = password_strength_error(value)
+        if error:
+            raise ValueError(error)
+        return value
 
 
 class PasswordChangeRequest(CommonModel):
+    # Verifies the existing password, which may predate this policy, so it is intentionally
+    # not held to the new length/complexity rules.
     current_password: str = Field(..., min_length=1, max_length=1024, alias='currentPassword')
-    new_password: str = Field(..., min_length=8, max_length=1024, alias='newPassword')
+    new_password: str = Field(
+        ..., min_length=PASSWORD_MIN_LENGTH, max_length=PASSWORD_MAX_LENGTH, alias='newPassword',
+    )
+
+    @field_validator('new_password')
+    @classmethod
+    def new_password_must_be_strong(cls, value: str) -> str:
+        error = password_strength_error(value)
+        if error:
+            raise ValueError(error)
+        return value
 
 
 class AccountDeleteRequest(CommonModel):

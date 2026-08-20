@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { Link, Navigate, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth.js'
 import { confirmPasswordReset, requestPasswordReset } from '../api/auth.js'
+import { passwordStrengthError } from '../utils/passwordStrength.js'
 
 export function LoginPage() {
   const { t } = useTranslation()
@@ -68,6 +69,11 @@ export function LoginPage() {
       setError(t('auth.passwordMismatch'))
       return
     }
+    const strengthError = passwordStrengthError(newPassword)
+    if (strengthError) {
+      setError(t(`auth.passwordRules.${strengthError}`))
+      return
+    }
     setIsSubmitting(true)
     try {
       await confirmPasswordReset(resetUserId, resetToken, newPassword)
@@ -108,10 +114,10 @@ export function LoginPage() {
           <h1>{t('auth.chooseNewPassword')}</h1><p>{t('auth.resetConfirmDescription')}</p></div>
         <form onSubmit={submitResetConfirmation}>
           <label htmlFor="new-password">{t('auth.newPassword')}</label>
-          <input id="new-password" type="password" autoComplete="new-password" minLength={8}
+          <input id="new-password" type="password" autoComplete="new-password" minLength={8} maxLength={128}
             value={newPassword} onChange={(event) => setNewPassword(event.target.value)} required autoFocus />
           <label htmlFor="confirm-password">{t('auth.confirmPassword')}</label>
-          <input id="confirm-password" type="password" autoComplete="new-password" minLength={8}
+          <input id="confirm-password" type="password" autoComplete="new-password" minLength={8} maxLength={128}
             value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} required />
           {error && <p className="form-error" role="alert">{error}</p>}
           <button className="primary-button" type="submit" disabled={isSubmitting}>

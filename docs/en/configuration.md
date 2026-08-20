@@ -38,6 +38,8 @@ These variables come from `compose.yaml` and affect the Docker environment. They
 | `RC_MONGODB_NAME` | `roleplay-catalogue` | Database name. |
 | `RC_MONGODB_DIRECT_CONNECTION` | `false` | If `true`, bypasses the replica set discovery mechanism and connects directly to the host listed in `RC_MONGODB_HOST` only. Replica set mode is required for transactions. |
 | `RC_MONGODB_REPLICA_SET` | `rs0` | Replica set name. The `mongod` command-line `--replSet` flag must match this value. Leave blank for a standalone MongoDB connection. |
+| `RC_MONGODB_USERNAME` | empty | Optional username for MongoDB authentication. Leave both this and `RC_MONGODB_PASSWORD` empty to connect without authentication. |
+| `RC_MONGODB_PASSWORD` | empty | Optional password for MongoDB authentication, paired with `RC_MONGODB_USERNAME`. Authenticated against the `RC_MONGODB_NAME` database (`authSource`). |
 
 MongoDB transactions are required for atomic multi-document operations (e.g. creating a resource, its draft data, and indexed searches in a single atomic write). A single-node replica set is sufficient for local development as provisioned by `compose.yaml`.
 

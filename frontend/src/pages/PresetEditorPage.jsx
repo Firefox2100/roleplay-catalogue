@@ -23,8 +23,15 @@ const SAMPLERS = ['temperature', 'frequency_penalty', 'presence_penalty', 'top_p
 const KNOWN = new Set([...SAMPLERS, 'stream_openai', 'prompts', 'prompt_order'])
 
 function JsonEditor({ value, onChange }) {
-  const [text, setText] = useState(JSON.stringify(value, null, 2))
-  useEffect(() => setText(JSON.stringify(value, null, 2)), [value])
+  // Re-syncs `text` when `value` changes from outside (not on every keystroke, since `text`
+  // is meant to diverge from `value` while the user is mid-edit). Adjusting state during
+  // render, per https://react.dev/learn/you-might-not-need-an-effect, instead of a useEffect.
+  const [prevValue, setPrevValue] = useState(value)
+  const [text, setText] = useState(() => JSON.stringify(value, null, 2))
+  if (value !== prevValue) {
+    setPrevValue(value)
+    setText(JSON.stringify(value, null, 2))
+  }
   return <textarea className="world-json-field" rows={12} value={text}
     onChange={(event) => setText(event.target.value)} onBlur={() => {
       try { const parsed = JSON.parse(text); if (parsed && !Array.isArray(parsed)) onChange(parsed) } catch { /* retain text */ }

@@ -110,7 +110,6 @@ export function LorebookEditorPage() {
     }).catch(() => { if (active) setError(t('lorebookEditor.loadFailed')) })
       .finally(() => { if (active) setIsLoading(false) })
     return () => { active = false }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resource, resourceId, t, user])
 
   useEffect(() => {

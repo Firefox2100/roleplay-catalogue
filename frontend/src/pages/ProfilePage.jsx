@@ -4,6 +4,7 @@ import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { changePassword, createApiKey, listApiKeys, revokeApiKey } from '../api/auth.js'
 import { useAuth } from '../auth/useAuth.js'
 import { CHINESE, ENGLISH, changeLocale, getCurrentLocale } from '../i18n.js'
+import { passwordStrengthError } from '../utils/passwordStrength.js'
 
 export function ProfilePage() {
   const { t } = useTranslation()
@@ -26,7 +27,9 @@ export function ProfilePage() {
   const [apiKeyLifetime, setApiKeyLifetime] = useState('oneMonth')
   const [createdApiKey, setCreatedApiKey] = useState(null)
   const [apiKeyError, setApiKeyError] = useState('')
-  const [isLoadingApiKeys, setIsLoadingApiKeys] = useState(false)
+  // Starts true: the effect below always begins loading as soon as `user` is available,
+  // and this component's early returns keep the api-keys section from rendering before that.
+  const [isLoadingApiKeys, setIsLoadingApiKeys] = useState(true)
   const [isCreatingApiKey, setIsCreatingApiKey] = useState(false)
   const [revokingApiKeyId, setRevokingApiKeyId] = useState(null)
   const [keyCopied, setKeyCopied] = useState(false)
@@ -46,9 +49,8 @@ export function ProfilePage() {
   }, [isDeleteOpen, isDeleting])
 
   useEffect(() => {
-    if (!user) return
+    if (!user) return undefined
     let active = true
-    setIsLoadingApiKeys(true)
     listApiKeys()
       .then((keys) => { if (active) setApiKeys(keys) })
       .catch(() => { if (active) setApiKeyError(t('profile.apiKeysLoadFailed')) })
@@ -64,6 +66,11 @@ export function ProfilePage() {
     setPasswordError(''); setPasswordMessage('')
     if (newPassword !== confirmPassword) {
       setPasswordError(t('profile.passwordMismatch'))
+      return
+    }
+    const strengthError = passwordStrengthError(newPassword)
+    if (strengthError) {
+      setPasswordError(t(`auth.passwordRules.${strengthError}`))
       return
     }
     setIsChangingPassword(true)
@@ -157,9 +164,10 @@ export function ProfilePage() {
         <form onSubmit={submitPasswordChange}>
           <label>{t('profile.currentPassword')}<input type="password" autoComplete="current-password"
             value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} required /></label>
-          <label>{t('profile.newPassword')}<input type="password" autoComplete="new-password" minLength={8}
+          <label>{t('profile.newPassword')}<input type="password" autoComplete="new-password" minLength={8} maxLength={128}
             value={newPassword} onChange={(event) => setNewPassword(event.target.value)} required /></label>
-          <label>{t('profile.confirmPassword')}<input type="password" autoComplete="new-password" minLength={8}
+          <p className="field-help">{t('profile.newPasswordHelp')}</p>
+          <label>{t('profile.confirmPassword')}<input type="password" autoComplete="new-password" minLength={8} maxLength={128}
             value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} required /></label>
           {passwordError && <p className="form-error" role="alert">{passwordError}</p>}
           {passwordMessage && <p className="form-notice success" role="status">{passwordMessage}</p>}

@@ -1,7 +1,10 @@
 #!/bin/sh
 set -eu
 
-mongosh --host mongodb --quiet --eval '
+# Reached via mongodb's own loopback (see `network_mode: service:mongodb` on the
+# mongodb-init service in compose.yaml), which is required below for MongoDB's
+# localhost exception to apply once authorization is enabled.
+mongosh --host 127.0.0.1 --quiet --eval '
   try {
     rs.status().ok
   } catch (error) {
@@ -9,11 +12,26 @@ mongosh --host mongodb --quiet --eval '
   }
 '
 
-until mongosh --host mongodb --quiet --eval 'quit(db.hello().isWritablePrimary ? 0 : 1)'; do
+until mongosh --host 127.0.0.1 --quiet --eval 'quit(db.hello().isWritablePrimary ? 0 : 1)'; do
   sleep 1
 done
 
-mongosh --host mongodb --quiet --eval '
+# Creating this first user permanently closes MongoDB's localhost exception for the
+# lifetime of the data directory, so every admin action below authenticates
+# explicitly as this user instead of relying on that exception again.
+mongosh --host 127.0.0.1 --quiet --eval '
+  const admin = db.getSiblingDB("admin");
+  if (!admin.getUser(process.env.MONGODB_ROOT_USERNAME)) {
+    admin.createUser({
+      user: process.env.MONGODB_ROOT_USERNAME,
+      pwd: process.env.MONGODB_ROOT_PASSWORD,
+      roles: [{role: "root", db: "admin"}],
+    });
+  }
+'
+
+mongosh --host 127.0.0.1 --quiet --eval '
+  db.getSiblingDB("admin").auth(process.env.MONGODB_ROOT_USERNAME, process.env.MONGODB_ROOT_PASSWORD);
   const admin = db.getSiblingDB("admin");
   if (!admin.getUser("mongotUser")) {
     admin.createUser({
@@ -28,3 +46,25 @@ mongosh --host mongodb --quiet --eval '
     });
   }
 '
+
+# The application connects with its own database-scoped user when one is configured;
+# RC_MONGODB_USERNAME is unset (rather than blank) to skip provisioning it and run the
+# application without authentication instead.
+if [ -n "${RC_MONGODB_USERNAME:-}" ]; then
+  mongosh --host 127.0.0.1 --quiet --eval '
+    db.getSiblingDB("admin").auth(process.env.MONGODB_ROOT_USERNAME, process.env.MONGODB_ROOT_PASSWORD);
+    const appDb = db.getSiblingDB(process.env.RC_MONGODB_NAME);
+    if (!appDb.getUser(process.env.RC_MONGODB_USERNAME)) {
+      appDb.createUser({
+        user: process.env.RC_MONGODB_USERNAME,
+        pwd: process.env.RC_MONGODB_PASSWORD,
+        roles: [{role: "readWrite", db: process.env.RC_MONGODB_NAME}],
+      });
+    } else {
+      appDb.updateUser(process.env.RC_MONGODB_USERNAME, {
+        pwd: process.env.RC_MONGODB_PASSWORD,
+        roles: [{role: "readWrite", db: process.env.RC_MONGODB_NAME}],
+      });
+    }
+  '
+fi

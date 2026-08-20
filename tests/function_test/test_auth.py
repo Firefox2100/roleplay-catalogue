@@ -163,7 +163,7 @@ async def test_registration_and_activation_endpoints() -> None:
             json={
                 'username': 'alice',
                 'email': 'alice@example.com',
-                'password': 'correct-password',
+                'password': 'Correct-Password1',
             },
         )
         assert response.status_code == 202
@@ -175,3 +175,19 @@ async def test_registration_and_activation_endpoints() -> None:
         )
         assert response.status_code == 303
         assert response.headers['location'] == '/login?activation=success'
+
+
+async def test_registration_rejects_a_password_that_fails_the_strength_policy() -> None:
+    async with get_client() as client:
+        csrf_token = (await client.get('/auth/csrf')).json()['csrfToken']
+        response = await client.post(
+            '/auth/register',
+            headers={'X-CSRF-Token': csrf_token},
+            json={
+                'username': 'alice',
+                'email': 'alice@example.com',
+                'password': 'correct-password',
+            },
+        )
+        assert response.status_code == 422
+        assert 'uppercase letter' in response.text

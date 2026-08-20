@@ -60,10 +60,18 @@ class Settings(BaseSettings):
         None,
         description='Replica set name. Transactions require a replica set or sharded cluster.'
     )
+    mongodb_username: str | None = Field(
+        None,
+        description='Optional username for MongoDB authentication. Connects without auth if unset.'
+    )
+    mongodb_password: str | None = Field(
+        None,
+        description='Optional password for MongoDB authentication. Connects without auth if unset.'
+    )
 
-    @field_validator('mongodb_replica_set', mode='before')
+    @field_validator('mongodb_replica_set', 'mongodb_username', 'mongodb_password', mode='before')
     @classmethod
-    def blank_replica_set_is_disabled(cls, value):
+    def blank_optional_mongodb_field_is_disabled(cls, value):
         return None if value == '' else value
 
     api_key_cleanup_interval: int = Field(

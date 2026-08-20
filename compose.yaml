@@ -1,3 +1,5 @@
+name: roleplay-catalogue
+
 services:
   catalogue:
     image: ghcr.io/Firefox2100/roleplay-catalogue:${IMAGE_TAG:-latest}
@@ -14,6 +16,8 @@ services:
       RC_MONGODB_PORT: 27017
       RC_MONGODB_DIRECT_CONNECTION: "false"
       RC_MONGODB_REPLICA_SET: rs0
+      RC_MONGODB_USERNAME: ${RC_MONGODB_USERNAME-roleplay_catalogue}
+      RC_MONGODB_PASSWORD: ${RC_MONGODB_PASSWORD-local-mongo-change-me}
       RC_S3_ENDPOINT_URL: http://minio:9000
       NGINX_HSTS_HEADER: ${NGINX_HSTS_HEADER:-}
       NGINX_CONTENT_SECURITY_POLICY: "${NGINX_CONTENT_SECURITY_POLICY:-default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'}"
@@ -32,14 +36,34 @@ services:
     hostname: mongodb
     restart: unless-stopped
     command: ["mongod", "--config", "/etc/mongod.conf", "--replSetMember", "mongodb:27017"]
+    depends_on:
+      mongodb-keyfile-secret:
+        condition: service_completed_successfully
     volumes:
       - mongodb-data:/data/db
       - ./deploy/mongod.conf:/etc/mongod.conf:ro
+      - mongodb-keyfile:/mongo-secrets:ro
     healthcheck:
       test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
       interval: 10s
       timeout: 5s
       retries: 10
+
+  # Generates the replica-set internal-authentication keyfile once, into a volume shared
+  # with `mongodb`. Runs from the same image as `mongodb` (no explicit `user:` override on
+  # either service), so the file it creates is owned by whichever fixed, non-root user that
+  # image runs as, and mongod can read it back without any cross-container UID mismatch.
+  mongodb-keyfile-secret:
+    image: mongodb/mongodb-community-server:latest
+    restart: "no"
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        test -f /mongo-secrets/keyfile ||
+        (umask 077 && head -c 756 /dev/urandom | base64 > /mongo-secrets/keyfile &&
+        chmod 400 /mongo-secrets/keyfile)
+    volumes:
+      - mongodb-keyfile:/mongo-secrets
 
   mongodb-init:
     image: mongodb/mongodb-community-server:latest
@@ -49,9 +73,20 @@ services:
         condition: service_healthy
       mongodb-search-secret:
         condition: service_completed_successfully
+    # Shares mongodb's network namespace so it reaches mongod via loopback: with
+    # authorization enabled, MongoDB's "localhost exception" (which permits creating the
+    # very first user without credentials) only applies to connections that genuinely
+    # originate from the server's own loopback interface, not from another container's IP
+    # on the compose network.
+    network_mode: "service:mongodb"
     entrypoint: ["/bin/sh", "/deploy/init-mongodb.sh"]
     environment:
       MONGOT_PASSWORD: ${MONGOT_PASSWORD:-local-search-change-me}
+      MONGODB_ROOT_USERNAME: ${MONGODB_ROOT_USERNAME:-root}
+      MONGODB_ROOT_PASSWORD: ${MONGODB_ROOT_PASSWORD:-local-mongo-root-change-me}
+      RC_MONGODB_NAME: ${RC_MONGODB_NAME:-roleplay-catalogue}
+      RC_MONGODB_USERNAME: ${RC_MONGODB_USERNAME-roleplay_catalogue}
+      RC_MONGODB_PASSWORD: ${RC_MONGODB_PASSWORD-local-mongo-change-me}
     volumes:
       - ./deploy/init-mongodb.sh:/deploy/init-mongodb.sh:ro
 
@@ -113,6 +148,7 @@ services:
 
 volumes:
   mongodb-data:
+  mongodb-keyfile:
   mongodb-search-data:
   mongodb-search-secrets:
   minio-data:

@@ -49,6 +49,9 @@ async def lifespan(application: FastAPI):
         tz_aware=True,
         directConnection=CONFIG.mongodb_direct_connection,
         replicaSet=CONFIG.mongodb_replica_set,
+        username=CONFIG.mongodb_username,
+        password=CONFIG.mongodb_password,
+        authSource=CONFIG.mongodb_name if CONFIG.mongodb_username else None,
     )
     database_service = DatabaseService(
         client=mongo_client,

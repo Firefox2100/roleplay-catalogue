@@ -25,21 +25,28 @@
 | 服务 | 作用 | Docker 镜像 |
 |---|---|---|
 | `catalogue` | Nginx（端口 8080）将 `/api/` 代理到 9798 端口的 Uvicorn；提供 SPA。 | `ghcr.io/Firefox2100/roleplay-catalogue:latest` |
-| `mongodb` | MongoDB Community Server，单节点副本集 `rs0`。 | `mongodb/mongodb-community-server:latest` |
+| `mongodb` | MongoDB Community Server，单节点副本集 `rs0`，已启用认证。 | `mongodb/mongodb-community-server:latest` |
 | `mongodb-search`（mongot） | MongoDB Community Search，提供全文和向量索引。 | `mongodb/mongodb-community-search:latest` |
 | `minio` | 9000 端口的 S3 兼容对象存储（控制台在 9001）。 | `minio/minio:latest` |
 
 两个一次性初始化容器（`mongodb-init`、`minio-init`）在 MongoDB 和 MinIO 健康后各运行一次：
 
-- `mongodb-init` 执行 `init-mongodb.sh`（配置副本集和 mongot 搜索索引）。
+- `mongodb-init` 执行 `init-mongodb.sh`（配置副本集、启用认证，并创建 mongot 搜索用户和应用自己的数据库用户）。
 - `minio-init` 创建在 `RC_S3_BUCKET` 中配置的 S3 存储桶。
+
+MongoDB 启用了 `security.authorization: enabled` 以及一个自动生成的 keyfile（用于副本集内部认证）。
+`mongodb-init` 会先创建一个集群管理员用户（`MONGODB_ROOT_USERNAME` / `MONGODB_ROOT_PASSWORD`，仅在初始化过程中使用），
+然后创建应用自己的受限用户（`RC_MONGODB_USERNAME` / `RC_MONGODB_PASSWORD`，仅拥有 `RC_MONGODB_NAME` 数据库的
+`readWrite` 权限），`catalogue` 服务实际使用的正是这个受限用户。
 
 ### 操作步骤
 
 ```sh
 # 1. 复制并编辑环境文件
 cp example.env .env
-# 至少编辑 RC_SESSION_SECRET、MONGOT_PASSWORD、RC_PUBLIC_BASE_URL
+# 至少编辑 RC_SESSION_SECRET、MONGOT_PASSWORD、RC_PUBLIC_BASE_URL。
+# 在对外暴露此部署前，也请务必修改 MONGODB_ROOT_PASSWORD、
+# RC_MONGODB_USERNAME 和 RC_MONGODB_PASSWORD 的默认值。
 
 # 2. 启动
 docker compose up -d
@@ -66,8 +73,15 @@ docker compose logs -f catalogue   # 跟踪应用日志
 
 你可以通过 `.env` 文件或 `catalogue` 服务的环境变量覆盖任何 `compose.yaml` 值。
 `CATALOGUE_PORT` 变量控制映射到容器的宿主机端口；`RC_SESSION_SECRET`、
-`MONGOT_PASSWORD`、`RC_PUBLIC_BASE_URL`、SMTP 设置和 S3 凭证在
-首次启动前从 `.env` 填充。
+`MONGOT_PASSWORD`、`MONGODB_ROOT_USERNAME`、`MONGODB_ROOT_PASSWORD`、
+`RC_MONGODB_USERNAME`、`RC_MONGODB_PASSWORD`、`RC_PUBLIC_BASE_URL`、
+SMTP 设置和 S3 凭证在首次启动前从 `.env` 填充。
+
+`RC_MONGODB_USERNAME`/`RC_MONGODB_PASSWORD` 可以留空以不使用认证连接 MongoDB——
+适用于将 `RC_MONGODB_HOST` 指向一个已经自行管理好安全性的外部 MongoDB 的情况。
+但 `compose.yaml` 中内置的 `mongodb` 服务始终启用认证，因此留空会导致 `catalogue`
+容器认证失败；只有在同时关闭 `deploy/mongod.conf` 中的 `security.authorization`
+并跳过用户初始化时，才应该留空。
 
 ---
 
@@ -173,6 +187,8 @@ docker run --rm -p 9798:9798 \
 | `RC_SESSION_SECRET` | `a3f1b7c9d2e4...` | 最少 32 字节 |
 | `RC_MONGODB_HOST` | `10.0.1.5` | 主机名或副本集种子地址 |
 | `RC_MONGODB_REPLICA_SET` | `rs0` | 必须与 `mongod --replSet` 匹配 |
+| `RC_MONGODB_USERNAME` | `roleplay_catalogue` | 可选；与 `RC_MONGODB_PASSWORD` 都留空表示不使用认证连接 |
+| `RC_MONGODB_PASSWORD` | `abc123...` | 可选，与 `RC_MONGODB_USERNAME` 搭配使用 |
 | `RC_S3_ENDPOINT_URL` | `https://my-bucket.r2.cloudflarestorage.com` | 末尾无斜杠 |
 | `RC_S3_REGION` | `auto` | 部分提供商要求此字面值 |
 | `RC_S3_ACCESS_KEY_ID` | `AKIA...` | |
@@ -201,6 +217,8 @@ docker run --rm -p 9798:9798 \
 
 - [ ] 已设置 `RC_SESSION_SECRET`（≥ 32 个随机字符）。
 - [ ] MongoDB 是 **副本集**（`--replSet` 标志与 `RC_MONGODB_REPLICA_SET` 匹配）。
+- [ ] 已修改 `MONGODB_ROOT_PASSWORD`、`RC_MONGODB_USERNAME` 和 `RC_MONGODB_PASSWORD`
+  的默认值（仅适用于 Docker Compose 部署）。
 - [ ] S3 存储桶已存在且凭证正确（拆分模式下）。
 - [ ] `RC_PUBLIC_BASE_URL` 匹配用户导航的公共域名 + 协议。
 - [ ] 反向代理将 `/api/*` → `http://backend-host/api/`（剥离一级路径）。

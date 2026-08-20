@@ -1,0 +1,43 @@
+name: roleplay-catalogue-dev
+
+services:
+  mongo:
+    image: mongodb/mongodb-atlas-local:8.0.6
+    container_name: atlas-local
+    hostname: mongodb
+    restart: unless-stopped
+    environment:
+      MONGODB_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USERNAME:-root}
+      MONGODB_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-devpassword}
+      MONGOT_LOG_FILE: /dev/stderr
+      RUNNER_LOG_FILE: /dev/stderr
+    ports:
+      - "19797:27017"
+    volumes:
+      - mongo-db:/data/db
+      - mongo-config:/data/configdb
+      - mongo-mongot:/data/mongot
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /data --console-address :9001
+    environment:
+      MINIO_ROOT_USER: ${RC_S3_ACCESS_KEY_ID:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${RC_S3_SECRET_ACCESS_KEY:-minioadmin}
+    ports:
+      - "19798:9000"
+      - "19799:9001"
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: [ "CMD", "mc", "ready", "local" ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  mongo-db:
+  mongo-config:
+  mongo-mongot:
+  minio-data:

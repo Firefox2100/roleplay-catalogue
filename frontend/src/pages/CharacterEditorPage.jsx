@@ -160,7 +160,6 @@ export function CharacterEditorPage() {
       if (active) setIsLoading(false)
     })
     return () => { active = false }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resource, resourceId, t, user])
 
   useEffect(() => {

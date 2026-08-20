@@ -38,6 +38,8 @@
 | `RC_MONGODB_NAME` | `roleplay-catalogue` | 数据库名称。 |
 | `RC_MONGODB_DIRECT_CONNECTION` | `false` | 如果为 `true`，跳过副本集发现机制，仅连接 `RC_MONGODB_HOST` 列出的主机。事务要求使用副本集模式。 |
 | `RC_MONGODB_REPLICA_SET` | `rs0` | 副本集名称。`mongod` 命令行 `--replSet` 标志的值必须与此一致。留空表示使用独立 MongoDB 连接。 |
+| `RC_MONGODB_USERNAME` | 空 | MongoDB 认证的可选用户名。与 `RC_MONGODB_PASSWORD` 都留空表示不使用认证连接。 |
+| `RC_MONGODB_PASSWORD` | 空 | MongoDB 认证的可选密码，与 `RC_MONGODB_USERNAME` 搭配使用。认证数据库（`authSource`）为 `RC_MONGODB_NAME`。 |
 
 MongoDB 事务对原子多文档操作（例如在一次写入中创建资源、其草稿数据和索引搜索）是必需的。`compose.yaml` 提供的单节点副本集足以用于开发环境。
 

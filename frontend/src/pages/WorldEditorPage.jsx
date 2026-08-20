@@ -64,8 +64,15 @@ function displayName(row, fallback) {
 }
 
 function JsonField({ value, onChange }) {
+  // Re-syncs `text` when `value` changes from outside (not on every keystroke, since `text`
+  // is meant to diverge from `value` while the user is mid-edit). Adjusting state during
+  // render, per https://react.dev/learn/you-might-not-need-an-effect, instead of a useEffect.
+  const [prevValue, setPrevValue] = useState(value)
   const [text, setText] = useState(() => JSON.stringify(value, null, 2))
-  useEffect(() => setText(JSON.stringify(value, null, 2)), [value])
+  if (value !== prevValue) {
+    setPrevValue(value)
+    setText(JSON.stringify(value, null, 2))
+  }
   function commit() {
     try { onChange(JSON.parse(text)) } catch { /* keep invalid text available for correction */ }
   }
