@@ -40,6 +40,7 @@ from roleplay_catalogue.components import (
 )
 from .utils import (
     AuthenticatedUserDependency,
+    CacheDependency,
     DatabaseDependency,
     OptionalAuthenticatedUserDependency,
 )
@@ -101,6 +102,8 @@ class ResourceDataUpsertRequest(CommonModel):
 class ResourceListItem(Resource):
     author_username: str = Field(..., alias='authorUsername')
     co_author_usernames: list[str] = Field(default_factory=list, alias='coAuthorUsernames')
+    view_count: int = Field(0, ge=0, alias='viewCount')
+    download_count: int = Field(0, ge=0, alias='downloadCount')
 
 
 class ResourceListResponse(CommonModel):
@@ -185,6 +188,7 @@ async def create_resource(payload: ResourceCreateRequest,
 
 @resource_router.get('', response_model=ResourceListResponse)
 async def list_resources(database: DatabaseDependency,
+                         cache: CacheDependency,
                          user: OptionalAuthenticatedUserDependency,
                          offset: int = Query(0, ge=0),
                          limit: int = Query(50, ge=1, le=100),
@@ -226,6 +230,7 @@ async def list_resources(database: DatabaseDependency,
         user_id for resource in resources
         for user_id in (resource.author_id, *resource.co_author_ids)
     })
+    metrics = await cache.resource_metrics.get_many([resource.id for resource in resources])
     items = [ResourceListItem(
         **resource.model_dump(by_alias=True),
         authorUsername=users[resource.author_id].username,
@@ -233,6 +238,8 @@ async def list_resources(database: DatabaseDependency,
             users[co_author_id].username for co_author_id in resource.co_author_ids
             if co_author_id in users
         ],
+        viewCount=metrics[resource.id].views,
+        downloadCount=metrics[resource.id].downloads,
     ) for resource in resources if resource.author_id in users]
     return ResourceListResponse(
         items=items,
@@ -256,6 +263,7 @@ async def suggest_resource_tags(database: DatabaseDependency,
 @resource_router.get('/{resource_id}', response_model=ResourceListItem)
 async def get_resource(resource_id: str,
                        database: DatabaseDependency,
+                       cache: CacheDependency,
                        user: OptionalAuthenticatedUserDependency,
                        response: Response,
                        ) -> ResourceListItem:
@@ -264,6 +272,7 @@ async def get_resource(resource_id: str,
     if not author:
         raise HTTPException(status.HTTP_404_NOT_FOUND, 'Resource author not found')
     co_authors = await database.user.get_many(set(resource.co_author_ids))
+    metrics = await cache.resource_metrics.increment_views(resource.id)
     response.headers['ETag'] = etag_header(resource.revision)
     return ResourceListItem(
         **resource.model_dump(by_alias=True),
@@ -272,6 +281,8 @@ async def get_resource(resource_id: str,
             co_authors[co_author_id].username for co_author_id in resource.co_author_ids
             if co_author_id in co_authors
         ],
+        viewCount=metrics.views,
+        downloadCount=metrics.downloads,
     )
 
 
@@ -424,6 +435,7 @@ async def remove_co_author(resource_id: str,
 @resource_router.delete('/{resource_id}', status_code=status.HTTP_204_NO_CONTENT)
 async def delete_resource(resource_id: str,
                           database: DatabaseDependency,
+                          cache: CacheDependency,
                           user: AuthenticatedUserDependency,
                           ) -> None:
     resource = await get_owned_resource(database, resource_id, user)
@@ -446,3 +458,4 @@ async def delete_resource(resource_id: str,
         await database.resource.delete(resource.id)
 
     await database.transaction(delete_records)
+    await cache.resource_metrics.delete(resource.id)

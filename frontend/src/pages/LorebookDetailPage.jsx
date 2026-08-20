@@ -7,6 +7,7 @@ import {
 } from '../api/resources.js'
 import { useAuth } from '../auth/useAuth.js'
 import { ResourceImage } from '../components/ResourceImage.jsx'
+import { ResourceMetrics } from '../components/ResourceMetrics.jsx'
 import { ResourceAuthors } from '../components/ResourceAuthors.jsx'
 import { ReleaseDiff } from '../components/ReleaseDiff.jsx'
 import { copyText } from '../utils/clipboard.js'
@@ -97,7 +98,8 @@ export function LorebookDetailPage() {
       <h2>{t('editor.resourceMetadata')}</h2>
       <Value label={t('resource.description')} value={version.metadata.description} />
       <Value label={t('resource.language')} value={t(`resource.languages.${version.metadata.language === 'zh-cn' ? 'zhCN' : 'enUK'}`)} />
-      <ResourceAuthors resource={resource} />
+        <ResourceAuthors resource={resource} />
+        <ResourceMetrics resource={resource} />
       {!!version.metadata.tags?.length && <div className="detail-tags">{version.metadata.tags.map((tag) => <span key={tag}>{tag}</span>)}</div>}
     </section>
     <ReleaseDiff diff={version.contentDiff} />

@@ -123,6 +123,7 @@ const translations = {
       uploadNewImage: 'Upload new image', uploadingImage: 'Uploading…',
       imageUploadFailed: 'The image could not be processed or uploaded.',
       imageSelectionFailed: 'The existing image could not be selected.',
+      clearCover: 'Clear cover',
       cardMetadata: 'Card metadata', name: 'Character name', creator: 'Creator', version: 'Character version',
       nickname: 'Nickname', characterContent: 'Character content',
       fields: {
@@ -181,6 +182,7 @@ const translations = {
       coAuthors: 'Co-authors',
       diffSummary: 'Changes since previous release', diffAdditions: '+{{count}}', diffDeletions: '−{{count}}',
     },
+    metrics: { engagement: 'Resource engagement', views: 'Views', downloads: 'Downloads' },
     lorebookEditor: {
       draft: 'Lorebook draft', loading: 'Loading lorebook draft…',
       resourceHelp: 'Catalogue metadata copied into standalone lorebook releases.',
@@ -374,6 +376,7 @@ const translations = {
       chooseCover: '选择封面图片', chooseCoverHelp: '选择已有图片资源，或上传一张新的不可变图片。',
       uploadNewImage: '上传新图片', uploadingImage: '正在上传…',
       imageUploadFailed: '无法处理或上传图片。', imageSelectionFailed: '无法选择该已有图片。',
+      clearCover: '清除封面',
       name: '角色名称', creator: '创作者', version: '角色版本', nickname: '昵称',
       characterContent: '角色内容',
       fields: {
@@ -429,6 +432,7 @@ const translations = {
       coAuthors: '共同作者',
       diffSummary: '与上一版本的差异', diffAdditions: '+{{count}}', diffDeletions: '−{{count}}',
     },
+    metrics: { engagement: '资源互动数据', views: '浏览次数', downloads: '下载次数' },
     lorebookEditor: {
       draft: '世界书草稿', loading: '正在加载世界书草稿…',
       resourceHelp: '目录元数据会被复制到独立世界书版本中。', saved: '世界书草稿已保存。',

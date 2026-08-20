@@ -18,6 +18,7 @@ services:
       RC_MONGODB_REPLICA_SET: rs0
       RC_MONGODB_USERNAME: ${RC_MONGODB_USERNAME-roleplay_catalogue}
       RC_MONGODB_PASSWORD: ${RC_MONGODB_PASSWORD-local-mongo-change-me}
+      RC_REDIS_URL: redis://redis:6379/0
       RC_S3_ENDPOINT_URL: http://minio:9000
       NGINX_HSTS_HEADER: ${NGINX_HSTS_HEADER:-}
       NGINX_CONTENT_SECURITY_POLICY: "${NGINX_CONTENT_SECURITY_POLICY:-default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'}"
@@ -30,6 +31,20 @@ services:
         condition: service_healthy
       minio-init:
         condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  redis:
+    image: redis:8-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
   mongodb:
     image: mongodb/mongodb-community-server:latest
@@ -152,3 +167,4 @@ volumes:
   mongodb-search-data:
   mongodb-search-secrets:
   minio-data:
+  redis-data:

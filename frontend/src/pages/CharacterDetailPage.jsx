@@ -7,6 +7,7 @@ import {
   versionCoverUrl, versionDownloadUrl,
 } from '../api/resources.js'
 import { ResourceImage } from '../components/ResourceImage.jsx'
+import { ResourceMetrics } from '../components/ResourceMetrics.jsx'
 import { ResourceAuthors } from '../components/ResourceAuthors.jsx'
 import { ReleaseDiff } from '../components/ReleaseDiff.jsx'
 import { useAuth } from '../auth/useAuth.js'
@@ -143,6 +144,7 @@ export function CharacterDetailPage() {
           {!!version.metadata.tags?.length && <div className="detail-tags">
             {version.metadata.tags.map((tag) => <span key={tag}>{tag}</span>)}</div>}
           <ResourceAuthors resource={resource} />
+          <ResourceMetrics resource={resource} />
         </section>
         <ReleaseDiff diff={version.contentDiff} />
         <div className="editor-summary">

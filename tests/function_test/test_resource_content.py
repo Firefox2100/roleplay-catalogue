@@ -1,5 +1,6 @@
 from typing import Any
 
+import pytest
 from httpx import ASGITransport, AsyncClient
 
 from roleplay_catalogue.main import app
@@ -7,6 +8,7 @@ from roleplay_catalogue.models import Resource, ResourceType, ResourceVersion, U
 from roleplay_catalogue.models.roleplay_resource.resource import utc_now
 from roleplay_catalogue.routers.utils import (
     authenticate_user,
+    get_cache_service,
     get_database_service,
     get_storage_service,
     optionally_authenticate_user,
@@ -233,6 +235,42 @@ class MemoryStorageService:
         return f'https://storage.test/{key}?name={file_name}'
 
 
+class MemoryResourceMetrics:
+    def __init__(self):
+        self.metrics = {}
+
+    async def increment_views(self, resource_id):
+        current = self.metrics.setdefault(resource_id, {'views': 0, 'downloads': 0})
+        current['views'] += 1
+        return type('Metrics', (), current)()
+
+    async def increment_downloads(self, resource_id):
+        current = self.metrics.setdefault(resource_id, {'views': 0, 'downloads': 0})
+        current['downloads'] += 1
+        return current['downloads']
+
+    async def get_many(self, resource_ids):
+        return {
+            resource_id: type('Metrics', (), self.metrics.get(
+                resource_id, {'views': 0, 'downloads': 0},
+            ))()
+            for resource_id in resource_ids
+        }
+
+    async def delete(self, resource_id):
+        return self.metrics.pop(resource_id, None) is not None
+
+
+@pytest.fixture(autouse=True)
+async def cache_dependency():
+    cache = type('MemoryCache', (), {'resource_metrics': MemoryResourceMetrics()})()
+    async def get_cache():
+        return cache
+    app.dependency_overrides[get_cache_service] = get_cache
+    yield cache
+    app.dependency_overrides.pop(get_cache_service, None)
+
+
 async def authenticated_user() -> User:
     return USER
 
@@ -246,7 +284,7 @@ async def get_csrf_headers(client: AsyncClient) -> dict[str, str]:
     return {'X-CSRF-Token': token}
 
 
-async def test_character_draft_can_be_added_updated_and_published() -> None:
+async def test_character_draft_can_be_added_updated_and_published(cache_dependency) -> None:
     database = MemoryDatabaseService()
     storage = MemoryStorageService()
     app.dependency_overrides[get_database_service] = lambda: database
@@ -343,6 +381,12 @@ async def test_character_draft_can_be_added_updated_and_published() -> None:
         assert response.status_code == 200
         assert b'Character-specific context' in response.content
         assert b'Shared linked context' in response.content
+        assert cache_dependency.resource_metrics.metrics.get(resource_id, {}).get('downloads', 0) == 0
+
+        response = await client.get(f'/versions/draft/{resource_id}/preview')
+        assert response.status_code == 200
+        assert response.json()['spec'] == 'chara_card_v3'
+        assert len(response.json()['data']['character_book']['entries']) == 2
 
         response = await client.post(
             f'/versions/{resource_id}', headers=headers, json={'version': 'v1.2.3'},
@@ -376,6 +420,7 @@ async def test_character_draft_can_be_added_updated_and_published() -> None:
         assert response.status_code == 200
         assert response.content == storage.objects[artifact_key][0]
         assert "Updated%20draft.json" in response.headers['content-disposition']
+        assert cache_dependency.resource_metrics.metrics[resource_id]['downloads'] == 1
 
         response = await client.get(f'/versions/{version_id}/signed-download')
         assert response.status_code == 200
@@ -396,6 +441,7 @@ async def test_character_draft_can_be_added_updated_and_published() -> None:
         assert response.status_code == 200
         assert response.json()['data']['name'] == 'Updated draft'
         assert "Updated%20draft.draft.json" in response.headers['content-disposition']
+        assert cache_dependency.resource_metrics.metrics[resource_id]['downloads'] == 2
 
         response = await client.get(f'/resources/{resource_id}/data')
         assert response.status_code == 200
@@ -470,6 +516,12 @@ async def test_lorebook_import_export_publish_and_fork() -> None:
         assert response.json()['data']['name'] == 'Castle lore'
         assert response.headers['content-type'].startswith('application/json')
 
+        response = await client.get(f'/versions/draft/{resource_id}/preview')
+        assert response.status_code == 200
+        assert response.json()['spec'] == 'lorebook_v3'
+        assert response.json()['data']['name'] == 'Castle lore'
+        assert response.json()['data']['description'] == 'Imported lore description'
+
         response = await client.post(
             f'/versions/{resource_id}', headers=headers, json={'version': 'first edition'},
         )
@@ -525,6 +577,13 @@ async def test_preset_import_export_publish_and_fork() -> None:
         response = await client.get(f'/versions/draft/{resource_id}/download')
         assert response.status_code == 200
         assert response.json()['prompts'][0]['content'] == 'Write vividly.'
+        assert 'frequency_penalty' not in response.json()
+
+        response = await client.get(f'/versions/draft/{resource_id}/preview')
+        assert response.status_code == 200
+        assert response.json()['prompts'][0]['content'] == 'Write vividly.'
+        assert response.json()['openrouter_model'] == 'example/model'
+        assert 'frequency_penalty' not in response.json()
 
         response = await client.post(f'/versions/{resource_id}', headers=headers, json={'version': 'v1'})
         assert response.status_code == 201

@@ -135,6 +135,12 @@ export async function selectCharacterCover(resourceId, imageResourceId) {
   })).json()
 }
 
+export async function clearCharacterCover(resourceId) {
+  return (await request(`/api/images/covers/${resourceId}`, {
+    method: 'DELETE', headers: await csrfHeaders(),
+  })).json()
+}
+
 export function imageContentUrl(imageResourceId) {
   return `/api/images/${imageResourceId}/content`
 }

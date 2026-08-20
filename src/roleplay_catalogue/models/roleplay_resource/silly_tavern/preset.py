@@ -30,26 +30,28 @@ class SillyTavernPresetData(BaseModel):
     """Chat Completion preset JSON with provider-specific fields preserved."""
 
     model_config = ConfigDict(extra='allow')
-    temperature: float = 1
-    frequency_penalty: float = 0
-    presence_penalty: float = 0
-    top_p: float = 1
-    top_k: float = 0
-    top_a: float = 0
-    min_p: float = 0
-    repetition_penalty: float = 1
-    openai_max_context: int = Field(4095, ge=1)
-    openai_max_tokens: int = Field(300, ge=1)
-    seed: int = -1
-    n: int = Field(1, ge=1)
-    stream_openai: bool = True
+    temperature: float | None = None
+    frequency_penalty: float | None = None
+    presence_penalty: float | None = None
+    top_p: float | None = None
+    top_k: float | None = None
+    top_a: float | None = None
+    min_p: float | None = None
+    repetition_penalty: float | None = None
+    openai_max_context: int | None = Field(None, ge=1)
+    openai_max_tokens: int | None = Field(None, ge=1)
+    seed: int | None = None
+    n: int | None = Field(None, ge=1)
+    stream_openai: bool | None = None
     prompts: list[SillyTavernPresetPrompt] = Field(default_factory=list)
     prompt_order: list[SillyTavernPresetPromptOrder] = Field(default_factory=list)
 
     @field_validator('temperature', 'frequency_penalty', 'presence_penalty', 'top_p',
                      'top_k', 'top_a', 'min_p', 'repetition_penalty')
     @classmethod
-    def finite_number(cls, value: float) -> float:
+    def finite_number(cls, value: float | None) -> float | None:
+        if value is None:
+            return None
         if not math.isfinite(value):
             raise ValueError("Sampling values must be finite")
         return value

@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { listResources, resourceImageUrl } from '../api/resources.js'
 import { ResourceImage } from '../components/ResourceImage.jsx'
+import { ResourceMetrics } from '../components/ResourceMetrics.jsx'
 import { TagEditor } from '../components/TagEditor.jsx'
 
 const RESOURCE_TABS = [
@@ -48,6 +49,7 @@ function ResourceCard({ resource, onSelectAuthor }) {
         onClick={(event) => { event.stopPropagation(); onSelectAuthor(resource.authorUsername) }}>
         {resource.authorUsername}
       </button>
+      <ResourceMetrics resource={resource} compact />
       {resource.metadata.tags?.length > 0 && (
         <div className="resource-card-tags" aria-label={t('resource.tags')}>
           {resource.metadata.tags.slice(0, 3).map((tag) => (

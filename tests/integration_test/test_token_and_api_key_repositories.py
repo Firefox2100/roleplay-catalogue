@@ -11,33 +11,46 @@ def past(seconds: int = 3600) -> datetime:
     return datetime.now(timezone.utc) - timedelta(seconds=seconds)
 
 
-async def test_activation_token_create_is_upsert_by_username(database_service) -> None:
+async def test_activation_token_create_is_upsert_by_username(cache_service) -> None:
     first = ActivationToken(username='alice', tokenHash='hash-1', expiresAt=future())
-    await database_service.activation_token.create(first)
+    await cache_service.activation_token.create(first)
 
     second = ActivationToken(username='alice', tokenHash='hash-2', expiresAt=future())
-    await database_service.activation_token.create(second)
+    await cache_service.activation_token.create(second)
 
-    stored = await database_service.activation_token.get('alice')
+    stored = await cache_service.activation_token.get('alice')
     assert stored.token_hash == 'hash-2'
 
-    assert await database_service.activation_token.delete('alice') is True
-    assert await database_service.activation_token.get('alice') is None
-    assert await database_service.activation_token.delete('alice') is False
+    assert await cache_service.activation_token.delete('alice') is True
+    assert await cache_service.activation_token.get('alice') is None
+    assert await cache_service.activation_token.delete('alice') is False
 
 
-async def test_password_reset_token_create_is_upsert_by_user_id(database_service) -> None:
+async def test_password_reset_token_create_is_upsert_by_user_id(cache_service) -> None:
     first = PasswordResetToken(userId='user-1', tokenHash='hash-1', expiresAt=future())
-    await database_service.password_reset_token.create(first)
+    await cache_service.password_reset_token.create(first)
 
     second = PasswordResetToken(userId='user-1', tokenHash='hash-2', expiresAt=future())
-    await database_service.password_reset_token.create(second)
+    await cache_service.password_reset_token.create(second)
 
-    stored = await database_service.password_reset_token.get('user-1')
+    stored = await cache_service.password_reset_token.get('user-1')
     assert stored.token_hash == 'hash-2'
 
-    assert await database_service.password_reset_token.delete('user-1') is True
-    assert await database_service.password_reset_token.get('user-1') is None
+    assert await cache_service.password_reset_token.delete('user-1') is True
+    assert await cache_service.password_reset_token.get('user-1') is None
+
+
+async def test_resource_metrics_are_atomic_and_default_to_zero(cache_service) -> None:
+    assert (await cache_service.resource_metrics.get('resource-1')).views == 0
+    first = await cache_service.resource_metrics.increment_views('resource-1')
+    second = await cache_service.resource_metrics.increment_views('resource-1')
+    await cache_service.resource_metrics.increment_downloads('resource-1')
+
+    assert first.views == 1
+    assert second.views == 2
+    metrics = await cache_service.resource_metrics.get_many(['resource-1', 'resource-2'])
+    assert metrics['resource-1'].downloads == 1
+    assert metrics['resource-2'].views == 0
 
 
 async def test_api_key_create_get_list_and_delete(database_service) -> None:

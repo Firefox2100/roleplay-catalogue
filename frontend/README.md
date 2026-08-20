@@ -1,18 +1,30 @@
-# React + Vite
+# Roleplay Catalogue frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+The React frontend uses Vitest, jsdom, and React Testing Library. Tests are colocated with the
+code they exercise so ownership and refactoring impact remain obvious.
 
-Currently, two official plugins are available:
+## Test layers
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- **Unit tests** cover pure utilities and API request contracts. They should not render React or
+  make network requests.
+- **Component and hook tests** render one shared component or hook and exercise behavior through
+  accessible user interactions.
+- **Page integration tests** render a page inside a memory router while mocking only the API
+  boundary. They verify loading, errors, filtering, navigation, and composed UI behavior.
+- Backend function tests remain responsible for the real HTTP API. Browser end-to-end tests can
+  be added later for a small set of deployment-critical journeys.
 
-## React Compiler
+## Commands
 
-The React Compiler is enabled on this template. See [this documentation](https://react.dev/learn/react-compiler) for more information.
+```sh
+npm test                 # deterministic one-shot test run
+npm run test:watch       # interactive development mode
+npm run test:coverage    # enforced baseline plus HTML and LCOV reports
+npm run lint
+npm run build
+```
 
-Note: This will impact Vite dev & build performances.
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+Coverage includes the whole application. The initial global threshold deliberately reflects the
+existing editor pages that do not yet have integration tests while preventing regression; increase it as each editor receives a
+page integration suite. High-risk utilities, auth state, conflict handling, shared components,
+and the catalogue page already have substantially higher focused coverage.

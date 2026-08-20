@@ -80,6 +80,16 @@ class Settings(BaseSettings):
         description='Seconds between expired API key cleanup jobs.',
     )
 
+    redis_url: str = Field(
+        'redis://127.0.0.1:6379/0',
+        description='Redis URL used for cached and ephemeral application state.',
+    )
+    cache_key_prefix: str = Field(
+        'roleplay-catalogue',
+        min_length=1,
+        description='Prefix applied to every cache key.',
+    )
+
     s3_endpoint_url: str | None = Field(
         None,
         description='Optional endpoint URL for S3-compatible object storage.'

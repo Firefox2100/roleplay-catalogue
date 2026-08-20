@@ -8,10 +8,11 @@ import pytest
 from aiosmtplib import SMTP
 from jinja2 import DictLoader, Environment, select_autoescape
 from pymongo import AsyncMongoClient
+from redis.asyncio import Redis
 from testcontainers.core.container import DockerContainer
 from testcontainers.core.wait_strategies import HealthcheckWaitStrategy, LogMessageWaitStrategy
 
-from roleplay_catalogue.services import DatabaseService, MailingService, StorageService
+from roleplay_catalogue.services import CacheService, DatabaseService, MailingService, StorageService
 
 
 def _docker_available() -> bool:
@@ -81,6 +82,35 @@ async def database_service(mongo_database):
     service = DatabaseService(client=mongo_database.client, database_name=mongo_database.name)
     await service.initialize()
     yield service
+
+
+# Redis: authoritative store for short-lived activation and password-reset credentials.
+
+@pytest.fixture(scope='session')
+def redis_url(_require_docker) -> str:
+    container = DockerContainer('redis:8-alpine')
+    container.with_exposed_ports(6379)
+    container.waiting_for(LogMessageWaitStrategy('Ready to accept connections').with_startup_timeout(30))
+    container.start()
+    try:
+        host = container.get_container_host_ip()
+        port = container.get_exposed_port(6379)
+        yield f'redis://{host}:{port}/0'
+    finally:
+        container.stop()
+
+
+@pytest.fixture
+async def cache_service(redis_url: str):
+    client = Redis.from_url(redis_url, decode_responses=True)
+    service = CacheService(client, 'rc-test')
+    await service.initialize()
+    try:
+        await client.flushdb()
+        yield service
+    finally:
+        await client.flushdb()
+        await service.close()
 
 
 # MinIO: S3-compatible storage backend, matching compose.yaml

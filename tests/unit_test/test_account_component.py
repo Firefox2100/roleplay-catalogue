@@ -60,6 +60,15 @@ class TokenRepository:
         return 1
 
 
+class MetricsRepository:
+    def __init__(self):
+        self.deleted = []
+
+    async def delete(self, resource_id):
+        self.deleted.append(resource_id)
+        return True
+
+
 class Storage:
     def __init__(self, keys):
         self.keys = set(keys)
@@ -95,11 +104,12 @@ async def test_account_deletion_cascades_resources_versions_data_and_storage() -
         silly_tavern_character_data=character_data,
         silly_tavern_lorebook_data=Repository(), image_data=image_data,
         activation_token=TokenRepository(), password_reset_token=TokenRepository(),
-        api_key=TokenRepository(), transaction=lambda operation: operation(),
+        api_key=TokenRepository(), resource_metrics=MetricsRepository(),
+        transaction=lambda operation: operation(),
     )
     storage = Storage({'releases/character.json', 'images/image.png'})
 
-    await AccountComponent(database, storage, 86400).delete_account(user)
+    await AccountComponent(database, database, storage, 86400).delete_account(user)
 
     assert not database.user.documents
     assert not database.resource.documents
@@ -120,10 +130,13 @@ async def test_pending_account_cleanup_uses_account_creation_time() -> None:
         resource_version=VersionRepository(), silly_tavern_character_data=Repository(),
         silly_tavern_lorebook_data=Repository(), image_data=Repository(),
         activation_token=TokenRepository(), password_reset_token=TokenRepository(),
-        api_key=TokenRepository(), transaction=lambda operation: operation(),
+        api_key=TokenRepository(), resource_metrics=MetricsRepository(),
+        transaction=lambda operation: operation(),
     )
 
-    purged = await AccountComponent(database, Storage(set()), 86400).purge_expired_pending_accounts()
+    purged = await AccountComponent(
+        database, database, Storage(set()), 86400,
+    ).purge_expired_pending_accounts()
 
     assert purged == 1
     assert not database.user.documents

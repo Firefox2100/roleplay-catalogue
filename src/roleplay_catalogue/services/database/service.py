@@ -6,11 +6,9 @@ from roleplay_catalogue.models.roleplay_resource.silly_tavern import (
     SillyTavernLorebookDataDocument,
 )
 from .user import UserRepository
-from .activation_token import ActivationTokenRepository
 from .resource import ResourceRepository
 from .resource_data import ResourceDataRepository
 from .resource_version import ResourceVersionRepository
-from .password_reset_token import PasswordResetTokenRepository
 from .api_key import ApiKeyRepository
 from .indexes import ensure_indexes
 from .integrity import check_integrity
@@ -31,14 +29,6 @@ class DatabaseService:
     @property
     def user(self) -> UserRepository:
         return UserRepository(self._db)
-
-    @property
-    def activation_token(self) -> ActivationTokenRepository:
-        return ActivationTokenRepository(self._db)
-
-    @property
-    def password_reset_token(self) -> PasswordResetTokenRepository:
-        return PasswordResetTokenRepository(self._db)
 
     @property
     def api_key(self) -> ApiKeyRepository:

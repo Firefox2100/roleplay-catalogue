@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
 import {
-  deleteResource, draftDownloadUrl, getResource, getResourceData, importLorebook, listResources,
+  clearCharacterCover, deleteResource, draftDownloadUrl, getResource, getResourceData, importLorebook, listResources,
   listResourceVersions, publishResource, saveResourceData, selectCharacterCover,
   updateResource, updateVersionVisibility, uploadCharacterCover,
 } from '../api/resources.js'
@@ -333,11 +333,13 @@ export function LorebookEditorPage() {
         </section>
 
         <div className="editor-summary">
-          <button className="character-image-picker" type="button" onClick={() => setIsCoverPickerOpen(true)}>
-            {coverImageId ? <ResourceImage imageResourceId={coverImageId} /> : <>
-              <span aria-hidden="true">＋</span><strong>{t('lorebookEditor.addCover')}</strong>
-              <small>{t('lorebookEditor.coverHelp')}</small></>}
-          </button>
+          <div><button className="character-image-picker" type="button" onClick={() => setIsCoverPickerOpen(true)}>
+              {coverImageId ? <ResourceImage imageResourceId={coverImageId} /> : <>
+                <span aria-hidden="true">＋</span><strong>{t('lorebookEditor.addCover')}</strong>
+                <small>{t('lorebookEditor.coverHelp')}</small></>}
+            </button>{coverImageId && <button className="danger-outline" type="button"
+              onClick={async () => { try { const updated = await clearCharacterCover(resourceId); setResource(updated); setCoverImageId('') } catch { setError(t('editor.imageSelectionFailed')) } }}>
+              {t('editor.clearCover')}</button>}</div>
           <div className="card-metadata-fields">
             <h2>{t('lorebookEditor.settings')}</h2>
             <div className="editor-field-grid">

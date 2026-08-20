@@ -2,15 +2,16 @@ from datetime import datetime, timedelta, timezone
 
 from roleplay_catalogue.misc import ResourceType
 from roleplay_catalogue.models import User
-from roleplay_catalogue.services import DatabaseService, StorageService
+from roleplay_catalogue.services import CacheService, DatabaseService, StorageService
 
 from .resource_access import get_data_repository
 
 
 class AccountComponent:
-    def __init__(self, database: DatabaseService, storage: StorageService,
+    def __init__(self, database: DatabaseService, cache: CacheService, storage: StorageService,
                  pending_account_retention: int):
         self._database = database
+        self._cache = cache
         self._storage = storage
         self._pending_account_retention = pending_account_retention
 
@@ -46,12 +47,14 @@ class AccountComponent:
                 await self._database.resource.delete(resource.id)
 
             await self._database.resource.remove_co_author(user.id)
-            await self._database.activation_token.delete(user.username)
-            await self._database.password_reset_token.delete(user.id)
             await self._database.api_key.delete_for_user(user.id)
             await self._database.user.delete(user.id)
 
         await self._database.transaction(delete_records)
+        await self._cache.activation_token.delete(user.username)
+        await self._cache.password_reset_token.delete(user.id)
+        for resource in ordered:
+            await self._cache.resource_metrics.delete(resource.id)
 
         for object_key in object_keys:
             await self._storage.remove(object_key)

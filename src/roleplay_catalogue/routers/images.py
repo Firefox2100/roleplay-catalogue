@@ -24,6 +24,7 @@ from roleplay_catalogue.components import (
 )
 from .utils import (
     AuthenticatedUserDependency,
+    CacheDependency,
     DatabaseDependency,
     OptionalAuthenticatedUserDependency,
     StorageDependency,
@@ -119,6 +120,25 @@ async def select_character_cover(character_resource_id: str,
     return updated
 
 
+@image_router.delete('/covers/{character_resource_id}', response_model=Resource)
+async def clear_character_cover(character_resource_id: str,
+                                user: AuthenticatedUserDependency,
+                                database: DatabaseDependency,
+                                ) -> Resource:
+    character = await get_editable_resource(database, character_resource_id, user)
+    if character.resource_type not in (
+            ResourceType.SILLY_TAVERN_CHARACTER,
+            ResourceType.SILLY_TAVERN_LOREBOOK,
+    ):
+        raise HTTPException(status.HTTP_409_CONFLICT, 'Resource type does not support covers')
+    updated = await database.resource.apply_update(
+        character.id, {'coverImageResourceId': None},
+    )
+    if not updated:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, 'Resource not found')
+    return updated
+
+
 @image_router.put('/{image_resource_id}/metadata', response_model=Resource)
 async def update_image_metadata(image_resource_id: str,
                                 payload: ImageMetadataRequest,
@@ -162,6 +182,7 @@ async def update_image_metadata(image_resource_id: str,
 async def delete_image_resource(image_resource_id: str,
                                 user: AuthenticatedUserDependency,
                                 database: DatabaseDependency,
+                                cache: CacheDependency,
                                 storage: StorageDependency,
                                 force: bool = Query(False),
                                 ) -> None:
@@ -223,6 +244,7 @@ async def delete_image_resource(image_resource_id: str,
         await database.resource.delete(image.id)
 
     await database.transaction(delete_records)
+    await cache.resource_metrics.delete(image.id)
     for object_key in object_keys:
         await storage.remove(object_key)
 

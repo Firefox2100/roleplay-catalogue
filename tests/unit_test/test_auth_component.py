@@ -123,6 +123,7 @@ def create_auth_component():
     mailing = MemoryMailingService()
     auth = AuthComponent(
         database=database,
+        cache=database,
         mailing=mailing,
         public_base_url='https://catalogue.example',
         activation_token_max_age=3600,

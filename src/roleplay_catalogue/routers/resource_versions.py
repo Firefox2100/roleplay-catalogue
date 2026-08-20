@@ -12,6 +12,7 @@ from roleplay_catalogue.models.roleplay_resource.resource import utc_now
 from roleplay_catalogue.models.roleplay_resource.silly_tavern import (
     SillyTavernCardV3,
     SillyTavernLorebookV3,
+    SillyTavernPresetData,
 )
 from roleplay_catalogue.components import (
     apply_resource_metadata_to_world,
@@ -29,7 +30,10 @@ from roleplay_catalogue.components import (
     resource_editor_ids,
     snapshot_lorebook_references,
 )
-from .utils import AuthenticatedUserDependency, DatabaseDependency, OptionalAuthenticatedUserDependency, StorageDependency
+from .utils import (
+    AuthenticatedUserDependency, CacheDependency, DatabaseDependency,
+    OptionalAuthenticatedUserDependency, StorageDependency,
+)
 
 
 resource_version_router = APIRouter(prefix='/versions', tags=['Resource Versions'])
@@ -53,6 +57,48 @@ class VersionVisibilityRequest(CommonModel):
 class SignedDownloadResponse(CommonModel):
     url: str
     expires_in: int = Field(..., alias='expiresIn')
+
+
+@resource_version_router.get('/draft/{resource_id}/preview',
+                             response_model=SillyTavernCardV3 | SillyTavernLorebookV3 |
+                             SillyTavernPresetData,
+                             response_model_exclude_none=True)
+async def preview_character_draft(resource_id: str, database: DatabaseDependency,
+                                  user: AuthenticatedUserDependency,
+                                  ) -> SillyTavernCardV3 | SillyTavernLorebookV3 | SillyTavernPresetData:
+    resource = await get_editable_resource(database, resource_id, user)
+    if resource.resource_type not in (
+            ResourceType.SILLY_TAVERN_CHARACTER, ResourceType.SILLY_TAVERN_LOREBOOK,
+            ResourceType.SILLY_TAVERN_PRESET,
+    ):
+        raise HTTPException(status.HTTP_409_CONFLICT, 'Resource type does not have a V3 preview')
+    if not resource.draft_data_id:
+        raise HTTPException(status.HTTP_409_CONFLICT, 'Resource has no draft data')
+    draft = await get_data_repository(database, resource.resource_type).get(resource.draft_data_id)
+    if not draft or draft.resource_version_id:
+        raise HTTPException(status.HTTP_409_CONFLICT, 'Resource draft data is invalid')
+    if resource.resource_type == ResourceType.SILLY_TAVERN_LOREBOOK:
+        return SillyTavernLorebookV3(spec='lorebook_v3', data=draft.data.model_copy(update={
+            'name': resource.metadata.name,
+            'description': resource.metadata.description,
+        }))
+    if resource.resource_type == ResourceType.SILLY_TAVERN_PRESET:
+        return draft.data
+    author = await database.user.get(resource.author_id)
+    if not author:
+        raise HTTPException(status.HTTP_409_CONFLICT, 'Resource author no longer exists')
+    data = draft.data.model_copy(update={
+        'description': resource.metadata.description,
+        'tags': list(resource.metadata.tags),
+        'creator': draft.data.creator or author.username,
+    })
+    merged = await merge_linked_lorebooks(
+        data, resource.linked_lorebooks, database,
+        character_author_name=author.username,
+        character_editor_ids=resource_editor_ids(resource),
+        required_visibility=resource.metadata.visibility,
+    )
+    return SillyTavernCardV3(spec='chara_card_v3', spec_version='3.0', data=merged)
 
 
 def attachment_header(file_name: str) -> str:
@@ -108,7 +154,7 @@ async def export_resource_draft(resource_id: str, database: DatabaseDependency,
         content_type, extension = 'application/json', '.json'
     elif resource.resource_type == ResourceType.SILLY_TAVERN_PRESET:
         data = draft.data
-        artifact = data.model_dump_json(by_alias=True).encode('utf-8')
+        artifact = data.model_dump_json(by_alias=True, exclude_none=True).encode('utf-8')
         content_type, extension = 'application/json', '.json'
     else:
         data = apply_resource_metadata_to_world(draft.data, resource)
@@ -184,7 +230,7 @@ async def publish_resource(resource_id: str, payload: PublishResourceRequest,
         content_type, extension = 'application/json', '.json'
     elif resource.resource_type == ResourceType.SILLY_TAVERN_PRESET:
         snapshot_data = draft.data
-        artifact = snapshot_data.model_dump_json(by_alias=True).encode('utf-8')
+        artifact = snapshot_data.model_dump_json(by_alias=True, exclude_none=True).encode('utf-8')
         content_type, extension = 'application/json', '.json'
     else:
         snapshot_data = apply_resource_metadata_to_world(draft.data, resource)
@@ -279,14 +325,17 @@ async def get_resource_version_data(version_id: str, database: DatabaseDependenc
 
 @resource_version_router.get('/{version_id}/signed-download', response_model=SignedDownloadResponse)
 async def create_signed_download(version_id: str, database: DatabaseDependency,
+                                 cache: CacheDependency,
                                  storage: StorageDependency,
                                  user: OptionalAuthenticatedUserDependency) -> SignedDownloadResponse:
     version = await get_readable_version(database, version_id, user)
     key, _content_type, file_name, _byte_size, _digest = await resolve_download_asset(
         version, database,
     )
+    url = await storage.create_signed_download_url(key, file_name)
+    await cache.resource_metrics.increment_downloads(version.resource_id)
     return SignedDownloadResponse(
-        url=await storage.create_signed_download_url(key, file_name),
+        url=url,
         expiresIn=storage.signed_url_expiry,
     )
 
@@ -398,6 +447,7 @@ async def fork_resource_version(version_id: str, database: DatabaseDependency,
 
 @resource_version_router.get('/{version_id}/download')
 async def download_resource_version(version_id: str, database: DatabaseDependency,
+                                    cache: CacheDependency,
                                     storage: StorageDependency,
                                     request: Request,
                                     user: OptionalAuthenticatedUserDependency):
@@ -422,6 +472,7 @@ async def download_resource_version(version_id: str, database: DatabaseDependenc
             return Response(status_code=status.HTTP_304_NOT_MODIFIED, headers=headers)
     if byte_size is not None:
         headers['Content-Length'] = str(byte_size)
+    await cache.resource_metrics.increment_downloads(version.resource_id)
     return StreamingResponse(storage.fetch(key), media_type=content_type, headers=headers)
 
 

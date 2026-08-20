@@ -5,7 +5,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from roleplay_catalogue.components import AccountComponent, AuthComponent
 from roleplay_catalogue.misc import UserCredentialMismatch
 from roleplay_catalogue.models import User
-from roleplay_catalogue.services import DatabaseService, MailingService, StorageService
+from roleplay_catalogue.services import CacheService, DatabaseService, MailingService, StorageService
 
 
 def get_auth_component(request: Request) -> AuthComponent:
@@ -14,6 +14,10 @@ def get_auth_component(request: Request) -> AuthComponent:
 
 def get_database_service(request: Request) -> DatabaseService:
     return request.app.state.database_service
+
+
+def get_cache_service(request: Request) -> CacheService:
+    return request.app.state.cache_service
 
 
 def get_mailing_service(request: Request) -> MailingService:
@@ -37,6 +41,12 @@ AuthDependency = Annotated[
 DatabaseDependency = Annotated[
     DatabaseService,
     Depends(get_database_service)
+]
+
+
+CacheDependency = Annotated[
+    CacheService,
+    Depends(get_cache_service),
 ]
 
 

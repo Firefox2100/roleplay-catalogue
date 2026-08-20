@@ -43,6 +43,13 @@ These variables come from `compose.yaml` and affect the Docker environment. They
 
 MongoDB transactions are required for atomic multi-document operations (e.g. creating a resource, its draft data, and indexed searches in a single atomic write). A single-node replica set is sufficient for local development as provisioned by `compose.yaml`.
 
+## Redis
+
+| Variable | Default | Description |
+|---|---|---|
+| `RC_REDIS_URL` | `redis://127.0.0.1:6379/0` | Redis connection URL. Redis is the authoritative store for expiring activation and password-reset credentials. |
+| `RC_CACHE_KEY_PREFIX` | `roleplay-catalogue` | Prefix applied to all keys owned by this application. Use a distinct value when sharing a Redis database. |
+
 ## S3-compatible storage
 
 The application uses S3-compatible storage for resource artifacts (character card files, lorebook files, preset files, images, and World Simulation Engine bundles). Any S3 API implementation works (AWS S3, MinIO, Cloudflare R2, etc.).

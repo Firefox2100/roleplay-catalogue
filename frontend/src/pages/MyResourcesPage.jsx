@@ -4,6 +4,7 @@ import { Link, Navigate, useLocation } from 'react-router-dom'
 import { listResources, resourceImageUrl } from '../api/resources.js'
 import { useAuth } from '../auth/useAuth.js'
 import { ResourceImage } from '../components/ResourceImage.jsx'
+import { ResourceMetrics } from '../components/ResourceMetrics.jsx'
 
 const RESOURCE_TABS = [
   { value: '', label: 'all' },
@@ -33,6 +34,7 @@ function PersonalResourceCard({ resource }) {
         </div>
       )}
       <h2>{resource.metadata.name}</h2>
+      <ResourceMetrics resource={resource} compact />
       {!isEditable && <small className="not-editable-label">{t('myResources.editorComingSoon')}</small>}
       <div className="resource-description-tooltip" role="tooltip">
         {resource.metadata.description || t('home.noDescription')}

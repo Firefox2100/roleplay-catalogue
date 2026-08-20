@@ -20,5 +20,20 @@ export default defineConfig(({ mode }) => {
         },
       },
     },
+    test: {
+      environment: 'jsdom',
+      setupFiles: './src/test/setup.js',
+      restoreMocks: true,
+      coverage: {
+        provider: 'v8',
+        reporter: ['text', 'html', 'lcov', 'json', 'json-summary'],
+        reportOnFailure: true,
+        include: ['src/**/*.{js,jsx}'],
+        exclude: ['src/main.jsx', 'src/test/**'],
+        // This baseline covers the entire existing SPA, including the large editors that
+        // predate the test suite. Raise it as page coverage is added; never lower it.
+        thresholds: { lines: 32, functions: 21, statements: 28, branches: 27 },
+      },
+    },
   }
 })

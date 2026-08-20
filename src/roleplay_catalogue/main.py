@@ -7,12 +7,15 @@ from fastapi.responses import JSONResponse
 from jinja2 import Environment, PackageLoader, select_autoescape
 from pymongo import AsyncMongoClient
 from pymongo.errors import DuplicateKeyError
+from redis.asyncio import Redis
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from roleplay_catalogue.misc import CONFIG
-from roleplay_catalogue.services import DatabaseService, MailingService, StorageService
+from roleplay_catalogue.services import (
+    CacheService, DatabaseService, MailingService, StorageService,
+)
 from roleplay_catalogue.components import AccountComponent, AuthComponent
 from roleplay_catalogue.routers import (
     auth_router,
@@ -57,6 +60,10 @@ async def lifespan(application: FastAPI):
         client=mongo_client,
         database_name=CONFIG.mongodb_name,
     )
+    cache_service = CacheService(
+        client=Redis.from_url(CONFIG.redis_url, decode_responses=True),
+        key_prefix=CONFIG.cache_key_prefix,
+    )
     smtp_client = SMTP(
         hostname=CONFIG.smtp_host,
         port=CONFIG.smtp_port,
@@ -89,13 +96,14 @@ async def lifespan(application: FastAPI):
         )
         auth_component = AuthComponent(
             database=database_service,
+            cache=cache_service,
             mailing=mailing_service,
             public_base_url=CONFIG.public_base_url,
             activation_token_max_age=CONFIG.activation_token_max_age,
             password_reset_token_max_age=CONFIG.password_reset_token_max_age,
         )
         account_component = AccountComponent(
-            database_service, storage_service, CONFIG.pending_account_retention,
+            database_service, cache_service, storage_service, CONFIG.pending_account_retention,
         )
         scheduler = AsyncIOScheduler()
         scheduler.add_job(
@@ -115,6 +123,7 @@ async def lifespan(application: FastAPI):
         scheduler_started = False
 
         application.state.database_service = database_service
+        application.state.cache_service = cache_service
         application.state.mailing_service = mailing_service
         application.state.storage_service = storage_service
         application.state.auth_component = auth_component
@@ -122,6 +131,7 @@ async def lifespan(application: FastAPI):
 
         try:
             await database_service.initialize()
+            await cache_service.initialize()
             for problem in await database_service.check_integrity():
                 LOGGER.warning('Database integrity check: %s', problem)
             await smtp_client.connect()
@@ -133,6 +143,7 @@ async def lifespan(application: FastAPI):
                 scheduler.shutdown(wait=False)
             smtp_client.close()
             await database_service.close()
+            await cache_service.close()
 
 
 app = FastAPI(

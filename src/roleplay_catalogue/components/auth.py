@@ -6,7 +6,7 @@ from urllib.parse import urlencode
 
 from argon2 import PasswordHasher
 from argon2.exceptions import VerificationError, VerifyMismatchError
-from roleplay_catalogue.services import DatabaseService, MailingService
+from roleplay_catalogue.services import CacheService, DatabaseService, MailingService
 
 from roleplay_catalogue.misc import (
     InvalidActivationToken,
@@ -23,12 +23,14 @@ from roleplay_catalogue.models import ActivationToken, ApiKey, PasswordResetToke
 class AuthComponent:
     def __init__(self,
                  database: DatabaseService,
+                 cache: CacheService,
                  mailing: MailingService,
                  public_base_url: str,
                  activation_token_max_age: int,
                  password_reset_token_max_age: int = 3600,
                  ):
         self._db = database
+        self._cache = cache
         self._mailing = mailing
         self._public_base_url = public_base_url.rstrip('/')
         self._activation_token_max_age = activation_token_max_age
@@ -110,7 +112,7 @@ class AuthComponent:
                               new_password: str) -> User:
         self.verify_password(user, current_password)
         updated = user.model_copy(update={'password_hash': self._hasher.hash(new_password)})
-        await self._db.password_reset_token.delete(user.id)
+        await self._cache.password_reset_token.delete(user.id)
         return await self._db.user.update(updated)
 
     async def request_password_reset(self, email: str) -> None:
@@ -121,7 +123,7 @@ class AuthComponent:
         expires_at = datetime.now(timezone.utc) + timedelta(
             seconds=self._password_reset_token_max_age,
         )
-        await self._db.password_reset_token.create(PasswordResetToken(
+        await self._cache.password_reset_token.create(PasswordResetToken(
             userId=user.id,
             tokenHash=self._hasher.hash(raw_token),
             expiresAt=expires_at,
@@ -144,16 +146,16 @@ class AuthComponent:
                 html_body=html_body,
             )
         except Exception:
-            await self._db.password_reset_token.delete(user.id)
+            await self._cache.password_reset_token.delete(user.id)
             raise
 
     async def reset_password(self, user_id: str, token: str, new_password: str) -> User:
         user = await self._db.user.get(user_id)
-        reset_token = await self._db.password_reset_token.get(user_id)
+        reset_token = await self._cache.password_reset_token.get(user_id)
         if not user or not reset_token or user.status != UserStatus.ACTIVE:
             raise InvalidPasswordResetToken()
         if reset_token.expires_at <= datetime.now(timezone.utc):
-            await self._db.password_reset_token.delete(user_id)
+            await self._cache.password_reset_token.delete(user_id)
             raise InvalidPasswordResetToken()
         try:
             self._hasher.verify(reset_token.token_hash, token)
@@ -161,7 +163,7 @@ class AuthComponent:
             raise InvalidPasswordResetToken() from error
         updated = user.model_copy(update={'password_hash': self._hasher.hash(new_password)})
         await self._db.user.update(updated)
-        await self._db.password_reset_token.delete(user_id)
+        await self._cache.password_reset_token.delete(user_id)
         return updated
 
     async def register_user(self,
@@ -202,7 +204,7 @@ class AuthComponent:
             activation_url=activation_url,
             expires_in_hours=expires_in_hours,
         )
-        await self._db.activation_token.create(activation_token)
+        await self._cache.activation_token.create(activation_token)
         try:
             await self._mailing.send_email(
                 recipients=user.email,
@@ -216,7 +218,7 @@ class AuthComponent:
             )
             await self._db.user.create(user)
         except Exception:
-            await self._db.activation_token.delete(user.username)
+            await self._cache.activation_token.delete(user.username)
             raise
         return user
 
@@ -225,11 +227,11 @@ class AuthComponent:
                             token: str,
                             ) -> User:
         user = await self._db.user.get_by_username(username)
-        activation_token = await self._db.activation_token.get(username)
+        activation_token = await self._cache.activation_token.get(username)
         if not user or not activation_token or user.status != UserStatus.PENDING_ACTIVATION:
             raise InvalidActivationToken()
         if activation_token.expires_at <= datetime.now(timezone.utc):
-            await self._db.activation_token.delete(username)
+            await self._cache.activation_token.delete(username)
             raise InvalidActivationToken()
 
         try:
@@ -239,5 +241,5 @@ class AuthComponent:
 
         active_user = user.model_copy(update={'status': UserStatus.ACTIVE})
         await self._db.user.update(active_user)
-        await self._db.activation_token.delete(username)
+        await self._cache.activation_token.delete(username)
         return active_user

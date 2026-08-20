@@ -31,7 +31,9 @@ A deployed instance holds no content filtering or included content; the hoster c
 
 ## Quick Start
 
-The fastest way to run everything locally is Docker Compose. It provisions the application server, a MongoDB replica set (required for transactions), a MinIO S3 storage backend, and MongoDB Community Search.
+The fastest way to run everything locally is Docker Compose. It provisions the application server,
+a MongoDB replica set (required for transactions), Redis for expiring credentials, a MinIO S3
+storage backend, and MongoDB Community Search.
 
 ### 1. Clone and configure
 
