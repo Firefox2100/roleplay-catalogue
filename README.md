@@ -2,7 +2,7 @@
 
 [![License: GPL v3](https://www.gnu.org/graphics/gplv3-88x31.png)](https://www.gnu.org/licenses/gpl-3.0.en.html) [![Quality gate status](https://sonarcloud.io/api/project_badges/measure?project=Firefox2100_roleplay-catalogue&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=Firefox2100_roleplay-catalogue) [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=Firefox2100_roleplay-catalogue&metric=coverage)](https://sonarcloud.io/summary/new_code?id=Firefox2100_roleplay-catalogue) [![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=Firefox2100_roleplay-catalogue&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=Firefox2100_roleplay-catalogue)
 
-An open-source, self-hosted catalogue for roleplay resources. It provides a private platform for managing and sharing SillyTavern character cards, lore books, chat presets, images, and World Simulation Engine worlds — giving full control to the hoster instead of relying on commercial platforms.
+An open-source, self-hosted library for managing and sharing SillyTavern character cards, lore books, chat presets, images, and World Simulation Engine worlds.
 
 ## Purpose
 
@@ -10,7 +10,7 @@ The Roleplay Catalogue fills the gap for private or group-maintained content lib
 
 - **Users** — discover, search, and download resources.
 - **Authors** — create, version, and publish resources with collaborative editing support.
-- **Hosters** — deploy everything in a single Docker Compose stack with zero external dependencies.
+- **Administrators** — operate the complete service with Docker Compose or connect managed infrastructure.
 
 A deployed instance holds no content filtering or included content; the hoster controls what is published. The catalogued resources are shared under each author's own license (GPL-3.0 by default applies to the platform itself, not the content hosted within it).
 
@@ -24,7 +24,8 @@ A deployed instance holds no content filtering or included content; the hoster c
 - **Versioned releases** — Every resource supports draft → publish with numbered version history and unified content diffs (including merged linked lorebooks).
 - **Forking** — Users can fork any public resource to create a derived version while linking back to the original.
 - **Collaborative editing** — Authors invite co-authors to edit a resource's draft (publish and delete remain author-only).
-- **Search and filtering** — Discover resources by tags, categories, authors, and ratings; powered by MongoDB Community Search.
+- **Search and filtering** — Discover resources by text, tags, type, and author; powered by MongoDB Community Search.
+- **Engagement counts** — See anonymous view and download counts on listings and detail pages.
 - **Two auth modes** — Session cookies for browser logins and Bearer API keys for programmatic access.
 - **CSRF protection** — Middleware-enforced token header on unsafe requests; API-key auth is exempt.
 - **I18n** — English and Chinese Simplified built in via `react-i18next`.
@@ -32,7 +33,7 @@ A deployed instance holds no content filtering or included content; the hoster c
 ## Quick Start
 
 The fastest way to run everything locally is Docker Compose. It provisions the application server,
-a MongoDB replica set (required for transactions), Redis for expiring credentials, a MinIO S3
+a MongoDB replica set (required for transactions), Redis for expiring credentials and resource counters, a MinIO S3
 storage backend, and MongoDB Community Search.
 
 ### 1. Clone and configure
@@ -77,27 +78,6 @@ docker compose down          # stop containers (volumes stay)
 docker compose down -v       # stop and remove everything
 docker compose restart       # restart all services
 docker compose logs -f       # follow logs
-```
-
-## Repository Structure
-
-```
-├── src/roleplay_catalogue        # FastAPI backend (Python)
-│   ├── routers/                  # API endpoint definitions
-│   ├── services/                 # Business logic and DB/repository layer
-│   ├── models/                   # Pydantic models and MongoDB schemas
-│   ├── components/               # Auth component, account service
-│   └── misc/                     # Configuration, error types, helpers
-├── frontend/                     # React SPA (Vite + React 19)
-│   ├── src/                      # Pages, API clients, auth context
-│   └── package.json
-├── docs/                         # Static site source (MkDocs via zensical)
-│   ├── en/                       # English documentation
-│   └── zh/                       # Chinese translations
-├── deploy/                       # Docker files (Dockerfile, Nginx, Supervisor, init scripts)
-├── compose.yaml                  # Docker Compose definition
-├── example.env                   # All configurable variables
-└── pyproject.toml                # Python project metadata and dependencies
 ```
 
 ## License

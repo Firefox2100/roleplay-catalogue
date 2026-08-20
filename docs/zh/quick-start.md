@@ -1,6 +1,6 @@
 # 快速开始
 
-启动角色扮演资源库最快的方式是使用 `docker compose`。这条命令会启动应用服务器、单节点 MongoDB 副本集（支持事务）、MongoDB 社区搜索（用于未来全文和向量搜索）以及 MinIO S3 兼容存储后端——一个命令即可运行全套环境。
+启动角色扮演资源库最简单的方式是使用 `docker compose`。它会同时启动应用、单节点 MongoDB 副本集、MongoDB Community Search、Redis 和 MinIO 对象存储。
 
 ## 前提条件
 
@@ -19,22 +19,22 @@
    | 变量 | 示例值 | 说明 |
    |---|---|---|
    | `RC_SESSION_SECRET` | `a3f1b7c9d2e4f6...` | 至少 32 字节 |
-   | `MONGOT_PASSWORD` | `my-redis-12345` | 随机密码，用于 MongoDB Community Search |
+   | `MONGOT_PASSWORD` | `change-this-search-password` | MongoDB Community Search 使用的随机密码 |
    | `RC_PUBLIC_BASE_URL` | `http://localhost:8080` | 用户访问的前端 URL |
 
    完整选项请参阅 [配置选项](configuration.md)。其余变量会使用合理的默认值。
 
-3. **启动容器堆栈**
+3. **启动容器服务**
 
    ```sh
    docker compose up -d
    ```
 
-   首次运行时，Docker 会拉取镜像、启动容器，并执行两个一次性初始化任务：创建 S3 存储桶、将 MongoDB 配置为副本集。这可能需要一至两分钟。
+   首次运行时，Docker 会拉取镜像、启动各项服务，并完成 MongoDB 与对象存储的初始化。这可能需要一至两分钟。
 
 4. **打开资源库**
 
-   导航至 `http://localhost:8080`（或你通过 `CATALOGUE_PORT` 配置的端口）。首次访问首页你会看到"注册"按钮——注册账号后即可登录。
+   打开 `http://localhost:8080`（或你通过 `CATALOGUE_PORT` 配置的端口）。首次访问首页你会看到"注册"按钮——注册账号后即可登录。
 
 ## 停止和重启
 
@@ -69,4 +69,4 @@ docker compose up -d
 > MongoDB 副本集是事务的必要条件。单节点副本集足以用于开发环境；生产环境建议使用多节点副本集以获得高可用性。
 
 > [!NOTE]
-> 端口说明：容器内 catalogue 监听 `8080`，映射到 `CATALOGUE_PORT`（默认 `8080`）。运行 compose 堆栈时，MinIO Console 可在端口 `9001` 访问。
+> 端口说明：应用容器监听 `8080`，并映射到 `CATALOGUE_PORT`（默认也是 `8080`）。使用 Compose 时，MinIO 管理控制台位于 `9001` 端口。Redis 和 MongoDB 默认不对宿主机开放端口。

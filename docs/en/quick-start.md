@@ -1,6 +1,6 @@
 # Quick Start
 
-The fastest way to run the Roleplay Catalogue locally is with `docker compose`. This starts the application server, a single-node MongoDB replica set, MongoDB Community Search (for future full-text and vector search), and a MinIO S3-compatible storage backend — everything you need in one command.
+The fastest way to run Roleplay Catalogue is with `docker compose`. It starts the application, a single-node MongoDB replica set, MongoDB Community Search, Redis, and MinIO object storage.
 
 ## Prerequisites
 
@@ -19,7 +19,7 @@ The fastest way to run the Roleplay Catalogue locally is with `docker compose`. 
    | Variable | Example | Notes |
    |---|---|---|
    | `RC_SESSION_SECRET` | `a3f1b7c9d2e4f6...` | Minimum 32 bytes recommended |
-   | `MONGOT_PASSWORD` | `my-redis-12345` | Random password for MongoDB Community Search |
+   | `MONGOT_PASSWORD` | `change-this-search-password` | Random password for MongoDB Community Search |
    | `RC_PUBLIC_BASE_URL` | `http://localhost:8080` | The URL users will type in their browser |
 
    See [Configuration](configuration.md) for the full list of options. All other values use sensible defaults.
@@ -30,7 +30,7 @@ The fastest way to run the Roleplay Catalogue locally is with `docker compose`. 
    docker compose up -d
    ```
 
-   On first run Docker will pull the images, start the container, and run two one-shot initialisation jobs: it creates the S3 bucket and configures MongoDB as a replica set. This may take a minute or two.
+   On first run Docker pulls the images, starts the services, and runs the MongoDB and storage initialisation jobs. This may take a minute or two.
 
 4. **Open the catalogue**
 

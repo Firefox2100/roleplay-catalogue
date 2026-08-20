@@ -20,7 +20,7 @@
 | 字典 | 递归合并 — 保留现有键；添加新键 |
 | 嵌套对象 | 在每一级递归合并 |
 
-导入永远不会覆盖已有的非空内容。这意味着导入新卡片、lorebook 或预设时，你已有的编辑内容是安全的。
+角色卡和世界书采用合并方式导入，已有的非空字段会保留。预设是例外：导入预设会替换当前预设草稿；如需保留旧内容，请先导出草稿。
 
 ## 按类型导入
 
@@ -40,25 +40,25 @@
 - **标签**：如果不存在则追加导入的标签（自动去重）。
 - **描述**：保留现有描述；导入的描述仅在当前描述为空时填充。
 - **封面图**：如果导入 PNG，该 PNG 文件成为资源的封面图（作为独立的图片资源存储）。
-- **Lorebook**：如果 PNG/V3 JSON 包含内嵌 lorebook，则提取并合并到资源草稿中。
+- **世界书**：如果 PNG/V3 JSON 包含内嵌世界书，则提取并合并到资源草稿中。
 
 > [!TIP]
 > **导入到已有卡片保留你的编辑。** 如果你已自定义过角色卡并收到了作者更新的版本，导入新卡以获得更新，同时保留你的修改。
 
-### Lorebook
+### 世界书
 
 **端点**：`POST /resources/{resourceId}/import-lorebook`
-**格式**：`.json`（V3 lorebook 或带内嵌 book 的卡片）或 `.png`（带内嵌 lorebook 的卡片 PNG）
+**格式**：`.json`（V3 世界书或带内嵌 book 的卡片）或 `.png`（带内嵌世界书的卡片 PNG）
 
-Lorebook 导入端点：
+世界书导入端点：
 
-1. 接受独立的 **V3** JSON 格式 lorebook（`lorebook_v3` 规范）。
-2. 接受包含内嵌 lorebook 的**角色卡 JSON**（`chara_card_v2` 或 `chara_card_v3` 规范，`character_book` 字段）。
-3. 接受包含 V3 lorebook 或带内嵌 lore 的角色卡的 **PNG**。
+1. 接受独立的 **V3** JSON 格式 世界书（`lorebook_v3` 规范）。
+2. 接受包含内嵌世界书的**角色卡 JSON**（`chara_card_v2` 或 `chara_card_v3` 规范，`character_book` 字段）。
+3. 接受包含 V3 世界书或带内嵌 lore 的角色卡的 **PNG**。
 
-在现有 lorebook 草稿中导入时：
+在现有 世界书草稿中导入时：
 
-- Lorebook 条目按 `entryOrder` / `key` 标识符合并。
+- 世界书条目按 `entryOrder` / `key` 标识符合并。
 - 新条目追加；已有条目保留。
 - 每个条目内的定义递归合并。
 
@@ -107,12 +107,12 @@ Lorebook 导入端点：
 | 文件大小 — 预设 | 受 `RC_PRESET_MAX_BYTES` 限制（默认 5 MiB） |
 | 文件大小 — 数据包 | 受 `RC_WORLD_BUNDLE_MAX_BYTES` 限制（默认 100 MiB） |
 | PNG 卡片检测 | 读取 `tEXt` chunks：`ccv3` → V3，`chara` → V2 |
-| PNG 中 lorebook 提取 | 要求卡片的 `character_book` 字段存在 |
+| PNG 中 世界书提取 | 要求卡片的 `character_book` 字段存在 |
 
 ## 提示与注意事项
 
 > [!NOTE]
-> **导入更新时间戳。** 导入后，资源的 `updated_at` 字段刷新，将其置于日期排序列表的顶部。
+> **导入后更新排序时间。** 导入后，资源的 `updated_at` 字段刷新，将其置于日期排序列表的顶部。
 
 > [!NOTE]
 > **草稿与发布。** 导入仅修改**草稿** — 任何已有的已发布版本保持不变。你必须发布新版本才能将导入的更改释出给阅读者。
@@ -122,14 +122,3 @@ Lorebook 导入端点：
 
 > [!TIP]
 > **PNG 导入自动捕获封面图。** 导入 `.png` 角色卡时，该图片文件存储为资源的封面图，因此无需单独上传缩略图。
-
-## API 参考（开发者使用）
-
-| 方法 | 端点 | 接受格式 | 描述 |
-|---|---|---|---|
-| `POST` | `/resources/{id}/import-card` | `.json`、`.png` | 导入 / 合并角色卡 |
-| `POST` | `/resources/{id}/import-lorebook` | `.json`、`.png` | 导入 / 合并 lorebook |
-| `POST` | `/resources/{id}/import-preset` | `.json` | 导入 SillyTavern 预设 |
-| `POST` | `/resources/{id}/import-world` | `.zip` | 导入 World Simulation Engine 数据包 |
-
-(文件结束 - 共 133 行)

@@ -4,7 +4,7 @@ The Roleplay Catalogue ships a ready-made Docker image and can also be deployed 
 
 | Model | What it does |
 |---|---|
-| **All-in-one** (Docker Compose) | Single `ghcr.io/Firefox2100/roleplay-catalogue` image with Nginx + Uvicorn; only external services needed are MongoDB and MinIO. |
+| **All-in-one** (Docker Compose) | Runs the application and all required data services from the supplied Compose file. |
 | **Split** | Standalone FastAPI backend at `/api` + any SPA host (reverse proxy, CDN, S3 bucket). You build the frontend yourself and choose where to run Uvicorn. |
 
 ---
@@ -14,17 +14,19 @@ The Roleplay Catalogue ships a ready-made Docker image and can also be deployed 
 - **Python** ≥ 3.12
 - **Node.js** ≥ 18 (for building the frontend)
 - **MongoDB** running as a **replica set** (single-node replica set is fine for local / small deployments) — mandatory because the app uses multi-document transactions.
+- **Redis** with persistence enabled — stores activation and password-reset credentials plus resource view and download counters.
 - **S3-compatible storage** (MinIO, AWS S3, Cloudflare R2, etc.) — required for uploading character cards, lorebooks, presets, images, and world bundles.
 
 ---
 
 ## Option 1 — Docker Compose (recommended)
 
-The provided `compose.yaml` starts four services:
+The provided `compose.yaml` starts five long-running services:
 
 | Service | Purpose | Docker image |
 |---|---|---|
-| `catalogue` | Nginx (port 8080) proxies `/api/` → Uvicon on port 9798; serves the SPA. | `ghcr.io/Firefox2100/roleplay-catalogue:latest` |
+| `catalogue` | Nginx (port 8080) proxies `/api/` to Uvicorn on port 9798 and serves the SPA. | `ghcr.io/Firefox2100/roleplay-catalogue:latest` |
+| `redis` | Persistent activation/reset credentials and resource counters. | `redis:8-alpine` |
 | `mongodb` | MongoDB Community Server, single-node replica set `rs0`, authentication enabled. | `mongodb/mongodb-community-server:latest` |
 | `mongodb-search` (mongot) | MongoDB Community Search for full-text and vector indexes. | `mongodb/mongodb-community-search:latest` |
 | `minio` | S3-compatible object storage on port 9000 (console on 9001). | `minio/minio:latest` |
@@ -101,7 +103,7 @@ machines).
 
 ```sh
 cd frontend
-npm install
+npm ci
 npm run build          # produces frontend/dist/
 ```
 
@@ -116,15 +118,13 @@ Copy `frontend/dist/` to your preferred hosting target:
 ### 2.2 Run the backend
 
 ```sh
-cd src/roleplay_catalogue        # from the repository root
-
 # Create and activate a virtualenv (Python 3.12)
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -e .
+pip install .
 
 # Copy and edit the environment file
-cp ../example.env .env           # or place one wherever uvicorn finds it
+cp example.env .env
 # Set RC_FRONTEND_DIST_PATH=""   (not needed in split mode)
 # Set RC_API_PREFIX=/api         # or leave blank when using a separate proxy
 ```
@@ -196,6 +196,7 @@ The following are **essential**; everything else falls back to `example.env` def
 | `RC_MONGODB_REPLICA_SET` | `rs0` | Must match `mongod --replSet` |
 | `RC_MONGODB_USERNAME` | `roleplay_catalogue` | Optional; leave both this and `RC_MONGODB_PASSWORD` unset to connect without auth |
 | `RC_MONGODB_PASSWORD` | `abc123...` | Optional, paired with `RC_MONGODB_USERNAME` |
+| `RC_REDIS_URL` | `redis://redis-host:6379/0` | Persistent Redis database; do not treat it as disposable cache storage |
 | `RC_S3_ENDPOINT_URL` | `https://my-bucket.r2.cloudflarestorage.com` | No trailing slash |
 | `RC_S3_REGION` | `auto` | Some providers require this literal value |
 | `RC_S3_ACCESS_KEY_ID` | `AKIA...` | |
@@ -224,6 +225,7 @@ proxies forward `/api/resources` → `http://backend:9798/api/resources` (double
 
 - [ ] `RC_SESSION_SECRET` set to ≥ 32 random characters.
 - [ ] MongoDB is a **replica set** (`--replSet` flag matches `RC_MONGODB_REPLICA_SET`).
+- [ ] Redis persistence and backups meet your retention requirements; losing Redis also loses counters and outstanding activation/reset credentials.
 - [ ] `MONGODB_ROOT_PASSWORD`, `RC_MONGODB_USERNAME`, and `RC_MONGODB_PASSWORD` changed from
   their insecure `compose.yaml` defaults (Docker Compose deployments only).
 - [ ] S3 bucket exists and credentials are correct (in split mode).

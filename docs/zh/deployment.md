@@ -4,7 +4,7 @@
 
 | 模式 | 说明 |
 |---|---|
-| **全-in-one** (Docker Compose) | 单一 `ghcr.io/Firefox2100/roleplay-catalogue` 镜像内置 Nginx + Uvicorn；只需外部 MongoDB 和 MinIO。 |
+| **一体化部署**（Docker Compose） | 使用项目提供的 Compose 文件运行应用及其全部数据服务。 |
 | **拆分** | 独立的 FastAPI 后端位于 `/api` 路径 + 任意 SPA 宿主（反向代理、CDN、S3 存储桶）。你自行构建前端并选择 Uvicorn 的运行位置。 |
 
 ---
@@ -14,17 +14,19 @@
 - **Python** ≥ 3.12
 - **Node.js** ≥ 18（用于构建前端）
 - **MongoDB** 以 **副本集** 模式运行（单节点副本集即可用于本地或小规模部署）——**必须**，因为应用使用多文档事务。
-- **S3 兼容存储**（MinIO、AWS S3、Cloudflare R2 等）——用于上传角色卡、背景书、预设、图片和世界数据包。
+- **Redis** 并启用持久化——用于保存账号激活和密码重置凭证，以及资源的浏览、下载次数。
+- **S3 兼容存储**（MinIO、AWS S3、Cloudflare R2 等）——用于上传角色卡、世界书、预设、图片和世界数据包。
 
 ---
 
 ## 方案一 — Docker Compose（推荐）
 
-提供的 `compose.yaml` 启动四个服务：
+项目提供的 `compose.yaml` 会启动五项长期运行的服务：
 
 | 服务 | 作用 | Docker 镜像 |
 |---|---|---|
 | `catalogue` | Nginx（端口 8080）将 `/api/` 代理到 9798 端口的 Uvicorn；提供 SPA。 | `ghcr.io/Firefox2100/roleplay-catalogue:latest` |
+| `redis` | 持久保存限时凭证以及资源浏览、下载次数。 | `redis:8-alpine` |
 | `mongodb` | MongoDB Community Server，单节点副本集 `rs0`，已启用认证。 | `mongodb/mongodb-community-server:latest` |
 | `mongodb-search`（mongot） | MongoDB Community Search，提供全文和向量索引。 | `mongodb/mongodb-community-search:latest` |
 | `minio` | 9000 端口的 S3 兼容对象存储（控制台在 9001）。 | `minio/minio:latest` |
@@ -69,7 +71,7 @@ docker compose logs -f catalogue   # 跟踪应用日志
 容器暴露 **端口 8080**（从 `CATALOGUE_PORT` 映射）。所有浏览器连接
 8080 端口；`/api/*` 请求通过 Nginx 透明转发到后端。
 
-### 自定义 compose 堆栈
+### 自定义 Compose 服务
 
 你可以通过 `.env` 文件或 `catalogue` 服务的环境变量覆盖任何 `compose.yaml` 值。
 `CATALOGUE_PORT` 变量控制映射到容器的宿主机端口；`RC_SESSION_SECRET`、
@@ -94,7 +96,7 @@ SMTP 设置和 S3 凭证在首次启动前从 `.env` 填充。
 
 ```sh
 cd frontend
-npm install
+npm ci
 npm run build          # 生成 frontend/dist/
 ```
 
@@ -109,15 +111,13 @@ npm run build          # 生成 frontend/dist/
 ### 2.2 运行后端
 
 ```sh
-cd src/roleplay_catalogue        # 从仓库根目录
-
 # 创建并激活虚拟环境（Python 3.12）
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -e .
+pip install .
 
 # 复制并编辑环境文件
-cp ../example.env .env           # 或将 .env 放在 uvicorn 可以找到它的位置
+cp example.env .env
 # 拆分模式下 RC_FRONTEND_DIST_PATH=""（不需要设置）
 # 设置 RC_API_PREFIX=/api        # 使用独立代理时可留空
 ```
@@ -189,6 +189,7 @@ docker run --rm -p 9798:9798 \
 | `RC_MONGODB_REPLICA_SET` | `rs0` | 必须与 `mongod --replSet` 匹配 |
 | `RC_MONGODB_USERNAME` | `roleplay_catalogue` | 可选；与 `RC_MONGODB_PASSWORD` 都留空表示不使用认证连接 |
 | `RC_MONGODB_PASSWORD` | `abc123...` | 可选，与 `RC_MONGODB_USERNAME` 搭配使用 |
+| `RC_REDIS_URL` | `redis://redis-host:6379/0` | 持久化 Redis 数据库；不能当作随时可清空的普通缓存 |
 | `RC_S3_ENDPOINT_URL` | `https://my-bucket.r2.cloudflarestorage.com` | 末尾无斜杠 |
 | `RC_S3_REGION` | `auto` | 部分提供商要求此字面值 |
 | `RC_S3_ACCESS_KEY_ID` | `AKIA...` | |
@@ -217,6 +218,7 @@ docker run --rm -p 9798:9798 \
 
 - [ ] 已设置 `RC_SESSION_SECRET`（≥ 32 个随机字符）。
 - [ ] MongoDB 是 **副本集**（`--replSet` 标志与 `RC_MONGODB_REPLICA_SET` 匹配）。
+- [ ] Redis 已启用持久化，并按需要纳入备份；清空 Redis 会丢失统计数据和尚未使用的激活、重置凭证。
 - [ ] 已修改 `MONGODB_ROOT_PASSWORD`、`RC_MONGODB_USERNAME` 和 `RC_MONGODB_PASSWORD`
   的默认值（仅适用于 Docker Compose 部署）。
 - [ ] S3 存储桶已存在且凭证正确（拆分模式下）。

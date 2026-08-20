@@ -90,16 +90,3 @@ On every publish, the system walks the lorebook links and creates the appropriat
 
 > [!NOTE]
 > **Artifacts are immutable and versioned by their UUIDs.** The S3 key `releases/{resource_id}/{version_id}{extension}` means you can always re-download a specific version, even if later versions overwrite the name.
-
-## API reference (for developers)
-
-| Method | Endpoint | Description |
-|---|---|---|
-| `POST` | `/versions/{resourceId}` | Create a new release from the current draft |
-| `PATCH` | `/versions/{versionId}/visibility` | Change visibility of a published version |
-| `GET` | `/versions/resource/{resourceId}` | List all published versions (ascending) |
-| `GET` | `/versions/{versionId}` | Get a specific version's metadata |
-| `GET` | `/versions/{versionId}/data` | Get the frozen payload for a version |
-| `GET` | `/versions/{versionId}/download` | Download the packaged artifact |
-| `GET` | `/versions/{versionId}/signed-download` | Get a signed S3 URL for offline access |
-| `GET` | `/versions/draft/{resourceId}/download` | Export the current draft as a `.draft.json` file |

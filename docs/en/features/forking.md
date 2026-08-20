@@ -18,15 +18,6 @@ The fork is your own resource from the moment it's created — you can edit, rel
 
 Navigate to the detail page of any publishable resource version. Click the **Fork** button. A new resource is generated instantly and you are redirected to your new draft editor.
 
-### From the API
-
-Call the fork endpoint with the version ID you want to base your fork on:
-
-```
-POST /versions/{versionId}/fork
-```
-
-The source version must be readable by your account (public, authenticated, or private with your author/co-author permission).
 
 ## What gets copied
 
@@ -95,11 +86,3 @@ Before publishing, you can export the fork's draft exactly as any other resource
 
 > [!NOTE]
 > **Linked lorebooks survive the fork unchanged.** If the source character referenced a lorebook at version `abc123`, your fork's draft starts with an identical reference to the same lorebook version. You can later update the lorebook link to point to a different version.
-
-## API reference (for developers)
-
-| Method | Endpoint | Description |
-|---|---|---|
-| `POST` | `/versions/{versionId}/fork` | Create a new resource forked from the given version |
-| `GET` | `/versions/draft/{resourceId}/download` | Export the fork's pre-publish draft |
-| `GET` | `/versions/{versionId}/download` | Download the fork's published artifact |

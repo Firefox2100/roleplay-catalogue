@@ -43,9 +43,19 @@
 
 MongoDB 事务对原子多文档操作（例如在一次写入中创建资源、其草稿数据和索引搜索）是必需的。`compose.yaml` 提供的单节点副本集足以用于开发环境。
 
+## Redis
+
+| 变量 | 默认值 | 说明 |
+|---|---|---|
+| `RC_REDIS_URL` | `redis://127.0.0.1:6379/0` | Redis 连接地址。Redis 会持久保存账号激活凭证、密码重置凭证以及资源浏览和下载次数。 |
+| `RC_CACHE_KEY_PREFIX` | `roleplay-catalogue` | 本应用写入 Redis 时使用的键名前缀。多个实例共用同一 Redis 数据库时，每个实例必须使用不同前缀。 |
+
+> [!IMPORTANT]
+> Redis 不只是可随时清空的缓存。生产环境应启用持久化并安排备份；清空 Redis 会使尚未使用的激活、密码重置链接失效，并清除资源统计。
+
 ## S3 兼容存储
 
-应用使用 S3 兼容存储来保存资源工件（角色卡文件、背景书文件、预设文件、图片和世界模拟数据包）。任何 S3 API 实现均可使用（AWS S3、MinIO、Cloudflare R2 等）。
+应用使用 S3 兼容存储来保存资源工件（角色卡文件、世界书文件、预设文件、图片和世界模拟数据包）。任何 S3 API 实现均可使用（AWS S3、MinIO、Cloudflare R2 等）。
 
 | 变量 | 默认值 | 说明 |
 |---|---|---|
@@ -109,4 +119,4 @@ MongoDB 事务对原子多文档操作（例如在一次写入中创建资源、
 
 ## CSRF 保护
 
-跨站请求伪造保护由一个中间件提供，该中间件要求每个不安全请求携带 `x-csrf-token` 头（GET 和 OPTIONS 请求除外）。令牌来自前一次请求中的 `SEC_COOKIE_NAME` Cookie。通过 Bearer Token 认证 API 请求可豁免 CSRF 检查。
+跨站请求伪造保护由一个中间件提供，该中间件要求每个会修改数据的请求携带 `x-csrf-token` 头（GET 和 OPTIONS 请求除外）。令牌来自前一次请求中的 `SEC_COOKIE_NAME` Cookie。通过 Bearer Token 认证 API 请求可豁免 CSRF 检查。

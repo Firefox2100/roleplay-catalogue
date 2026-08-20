@@ -20,7 +20,7 @@ When importing into an existing draft, the system uses a **recursive merge** alg
 | Dictionaries | Merged recursively — existing keys are preserved; new keys are added |
 | Nested objects | Recursively merged at each level |
 
-Import never overwrites existing non-blank content. This means your existing edits are safe when importing a new card, lorebook, or preset.
+Character-card and lore-book imports preserve existing non-blank fields and merge incoming data. Preset imports are different: importing a preset replaces the preset draft. Export the current draft first if you may need it later.
 
 ## How to import by type
 
@@ -122,12 +122,3 @@ Each resource type has an import button on its editing page. Click import, selec
 
 > [!TIP]
 > **PNG imports capture cover images automatically.** When importing a `.png` character card, the image file is stored as the resource's cover image, so you don't need to upload a separate thumbnail.
-
-## API reference (for developers)
-
-| Method | Endpoint | Accepts | Description |
-|---|---|---|---|
-| `POST` | `/resources/{id}/import-card` | `.json`, `.png` | Import / merge a character card |
-| `POST` | `/resources/{id}/import-lorebook` | `.json`, `.png` | Import / merge a lorebook |
-| `POST` | `/resources/{id}/import-preset` | `.json` | Import a SillyTavern preset |
-| `POST` | `/resources/{id}/import-world` | `.zip` | Import a World Simulation Engine bundle |

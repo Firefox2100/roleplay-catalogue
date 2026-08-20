@@ -1,4 +1,4 @@
-# character-cards.md
+# SillyTavern Character Cards
 
 ## Overview
 

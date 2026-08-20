@@ -1,4 +1,4 @@
-# lore-books.md
+# SillyTavern Lore Books
 
 ## Overview
 

@@ -41,7 +41,7 @@ Packets exports are available for four resource types: characters, lorebooks, pr
 Presets appear in general search results alongside characters, lorebooks, and worlds. The same filtering mechanisms apply:
 
 - **Tag filtering** — search by tags on the preset.
-- **Visibility filter** — public and unlisted presets are shown in browse views; private ones only to the owning user.
+- **Visibility filter** — public and signed-in presets are shown in browse views; private ones only to the owning user.
 - **Language filter** — presets carry a language label (English or Chinese Simplified) based on their metadata.
 
 ### Import Behaviour

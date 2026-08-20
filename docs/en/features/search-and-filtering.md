@@ -123,6 +123,15 @@ Resources are sorted by:
 - **Search results** (`searchString` provided): relevance score (descending) then `updatedAt` (descending).
 - **Non-search results**: `updatedAt` (descending — newest updates first).
 
+## View and download counts
+
+Resource cards and detail pages show anonymous engagement counts:
+
+- A **view** is recorded when the application requests a resource to build its detail page.
+- A **download** is recorded when a release is downloaded through the backend or when a signed download link is created.
+
+These are request counts, not unique visitor counts. Repeated requests are counted separately and the catalogue does not attach visitor identities to them. The counters are stored in Redis, which administrators should include in their persistence and backup plans.
+
 ## Tips and notes
 
 > [!TIP]
@@ -136,10 +145,3 @@ Resources are sorted by:
 
 > [!NOTE]
 > **Tags are deduplicated on import.** When you import a card or lorebook, new tags are appended only if they are not already present in the resource's tag list.
-
-## API reference (for developers)
-
-| Method | Endpoint | Description |
-|---|---|---|
-| `GET` | `/resources` | List and search resources |
-| `GET` | `/resources/tags?search=...&limit=...` | Suggest tags for autocomplete |

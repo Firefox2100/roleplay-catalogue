@@ -50,6 +50,8 @@ MongoDB transactions are required for atomic multi-document operations (e.g. cre
 | `RC_REDIS_URL` | `redis://127.0.0.1:6379/0` | Redis connection URL. Redis is the authoritative store for expiring activation and password-reset credentials. |
 | `RC_CACHE_KEY_PREFIX` | `roleplay-catalogue` | Prefix applied to all keys owned by this application. Use a distinct value when sharing a Redis database. |
 
+Redis is not disposable cache storage in the current design. Production deployments should enable persistence and backups. Clearing it invalidates outstanding activation and password-reset links and removes resource view and download counts.
+
 ## S3-compatible storage
 
 The application uses S3-compatible storage for resource artifacts (character card files, lorebook files, preset files, images, and World Simulation Engine bundles). Any S3 API implementation works (AWS S3, MinIO, Cloudflare R2, etc.).
