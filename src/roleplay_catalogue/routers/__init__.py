@@ -4,7 +4,5 @@ from .images import image_router
 from .card_imports import card_import_router
 from .resources import resource_router
 from .resource_versions import resource_version_router
-from .silly_tavern_character_data import silly_tavern_character_data_router
-from .silly_tavern_lorebook_data import silly_tavern_lorebook_data_router
 from .worlds import world_router
 from .presets import preset_router

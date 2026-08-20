@@ -4,12 +4,17 @@ from httpx import ASGITransport, AsyncClient
 
 from roleplay_catalogue.main import app
 from roleplay_catalogue.models import Resource, ResourceType, ResourceVersion, User
+from roleplay_catalogue.models.roleplay_resource.resource import utc_now
 from roleplay_catalogue.routers.utils import (
     authenticate_user,
     get_database_service,
     get_storage_service,
     optionally_authenticate_user,
 )
+
+
+def if_match(revision: int) -> dict[str, str]:
+    return {'If-Match': f'"{revision}"'}
 
 
 USER = User(
@@ -37,6 +42,50 @@ class MemoryResourceRepository:
     async def update(self, resource: Resource) -> Resource:
         self.documents[resource.id] = resource
         return resource
+
+    async def update_if_match(self, resource: Resource, expected_revision: int) -> Resource | None:
+        current = self.documents.get(resource.id)
+        if not current or current.revision != expected_revision:
+            return None
+        bumped = resource.model_copy(update={'revision': expected_revision + 1})
+        self.documents[resource.id] = bumped
+        return bumped
+
+    async def apply_update(self, resource_id: str, fields: dict) -> Resource | None:
+        current = self.documents.get(resource_id)
+        if not current:
+            return None
+        merged = {**current.model_dump(by_alias=True), **fields, 'revision': current.revision + 1}
+        updated = Resource.model_validate(merged)
+        self.documents[resource_id] = updated
+        return updated
+
+    async def touch(self, resource_id: str) -> None:
+        current = self.documents.get(resource_id)
+        if current:
+            self.documents[resource_id] = current.model_copy(update={'updated_at': utc_now()})
+
+    async def add_co_author_to_resource(self, resource_id: str, co_author_id: str) -> Resource | None:
+        current = self.documents.get(resource_id)
+        if not current:
+            return None
+        updated = current.model_copy(update={
+            'co_author_ids': tuple(dict.fromkeys((*current.co_author_ids, co_author_id))),
+            'revision': current.revision + 1,
+        })
+        self.documents[resource_id] = updated
+        return updated
+
+    async def remove_co_author_from_resource(self, resource_id: str, co_author_id: str) -> Resource | None:
+        current = self.documents.get(resource_id)
+        if not current:
+            return None
+        updated = current.model_copy(update={
+            'co_author_ids': tuple(id_ for id_ in current.co_author_ids if id_ != co_author_id),
+            'revision': current.revision + 1,
+        })
+        self.documents[resource_id] = updated
+        return updated
 
     async def list_visible(self, user_id, offset=0, limit=50, resource_type=None,
                            tags=None, author_id=None, published_resource_ids=None,
@@ -136,6 +185,14 @@ class MemoryDataRepository:
     async def update(self, document):
         self.documents[document.id] = document
         return document
+
+    async def update_if_match(self, document, expected_revision: int):
+        current = self.documents.get(document.id)
+        if not current or current.revision != expected_revision:
+            return None
+        bumped = document.model_copy(update={'revision': expected_revision + 1})
+        self.documents[document.id] = bumped
+        return bumped
 
     async def delete(self, data_id: str) -> bool:
         return self.documents.pop(data_id, None) is not None
@@ -238,7 +295,7 @@ async def test_character_draft_can_be_added_updated_and_published() -> None:
         )
         assert response.status_code == 201
         linked_lorebook_version_id = response.json()['id']
-        response = await client.put(f'/resources/{resource_id}', headers=headers, json={
+        response = await client.put(f'/resources/{resource_id}', headers={**headers, **if_match(0)}, json={
             'name': 'Example character', 'description': 'Catalogue description',
             'visibility': 'public', 'tags': ['catalogue-tag'],
             'linkedLorebooks': [{
@@ -255,10 +312,11 @@ async def test_character_draft_can_be_added_updated_and_published() -> None:
         )
         assert response.status_code == 200
         draft_id = response.json()['id']
+        draft_revision = response.json()['revision']
 
         response = await client.put(
             f'/resources/{resource_id}/data',
-            headers=headers,
+            headers={**headers, **if_match(draft_revision)},
             json={'data': {
                 'name': 'Updated draft',
                 'character_book': {
@@ -542,7 +600,9 @@ async def test_character_can_link_foreign_lorebook_release_but_not_publish_draft
         })).json()
         await client.put(f"/resources/{character['id']}/data", headers=headers,
                          json={'data': {'name': 'Uses shared world'}})
-        response = await client.put(f"/resources/{character['id']}", headers=headers, json={
+        # The data PUT above created the first draft, which bumps the parent Resource's
+        # revision once (0 -> 1) via apply_update, so the metadata write below must match that.
+        response = await client.put(f"/resources/{character['id']}", headers={**headers, **if_match(1)}, json={
             'name': 'Uses shared world', 'description': '', 'visibility': 'public', 'tags': [],
             'linkedLorebooks': [{'resourceId': lorebook['id'], 'versionId': lorebook_version['id']}],
         })
@@ -566,10 +626,12 @@ async def test_character_can_link_foreign_lorebook_release_but_not_publish_draft
         })).json()
         await client.put(f"/resources/{draft_character['id']}/data", headers=headers,
                          json={'data': {'name': 'Draft linked'}})
-        await client.put(f"/resources/{draft_character['id']}", headers=headers, json={
-            'name': 'Draft linked', 'description': '', 'visibility': 'private', 'tags': [],
-            'linkedLorebooks': [{'resourceId': own_lorebook['id'], 'versionId': None}],
-        })
+        await client.put(
+            f"/resources/{draft_character['id']}", headers={**headers, **if_match(1)}, json={
+                'name': 'Draft linked', 'description': '', 'visibility': 'private', 'tags': [],
+                'linkedLorebooks': [{'resourceId': own_lorebook['id'], 'versionId': None}],
+            },
+        )
         response = await client.post(
             f"/versions/{draft_character['id']}", headers=headers, json={'version': 'v1'},
         )
@@ -657,7 +719,7 @@ async def test_resource_listing_exposes_next_offset_and_updates_visibility() -> 
 
         headers = await get_csrf_headers(client)
         response = await client.put(
-            f'/resources/{first.id}', headers=headers,
+            f'/resources/{first.id}', headers={**headers, **if_match(0)},
             json={'name': 'First', 'description': '', 'visibility': 'private', 'tags': []},
         )
 
@@ -684,7 +746,7 @@ async def test_image_metadata_and_sole_version_are_updated_together() -> None:
         headers = await get_csrf_headers(client)
         response = await client.put(
             f'/images/{image.id}/metadata',
-            headers=headers,
+            headers={**headers, **if_match(0)},
             json={
                 'name': 'Renamed image',
                 'description': 'Updated description',
@@ -748,7 +810,7 @@ async def test_character_release_content_diff_tracks_changes_against_previous_re
         })
         assert response.status_code == 201
         character_id = response.json()['id']
-        response = await client.put(f'/resources/{character_id}', headers=headers, json={
+        response = await client.put(f'/resources/{character_id}', headers={**headers, **if_match(0)}, json={
             'name': 'Example character', 'description': '', 'visibility': 'public', 'tags': [],
             'linkedLorebooks': [{'resourceId': lorebook_id, 'versionId': lorebook_version_id}],
         })
@@ -758,6 +820,7 @@ async def test_character_release_content_diff_tracks_changes_against_previous_re
             json={'data': {'name': 'First draft'}},
         )
         assert response.status_code == 200
+        first_draft_revision = response.json()['revision']
 
         response = await client.post(
             f'/versions/{character_id}', headers=headers, json={'version': 'v1.0.0'},
@@ -772,7 +835,7 @@ async def test_character_release_content_diff_tracks_changes_against_previous_re
         assert removed_lines(first_diff) == []
 
         response = await client.put(
-            f'/resources/{character_id}/data', headers=headers,
+            f'/resources/{character_id}/data', headers={**headers, **if_match(first_draft_revision)},
             json={'data': {'name': 'Second draft'}},
         )
         assert response.status_code == 200
@@ -844,7 +907,8 @@ async def test_owner_can_grant_and_revoke_co_author_edit_access() -> None:
         )
         assert response.status_code == 200
 
-        response = await client.put(f'/resources/{resource_id}', headers=headers, json={
+        # Revision so far: 0 (create) -> 1 (co-author added) -> 2 (first draft data created).
+        response = await client.put(f'/resources/{resource_id}', headers={**headers, **if_match(2)}, json={
             'name': 'Shared draft', 'description': 'Edited by a co-author',
             'visibility': 'private', 'tags': [],
         })
@@ -909,12 +973,115 @@ async def test_co_author_can_link_their_editable_lorebook_draft() -> None:
         await client.put(f"/resources/{character['id']}/data", headers=headers,
                          json={'data': {'name': 'Links co-authored lore'}})
 
-        response = await client.put(f"/resources/{character['id']}", headers=headers, json={
-            'name': 'Links co-authored lore', 'description': '', 'visibility': 'private',
-            'tags': [], 'linkedLorebooks': [{'resourceId': lorebook['id'], 'versionId': None}],
-        })
+        response = await client.put(
+            f"/resources/{character['id']}", headers={**headers, **if_match(1)}, json={
+                'name': 'Links co-authored lore', 'description': '', 'visibility': 'private',
+                'tags': [], 'linkedLorebooks': [{'resourceId': lorebook['id'], 'versionId': None}],
+            },
+        )
         assert response.status_code == 200
 
         response = await client.get(f"/versions/draft/{character['id']}/download")
         assert response.status_code == 200
         assert b'Draft lore' in response.content
+
+
+async def test_update_resource_requires_if_match_and_rejects_a_stale_revision() -> None:
+    database = MemoryDatabaseService()
+    app.dependency_overrides[get_database_service] = lambda: database
+    app.dependency_overrides[authenticate_user] = authenticated_user
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url='http://test') as client:
+        headers = await get_csrf_headers(client)
+        resource = (await client.post('/resources', headers=headers, json={
+            'resourceType': 'sillytavern/character', 'name': 'Original',
+            'description': '', 'visibility': 'private', 'tags': [],
+        })).json()
+        resource_id = resource['id']
+        assert resource['revision'] == 0
+
+        response = await client.put(f'/resources/{resource_id}', headers=headers, json={
+            'name': 'Missing If-Match', 'description': '', 'visibility': 'private', 'tags': [],
+        })
+        assert response.status_code == 428
+
+        first_edit = await client.put(
+            f'/resources/{resource_id}', headers={**headers, **if_match(0)}, json={
+                'name': 'First editor', 'description': '', 'visibility': 'private', 'tags': [],
+            },
+        )
+        assert first_edit.status_code == 200
+        assert first_edit.json()['revision'] == 1
+        assert first_edit.headers['etag'] == '"1"'
+
+        stale_retry = await client.put(
+            f'/resources/{resource_id}', headers={**headers, **if_match(0)}, json={
+                'name': 'Second editor, stale base', 'description': '', 'visibility': 'private', 'tags': [],
+            },
+        )
+        assert stale_retry.status_code == 412
+        assert stale_retry.headers['etag'] == '"1"'
+        assert stale_retry.json()['detail']['current']['metadata']['name'] == 'First editor'
+
+        merged_retry = await client.put(
+            f'/resources/{resource_id}', headers={**headers, **if_match(1)}, json={
+                'name': 'Second editor, rebased', 'description': '', 'visibility': 'private', 'tags': [],
+            },
+        )
+        assert merged_retry.status_code == 200
+        assert merged_retry.json()['metadata']['name'] == 'Second editor, rebased'
+        assert merged_retry.json()['revision'] == 2
+
+
+async def test_upsert_resource_data_rejects_a_stale_revision_on_update() -> None:
+    database = MemoryDatabaseService()
+    app.dependency_overrides[get_database_service] = lambda: database
+    app.dependency_overrides[authenticate_user] = authenticated_user
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url='http://test') as client:
+        headers = await get_csrf_headers(client)
+        resource = (await client.post('/resources', headers=headers, json={
+            'resourceType': 'sillytavern/character', 'name': 'Original',
+            'description': '', 'visibility': 'private', 'tags': [],
+        })).json()
+        resource_id = resource['id']
+
+        created = await client.put(
+            f'/resources/{resource_id}/data', headers=headers, json={'data': {'name': 'First draft'}},
+        )
+        assert created.status_code == 200
+        assert created.json()['revision'] == 0
+
+        response = await client.put(
+            f'/resources/{resource_id}/data', headers=headers, json={'data': {'name': 'Missing If-Match'}},
+        )
+        assert response.status_code == 428
+
+        first_edit = await client.put(
+            f'/resources/{resource_id}/data', headers={**headers, **if_match(0)},
+            json={'data': {'name': 'First editor draft'}},
+        )
+        assert first_edit.status_code == 200
+        assert first_edit.json()['revision'] == 1
+
+        stale_retry = await client.put(
+            f'/resources/{resource_id}/data', headers={**headers, **if_match(0)},
+            json={'data': {'name': 'Second editor, stale base'}},
+        )
+        assert stale_retry.status_code == 412
+        assert stale_retry.json()['detail']['current']['data']['name'] == 'First editor draft'
+
+        # A conflicting metadata edit on the same resource must not affect the data document's
+        # own optimistic lock, since the two are meant to be independently mergeable. (The
+        # resource's own revision is already 1 here: creating the first draft above bumped it.)
+        await client.put(
+            f'/resources/{resource_id}', headers={**headers, **if_match(1)}, json={
+                'name': 'Renamed while co-editing', 'description': '', 'visibility': 'private', 'tags': [],
+            },
+        )
+        merged_retry = await client.put(
+            f'/resources/{resource_id}/data', headers={**headers, **if_match(1)},
+            json={'data': {'name': 'Second editor, rebased'}},
+        )
+        assert merged_retry.status_code == 200
+        assert merged_retry.json()['data']['name'] == 'Second editor, rebased'

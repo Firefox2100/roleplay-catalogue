@@ -58,6 +58,16 @@ class ResourceDataRepository(Generic[DataDocument]):
         )
         return data
 
+    async def update_if_match(self, data: DataDocument, expected_revision: int) -> DataDocument | None:
+        """Replace the whole document iff its revision still matches, bumping it by one."""
+        bumped = data.model_copy(update={'revision': expected_revision + 1})
+        result = await self._collection.replace_one(
+            {'id': getattr(data, 'id'), 'revision': expected_revision},
+            bumped.model_dump(mode='python', by_alias=True),
+            session=current_session(),
+        )
+        return bumped if result.matched_count == 1 else None
+
     async def delete(self, data_id: str) -> bool:
         result = await self._collection.delete_one({'id': data_id}, session=current_session())
         return result.deleted_count == 1

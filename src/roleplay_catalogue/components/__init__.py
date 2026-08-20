@@ -1,5 +1,6 @@
 from .account import AccountComponent
 from .auth import AuthComponent
+from .concurrency import etag_header, parse_if_match, raise_stale_revision
 from .content_diff import build_content_diff, render_release_text
 from .image_ingestion import create_image_resource
 from .resource_access import (

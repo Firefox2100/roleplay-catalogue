@@ -27,6 +27,37 @@ async def test_create_get_update_and_delete_round_trip(database_service) -> None
     assert await database_service.image_data.delete(document.id) is False
 
 
+async def test_update_if_match_succeeds_and_bumps_revision_when_current(database_service) -> None:
+    document = await database_service.image_data.create(make_image_document())
+    assert document.revision == 0
+
+    updated = document.model_copy(update={'object_key': 'images/renamed.png'})
+    result = await database_service.image_data.update_if_match(updated, expected_revision=0)
+
+    assert result is not None
+    assert result.revision == 1
+    fetched = await database_service.image_data.get(document.id)
+    assert fetched.object_key == 'images/renamed.png'
+    assert fetched.revision == 1
+
+
+async def test_update_if_match_returns_none_and_leaves_the_document_untouched_when_stale(
+        database_service,
+) -> None:
+    document = await database_service.image_data.create(make_image_document())
+    await database_service.image_data.update_if_match(
+        document.model_copy(update={'object_key': 'images/first.png'}), expected_revision=0,
+    )
+
+    stale_attempt = document.model_copy(update={'object_key': 'images/conflicting.png'})
+    result = await database_service.image_data.update_if_match(stale_attempt, expected_revision=0)
+
+    assert result is None
+    fetched = await database_service.image_data.get(document.id)
+    assert fetched.object_key == 'images/first.png'
+    assert fetched.revision == 1
+
+
 async def test_list_for_resource_returns_every_snapshot_for_that_resource(database_service) -> None:
     draft = await database_service.image_data.create(
         make_image_document(id='draft-id'),

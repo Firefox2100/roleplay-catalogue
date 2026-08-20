@@ -1,8 +1,9 @@
 class ApiError extends Error {
-  constructor(message, status) {
+  constructor(message, status, body) {
     super(message)
     this.name = 'ApiError'
     this.status = status
+    this.body = body
   }
 }
 
@@ -10,15 +11,24 @@ async function request(path, options = {}) {
   const response = await fetch(path, { credentials: 'include', ...options })
   if (!response.ok) {
     let message = response.statusText
+    let body
     try {
-      const body = await response.json()
-      message = body.detail ?? message
+      body = await response.json()
+      // `detail` is a plain string for most errors, but a stale If-Match (412) carries a
+      // `{ message, current }` object instead so the caller can merge without a refetch.
+      message = (typeof body.detail === 'string' ? body.detail : body.detail?.message) ?? message
     } catch {
       // The response may intentionally have no JSON body.
     }
-    throw new ApiError(message, response.status)
+    throw new ApiError(message, response.status, body)
   }
   return response
+}
+
+function ifMatchHeaders(expectedRevision) {
+  return expectedRevision === undefined || expectedRevision === null
+    ? {}
+    : { 'If-Match': `"${expectedRevision}"` }
 }
 
 export async function createResource(resource) {
@@ -76,7 +86,7 @@ export async function removeCoAuthor(resourceId, coAuthorId) {
   return response.json()
 }
 
-export async function updateResource(resourceId, metadata) {
+export async function updateResource(resourceId, metadata, expectedRevision) {
   const csrfResponse = await request('/api/auth/csrf')
   const csrfToken = (await csrfResponse.json()).csrfToken
   const response = await request(`/api/resources/${resourceId}`, {
@@ -84,6 +94,7 @@ export async function updateResource(resourceId, metadata) {
     headers: {
       'Content-Type': 'application/json',
       'X-CSRF-Token': csrfToken,
+      ...ifMatchHeaders(expectedRevision),
     },
     body: JSON.stringify(metadata),
   })
@@ -134,10 +145,14 @@ export function resourceImageUrl(resource) {
   return null
 }
 
-export async function updateImageMetadata(resourceId, metadata) {
+export async function updateImageMetadata(resourceId, metadata, expectedRevision) {
   return (await request(`/api/images/${resourceId}/metadata`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json', ...await csrfHeaders() },
+    headers: {
+      'Content-Type': 'application/json',
+      ...ifMatchHeaders(expectedRevision),
+      ...await csrfHeaders(),
+    },
     body: JSON.stringify(metadata),
   })).json()
 }
@@ -182,7 +197,7 @@ export async function getResourceData(resourceId) {
   return (await request(`/api/resources/${resourceId}/data`)).json()
 }
 
-export async function saveResourceData(resourceId, data) {
+export async function saveResourceData(resourceId, data, expectedRevision) {
   const csrfResponse = await request('/api/auth/csrf')
   const csrfToken = (await csrfResponse.json()).csrfToken
   const response = await request(`/api/resources/${resourceId}/data`, {
@@ -190,6 +205,9 @@ export async function saveResourceData(resourceId, data) {
     headers: {
       'Content-Type': 'application/json',
       'X-CSRF-Token': csrfToken,
+      // Omitted (undefined) the first time a draft is created; every update after that must
+      // carry the revision of the data document being replaced.
+      ...ifMatchHeaders(expectedRevision),
     },
     body: JSON.stringify({ data }),
   })

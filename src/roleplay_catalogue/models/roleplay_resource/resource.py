@@ -144,6 +144,10 @@ class Resource(CommonModel):
         description='Time at which the draft or metadata was last updated',
         alias='updatedAt',
     )
+    revision: int = Field(
+        0,
+        description='Optimistic-concurrency counter, bumped on every write to this document',
+    )
 
 
 class ResourceVersion(CommonModel):
@@ -269,4 +273,8 @@ class ResourceDataDocument(CommonModel):
         default_factory=utc_now,
         description='Last payload update time',
         alias='updatedAt',
+    )
+    revision: int = Field(
+        0,
+        description='Optimistic-concurrency counter, bumped on every write to this document',
     )

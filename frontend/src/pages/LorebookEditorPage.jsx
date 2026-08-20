@@ -10,6 +10,11 @@ import { useAuth } from '../auth/useAuth.js'
 import { ResourceImage } from '../components/ResourceImage.jsx'
 import { TagEditor } from '../components/TagEditor.jsx'
 import { CoAuthorEditor } from '../components/CoAuthorEditor.jsx'
+import { ConflictResolutionModal } from '../components/ConflictResolutionModal.jsx'
+import { useConflictAwareSave } from '../hooks/useConflictAwareSave.js'
+import { resourceToMetadataPayload } from '../utils/resourceMetadataPayload.js'
+
+const ENTRY_KEYED_ARRAY_FIELDS = { entries: 'id' }
 
 
 const EMPTY_BOOK = {
@@ -53,6 +58,23 @@ export function LorebookEditorPage() {
   const [busy, setBusy] = useState('')
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
+  const [dataRevision, setDataRevision] = useState(null)
+  const [dataBase, setDataBase] = useState({})
+
+  function applyDraftData(data) {
+    setBook({
+      scan_depth: data.scan_depth ?? '', token_budget: data.token_budget ?? '',
+      recursive_scanning: data.recursive_scanning ?? false,
+      extensions: data.extensions ?? {},
+    })
+    setEntries((data.entries ?? []).map((entry, index) => ({
+      ...newEntry(index), ...entry,
+      keys: entry.keys?.join(', ') ?? '',
+      secondary_keys: entry.secondary_keys?.join(', ') ?? '',
+      name: entry.name ?? '', comment: entry.comment ?? '',
+      priority: entry.priority ?? '', position: entry.position ?? '',
+    })))
+  }
 
   useEffect(() => {
     if (!user) return undefined
@@ -78,23 +100,17 @@ export function LorebookEditorPage() {
       setCoverImageId(loadedResource.coverImageResourceId ?? '')
       setVersions(loadedVersions)
       if (draft) {
-        const data = draft.data
-        setBook({
-          scan_depth: data.scan_depth ?? '', token_budget: data.token_budget ?? '',
-          recursive_scanning: data.recursive_scanning ?? false,
-          extensions: data.extensions ?? {},
-        })
-        setEntries((data.entries ?? []).map((entry, index) => ({
-          ...newEntry(index), ...entry,
-          keys: entry.keys?.join(', ') ?? '',
-          secondary_keys: entry.secondary_keys?.join(', ') ?? '',
-          name: entry.name ?? '', comment: entry.comment ?? '',
-          priority: entry.priority ?? '', position: entry.position ?? '',
-        })))
+        setDataRevision(draft.revision)
+        setDataBase(draft.data)
+        applyDraftData(draft.data)
+      } else {
+        setDataRevision(null)
+        setDataBase({})
       }
     }).catch(() => { if (active) setError(t('lorebookEditor.loadFailed')) })
       .finally(() => { if (active) setIsLoading(false) })
     return () => { active = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resource, resourceId, t, user])
 
   useEffect(() => {
@@ -104,6 +120,34 @@ export function LorebookEditorPage() {
       .then((page) => { if (active) setAvailableImages(page.items) }).catch(() => {})
     return () => { active = false }
   }, [user])
+
+  const metadataSave = useConflictAwareSave({
+    apiSave: (payload, revision) => updateResource(resourceId, payload, revision),
+    extractComparable: resourceToMetadataPayload,
+    extractRevision: (full) => full.revision,
+    onSaved: (updatedResource) => {
+      setResource(updatedResource)
+      setResourceFields({
+        name: updatedResource.metadata.name,
+        description: updatedResource.metadata.description,
+        language: updatedResource.metadata.language ?? 'en-uk',
+        visibility: updatedResource.metadata.visibility,
+        tags: updatedResource.metadata.tags ?? [],
+      })
+    },
+  })
+
+  const dataSave = useConflictAwareSave({
+    apiSave: (payload, revision) => saveResourceData(resourceId, payload, revision),
+    extractComparable: (full) => full.data,
+    extractRevision: (full) => full.revision,
+    keyedArrayFields: ENTRY_KEYED_ARRAY_FIELDS,
+    onSaved: (savedDocument) => {
+      setDataRevision(savedDocument.revision)
+      setDataBase(savedDocument.data)
+      applyDraftData(savedDocument.data)
+    },
+  })
 
   if (!isAuthLoading && !user) {
     return <Navigate to="/login" state={{ from: location.pathname }} replace />
@@ -143,24 +187,46 @@ export function LorebookEditorPage() {
   }
 
   async function persistDraft() {
-    const updated = await updateResource(resourceId, resourceFields)
-    setResource(updated)
-    await saveResourceData(resourceId, makeDraftData())
+    const savedResource = await metadataSave.attempt(
+      resourceFields, resourceToMetadataPayload(resource), resource.revision,
+    )
+    if (!savedResource) return false
+
+    const savedData = await dataSave.attempt(makeDraftData(), dataBase, dataRevision)
+    if (!savedData) return false
+
+    return true
   }
 
   async function save(event) {
     event.preventDefault()
     setBusy('save'); setError(''); setMessage('')
-    try { await persistDraft(); setMessage(t('lorebookEditor.saved')) }
+    try { if (await persistDraft()) setMessage(t('lorebookEditor.saved')) }
     catch { setError(t('lorebookEditor.saveFailed')) }
     finally { setBusy('') }
+  }
+
+  async function retryMetadataConflict(resolved) {
+    setError('')
+    try {
+      const savedResource = await metadataSave.retry(resolved)
+      if (!savedResource) return
+      const savedData = await dataSave.attempt(makeDraftData(), dataBase, dataRevision)
+      if (savedData) setMessage(t('lorebookEditor.saved'))
+    } catch { setError(t('editor.conflictRetryFailed')) }
+  }
+
+  async function retryDataConflict(resolved) {
+    setError('')
+    try { if (await dataSave.retry(resolved)) setMessage(t('lorebookEditor.saved')) }
+    catch { setError(t('editor.conflictRetryFailed')) }
   }
 
   async function publish() {
     if (!releaseVersion.trim()) return
     setBusy('publish'); setError(''); setMessage('')
     try {
-      await persistDraft()
+      if (!await persistDraft()) return
       const published = await publishResource(resourceId, releaseVersion.trim())
       setVersions((current) => [published, ...current])
       setReleaseVersion(''); setIsPublishOpen(false); setMessage(t('lorebookEditor.published'))
@@ -171,7 +237,7 @@ export function LorebookEditorPage() {
   async function exportDraft() {
     setBusy('export'); setError('')
     try {
-      await persistDraft()
+      if (!await persistDraft()) return
       const link = window.document.createElement('a')
       link.href = draftDownloadUrl(resourceId); link.download = ''
       window.document.body.appendChild(link); link.click(); link.remove()
@@ -368,6 +434,24 @@ export function LorebookEditorPage() {
           </section>
         </div>}
       </form>
+      {metadataSave.conflict && (
+        <ConflictResolutionModal
+          conflicts={metadataSave.conflict.conflicts}
+          merged={metadataSave.conflict.merged}
+          isRetrying={metadataSave.isRetrying}
+          onApply={retryMetadataConflict}
+          onCancel={metadataSave.cancel}
+        />
+      )}
+      {dataSave.conflict && (
+        <ConflictResolutionModal
+          conflicts={dataSave.conflict.conflicts}
+          merged={dataSave.conflict.merged}
+          isRetrying={dataSave.isRetrying}
+          onApply={retryDataConflict}
+          onCancel={dataSave.cancel}
+        />
+      )}
     </section>
   )
 }

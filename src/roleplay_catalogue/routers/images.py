@@ -1,4 +1,4 @@
-from fastapi import APIRouter, File, Form, HTTPException, Query, Request, UploadFile, status
+from fastapi import APIRouter, File, Form, Header, HTTPException, Query, Request, UploadFile, status
 from fastapi.responses import Response, StreamingResponse
 from pydantic import Field
 
@@ -13,11 +13,14 @@ from roleplay_catalogue.models import (
 from roleplay_catalogue.models.roleplay_resource.resource import utc_now
 from roleplay_catalogue.components import (
     create_image_resource,
+    etag_header,
     get_data_repository,
     get_editable_resource,
     get_owned_resource,
     get_readable_resource,
     get_readable_version,
+    parse_if_match,
+    raise_stale_revision,
 )
 from .utils import (
     AuthenticatedUserDependency,
@@ -89,10 +92,7 @@ async def upload_character_cover(character_resource_id: str,
         database=database,
         storage=storage,
     )
-    await database.resource.update(character.model_copy(update={
-        'cover_image_resource_id': image.id,
-        'updated_at': utc_now(),
-    }))
+    await database.resource.apply_update(character.id, {'coverImageResourceId': image.id})
     return image
 
 
@@ -113,10 +113,10 @@ async def select_character_cover(character_resource_id: str,
     )
     if not await database.resource_version.get_latest(image.id):
         raise HTTPException(status.HTTP_409_CONFLICT, 'Image resource has no content')
-    return await database.resource.update(character.model_copy(update={
-        'cover_image_resource_id': image.id,
-        'updated_at': utc_now(),
-    }))
+    updated = await database.resource.apply_update(character.id, {'coverImageResourceId': image.id})
+    if not updated:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, 'Resource not found')
+    return updated
 
 
 @image_router.put('/{image_resource_id}/metadata', response_model=Resource)
@@ -124,6 +124,8 @@ async def update_image_metadata(image_resource_id: str,
                                 payload: ImageMetadataRequest,
                                 user: AuthenticatedUserDependency,
                                 database: DatabaseDependency,
+                                response: Response,
+                                if_match: str | None = Header(None, alias='If-Match'),
                                 ) -> Resource:
     image = await get_editable_resource(database, image_resource_id, user, ResourceType.IMAGE)
     if not payload.name.strip():
@@ -138,14 +140,21 @@ async def update_image_metadata(image_resource_id: str,
     version = await database.resource_version.get_latest(image.id)
     if not version:
         raise HTTPException(status.HTTP_409_CONFLICT, 'Image resource has no immutable version')
-    updated = await database.resource.update(image.model_copy(update={
-        'metadata': metadata,
-        'updated_at': utc_now(),
-    }))
+    expected_revision = parse_if_match(if_match)
+    updated = await database.resource.update_if_match(
+        image.model_copy(update={'metadata': metadata, 'updated_at': utc_now()}),
+        expected_revision,
+    )
+    if updated is None:
+        current = await database.resource.get(image_resource_id)
+        if not current:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, 'Resource not found')
+        raise_stale_revision(current)
     await database.resource_version.update(version.model_copy(update={
         'metadata': metadata,
         'visibility': metadata.visibility,
     }))
+    response.headers['ETag'] = etag_header(updated.revision)
     return updated
 
 

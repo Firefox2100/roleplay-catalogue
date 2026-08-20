@@ -8,6 +8,10 @@ import {
 import { useAuth } from '../auth/useAuth.js'
 import { TagEditor } from '../components/TagEditor.jsx'
 import { CoAuthorEditor } from '../components/CoAuthorEditor.jsx'
+import { ConflictResolutionModal } from '../components/ConflictResolutionModal.jsx'
+import { useConflictAwareSave } from '../hooks/useConflictAwareSave.js'
+
+const PRESET_KEYED_ARRAY_FIELDS = { prompts: 'identifier' }
 
 const DEFAULT_DATA = {
   temperature: 1, frequency_penalty: 0, presence_penalty: 0, top_p: 1, top_k: 0,
@@ -41,6 +45,8 @@ export function PresetEditorPage() {
   const [busy, setBusy] = useState('load')
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
+  const [dataRevision, setDataRevision] = useState(null)
+  const [dataBase, setDataBase] = useState({})
 
   useEffect(() => {
     if (!user) return
@@ -50,12 +56,44 @@ export function PresetEditorPage() {
         if (loaded.resourceType !== 'sillytavern/preset') throw new Error('wrong type')
         if (!active) return
         setResource(loaded); setMetadata({ ...loaded.metadata, tags: [...loaded.metadata.tags] }); setVersions(releases)
-        try { const draft = await getResourceData(resourceId); if (active) setData({ ...DEFAULT_DATA, ...draft.data }) }
-        catch (requestError) { if (requestError.status !== 404) throw requestError }
+        try {
+          const draft = await getResourceData(resourceId)
+          if (active) {
+            setData({ ...DEFAULT_DATA, ...draft.data })
+            setDataRevision(draft.revision)
+            setDataBase(draft.data)
+          }
+        } catch (requestError) { if (requestError.status !== 404) throw requestError }
       }).catch(() => active && setError(t('preset.loadFailed')))
       .finally(() => active && setBusy(''))
     return () => { active = false }
   }, [resourceId, user, t])
+
+  const metadataSave = useConflictAwareSave({
+    apiSave: (payload, revision) => updateResource(resourceId, payload, revision),
+    extractComparable: (full) => ({
+      name: full.metadata.name, description: full.metadata.description,
+      language: full.metadata.language, visibility: full.metadata.visibility,
+      tags: full.metadata.tags ?? [],
+    }),
+    extractRevision: (full) => full.revision,
+    onSaved: (updatedResource) => {
+      setResource(updatedResource)
+      setMetadata({ ...updatedResource.metadata, tags: [...updatedResource.metadata.tags] })
+    },
+  })
+
+  const dataSave = useConflictAwareSave({
+    apiSave: (payload, revision) => saveResourceData(resourceId, payload, revision),
+    extractComparable: (full) => full.data,
+    extractRevision: (full) => full.revision,
+    keyedArrayFields: PRESET_KEYED_ARRAY_FIELDS,
+    onSaved: (savedDocument) => {
+      setDataRevision(savedDocument.revision)
+      setDataBase(savedDocument.data)
+      setData({ ...DEFAULT_DATA, ...savedDocument.data })
+    },
+  })
 
   const advanced = useMemo(() => Object.fromEntries(Object.entries(data).filter(([key]) => !KNOWN.has(key))), [data])
   if (!authLoading && !user) return <Navigate to="/login" state={{ from: location.pathname }} replace />
@@ -89,17 +127,42 @@ export function PresetEditorPage() {
     setData({ ...data, prompts, prompt_order: data.prompt_order.map((group) => ({ ...group, order: [...group.order].sort((a, b) => (rank.get(a.identifier) ?? 9999) - (rank.get(b.identifier) ?? 9999)) })) })
   }
   async function persist() {
-    const updated = await updateResource(resourceId, metadata)
-    await saveResourceData(resourceId, data)
-    setResource(updated)
+    const savedResource = await metadataSave.attempt(metadata, {
+      name: resource.metadata.name, description: resource.metadata.description,
+      language: resource.metadata.language, visibility: resource.metadata.visibility,
+      tags: resource.metadata.tags ?? [],
+    }, resource.revision)
+    if (!savedResource) return false
+
+    const savedData = await dataSave.attempt(data, dataBase, dataRevision)
+    if (!savedData) return false
+
+    return true
   }
   async function save() {
     setBusy('save'); setError(''); setMessage('')
-    try { await persist(); setMessage(t('preset.saved')) } catch { setError(t('preset.saveFailed')) } finally { setBusy('') }
+    try { if (await persist()) setMessage(t('preset.saved')) } catch { setError(t('preset.saveFailed')) } finally { setBusy('') }
+  }
+  async function retryMetadataConflict(resolved) {
+    setError('')
+    try {
+      const savedResource = await metadataSave.retry(resolved)
+      if (!savedResource) return
+      const savedData = await dataSave.attempt(data, dataBase, dataRevision)
+      if (savedData) setMessage(t('preset.saved'))
+    } catch { setError(t('editor.conflictRetryFailed')) }
+  }
+  async function retryDataConflict(resolved) {
+    setError('')
+    try { if (await dataSave.retry(resolved)) setMessage(t('preset.saved')) }
+    catch { setError(t('editor.conflictRetryFailed')) }
   }
   async function publish() {
     setBusy('publish'); setError(''); setMessage('')
-    try { await persist(); const version = await publishResource(resourceId, releaseVersion); setVersions((items) => [version, ...items]); setMessage(t('preset.published')) }
+    try {
+      if (!await persist()) return
+      const version = await publishResource(resourceId, releaseVersion); setVersions((items) => [version, ...items]); setMessage(t('preset.published'))
+    }
     catch { setError(t('preset.publishFailed')) } finally { setBusy('') }
   }
   async function upload(file) {
@@ -142,5 +205,12 @@ export function PresetEditorPage() {
     <section className="release-history"><h2>{t('editor.releases')}</h2>
       {isOwner && <div className="world-publish-row"><input value={releaseVersion} onChange={(event) => setReleaseVersion(event.target.value)} /><button className="save-button" disabled={Boolean(busy)} type="button" onClick={publish}>{t('editor.publish')}</button></div>}
       <div className="release-grid">{versions.map((version) => <div className="release-tile" key={version.id}><strong>{version.version}</strong></div>)}</div></section>
-  </div></section>
+  </div>
+  {metadataSave.conflict && <ConflictResolutionModal conflicts={metadataSave.conflict.conflicts}
+    merged={metadataSave.conflict.merged} isRetrying={metadataSave.isRetrying}
+    onApply={retryMetadataConflict} onCancel={metadataSave.cancel} />}
+  {dataSave.conflict && <ConflictResolutionModal conflicts={dataSave.conflict.conflicts}
+    merged={dataSave.conflict.merged} isRetrying={dataSave.isRetrying}
+    onApply={retryDataConflict} onCancel={dataSave.cancel} />}
+  </section>
 }

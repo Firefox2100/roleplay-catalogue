@@ -30,6 +30,74 @@ async def test_create_get_update_and_delete_round_trip(database_service) -> None
     assert await database_service.resource.delete(resource.id) is False
 
 
+async def test_update_if_match_succeeds_and_bumps_revision_when_current(database_service) -> None:
+    resource = await database_service.resource.create(make_resource())
+    assert resource.revision == 0
+
+    updated = resource.model_copy(update={
+        'metadata': resource.metadata.model_copy(update={'name': 'Renamed'}),
+    })
+    result = await database_service.resource.update_if_match(updated, expected_revision=0)
+
+    assert result is not None
+    assert result.revision == 1
+    fetched = await database_service.resource.get(resource.id)
+    assert fetched.metadata.name == 'Renamed'
+    assert fetched.revision == 1
+
+
+async def test_update_if_match_returns_none_and_leaves_the_document_untouched_when_stale(
+        database_service,
+) -> None:
+    resource = await database_service.resource.create(make_resource())
+    await database_service.resource.update_if_match(
+        resource.model_copy(update={'metadata': resource.metadata.model_copy(update={'name': 'First'})}),
+        expected_revision=0,
+    )
+
+    stale_attempt = resource.model_copy(update={
+        'metadata': resource.metadata.model_copy(update={'name': 'Conflicting'}),
+    })
+    result = await database_service.resource.update_if_match(stale_attempt, expected_revision=0)
+
+    assert result is None
+    fetched = await database_service.resource.get(resource.id)
+    assert fetched.metadata.name == 'First'
+    assert fetched.revision == 1
+
+
+async def test_apply_update_sets_fields_and_bumps_revision_unconditionally(database_service) -> None:
+    resource = await database_service.resource.create(make_resource())
+
+    result = await database_service.resource.apply_update(resource.id, {'coverImageResourceId': 'image-1'})
+
+    assert result.cover_image_resource_id == 'image-1'
+    assert result.revision == 1
+    assert await database_service.resource.apply_update('missing', {'coverImageResourceId': 'x'}) is None
+
+
+async def test_touch_bumps_updated_at_without_touching_revision(database_service) -> None:
+    resource = await database_service.resource.create(make_resource())
+
+    await database_service.resource.touch(resource.id)
+
+    fetched = await database_service.resource.get(resource.id)
+    assert fetched.revision == 0
+    assert fetched.updated_at >= resource.updated_at
+
+
+async def test_add_and_remove_co_author_from_resource_bump_revision(database_service) -> None:
+    resource = await database_service.resource.create(make_resource())
+
+    added = await database_service.resource.add_co_author_to_resource(resource.id, 'co-author-id')
+    assert added.co_author_ids == ('co-author-id',)
+    assert added.revision == 1
+
+    removed = await database_service.resource.remove_co_author_from_resource(resource.id, 'co-author-id')
+    assert removed.co_author_ids == ()
+    assert removed.revision == 2
+
+
 async def test_list_visible_applies_visibility_rules_including_co_authors(database_service) -> None:
     public = await database_service.resource.create(make_resource(
         metadata=ResourceMetadata(name='Public', visibility=ResourceVisibility.PUBLIC),

@@ -1,8 +1,10 @@
 from re import escape
 
+from pymongo import ReturnDocument
 from pymongo.asynchronous.database import AsyncDatabase
 
 from roleplay_catalogue.models import Resource, ResourceType, ResourceVisibility
+from roleplay_catalogue.models.roleplay_resource.resource import utc_now
 from .transaction import current_session
 
 
@@ -116,6 +118,68 @@ class ResourceRepository:
         )
         return resource
 
+    async def update_if_match(self, resource: Resource, expected_revision: int) -> Resource | None:
+        """Replace the whole document iff its revision still matches, bumping it by one."""
+        bumped = resource.model_copy(update={'revision': expected_revision + 1})
+        result = await self._collection.replace_one(
+            {'id': resource.id, 'revision': expected_revision},
+            bumped.model_dump(mode='python', by_alias=True),
+            session=current_session(),
+        )
+        return bumped if result.matched_count == 1 else None
+
+    async def touch(self, resource_id: str) -> None:
+        """Best-effort updatedAt-only bump, without touching revision or any other field.
+
+        Used as a cosmetic 'last active' signal by writes (like a draft data save) that don't
+        own this document's optimistic lock, so they can't clobber a concurrent metadata/co-author
+        write and don't spuriously invalidate its ETag.
+        """
+        await self._collection.update_one(
+            {'id': resource_id},
+            {'$set': {'updatedAt': utc_now()}},
+            session=current_session(),
+        )
+
+    async def apply_update(self, resource_id: str, fields: dict) -> Resource | None:
+        """Unconditionally $set the given fields and atomically bump updatedAt/revision."""
+        document = await self._collection.find_one_and_update(
+            {'id': resource_id},
+            {'$set': {**fields, 'updatedAt': utc_now()}, '$inc': {'revision': 1}},
+            projection={'_id': 0},
+            return_document=ReturnDocument.AFTER,
+            session=current_session(),
+        )
+        return Resource.model_validate(document) if document else None
+
+    async def add_co_author_to_resource(self, resource_id: str, co_author_id: str) -> Resource | None:
+        document = await self._collection.find_one_and_update(
+            {'id': resource_id},
+            {
+                '$addToSet': {'coAuthorIds': co_author_id},
+                '$set': {'updatedAt': utc_now()},
+                '$inc': {'revision': 1},
+            },
+            projection={'_id': 0},
+            return_document=ReturnDocument.AFTER,
+            session=current_session(),
+        )
+        return Resource.model_validate(document) if document else None
+
+    async def remove_co_author_from_resource(self, resource_id: str, co_author_id: str) -> Resource | None:
+        document = await self._collection.find_one_and_update(
+            {'id': resource_id},
+            {
+                '$pull': {'coAuthorIds': co_author_id},
+                '$set': {'updatedAt': utc_now()},
+                '$inc': {'revision': 1},
+            },
+            projection={'_id': 0},
+            return_document=ReturnDocument.AFTER,
+            session=current_session(),
+        )
+        return Resource.model_validate(document) if document else None
+
     async def delete(self, resource_id: str) -> bool:
         result = await self._collection.delete_one({'id': resource_id}, session=current_session())
         return result.deleted_count == 1
@@ -137,7 +201,7 @@ class ResourceRepository:
     async def remove_co_author(self, user_id: str) -> None:
         await self._collection.update_many(
             {'coAuthorIds': user_id},
-            {'$pull': {'coAuthorIds': user_id}},
+            {'$pull': {'coAuthorIds': user_id}, '$inc': {'revision': 1}},
             session=current_session(),
         )
 

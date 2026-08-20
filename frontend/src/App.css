@@ -477,6 +477,17 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .modal-actions button { min-height: 43px; padding: 0 16px; border: 1px solid var(--line-strong); border-radius: 9px; background: white; font-weight: 750; cursor: pointer; }
 .modal-actions .confirm-delete-button { border-color: #b42318; color: white; background: #b42318; }
 .modal-actions button:disabled { opacity: .6; cursor: wait; }
+.conflict-resolution-dialog { width: min(640px, 100%); max-height: calc(100vh - 48px); padding: 30px; overflow-y: auto; border-radius: 19px; background: var(--surface-strong); box-shadow: 0 25px 90px rgba(15, 10, 8, .38); display: grid; gap: 6px; }
+.conflict-resolution-dialog h2 { margin: 0 0 4px; font-family: Georgia, "Times New Roman", serif; font-size: 25px; }
+.conflict-resolution-dialog > p { color: var(--ink-muted); line-height: 1.55; margin: 0 0 10px; }
+.conflict-fields { display: grid; gap: 16px; margin-bottom: 6px; }
+.conflict-field { border: 1px solid var(--line-strong); border-radius: 12px; padding: 14px 16px; display: grid; gap: 10px; }
+.conflict-field legend, .conflict-field h3 { padding: 0 4px; font-weight: 750; font-size: 14px; }
+.conflict-option { display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; align-items: start; cursor: pointer; }
+.conflict-option span { font-weight: 700; font-size: 13px; }
+.conflict-option pre { grid-column: 2; margin: 0; padding: 8px 10px; max-height: 160px; overflow: auto; border-radius: 8px; background: var(--surface); font-size: 12.5px; white-space: pre-wrap; word-break: break-word; }
+.conflict-resolution-dialog .save-button { min-height: 43px; padding: 0 18px; border: 0; border-radius: 10px; color: white; background: linear-gradient(135deg, var(--brand), var(--brand-dark)); font-weight: 750; cursor: pointer; }
+.conflict-resolution-dialog .save-button:disabled { opacity: .6; cursor: wait; }
 
 @media (max-width: 720px) {
   .header-inner { width: min(100% - 24px, 1180px); min-height: 66px; grid-template-columns: 1fr auto; gap: 10px; }

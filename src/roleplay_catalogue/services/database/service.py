@@ -14,6 +14,7 @@ from .password_reset_token import PasswordResetTokenRepository
 from .api_key import ApiKeyRepository
 from .indexes import ensure_indexes
 from .integrity import check_integrity
+from .migrations import backfill_revisions
 from .transaction import CURRENT_SESSION
 
 
@@ -85,6 +86,7 @@ class DatabaseService:
 
     async def initialize(self) -> None:
         await ensure_indexes(self._db)
+        await backfill_revisions(self._db)
 
     async def check_integrity(self) -> list[str]:
         return await check_integrity(self._db)

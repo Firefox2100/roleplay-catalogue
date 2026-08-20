@@ -10,6 +10,13 @@ import { useAuth } from '../auth/useAuth.js'
 import { TagEditor } from '../components/TagEditor.jsx'
 import { ResourceImage } from '../components/ResourceImage.jsx'
 import { CoAuthorEditor } from '../components/CoAuthorEditor.jsx'
+import { ConflictResolutionModal } from '../components/ConflictResolutionModal.jsx'
+import { useConflictAwareSave } from '../hooks/useConflictAwareSave.js'
+import { resourceToMetadataPayload } from '../utils/resourceMetadataPayload.js'
+
+function toCharacterMetadataPayload(resource) {
+  return { ...resourceToMetadataPayload(resource), linkedLorebooks: resource.linkedLorebooks ?? [] }
+}
 
 const EMPTY_CARD = {
   name: '', creator: '', character_version: '', nickname: '', tags: '',
@@ -80,6 +87,36 @@ export function CharacterEditorPage() {
   const [isExporting, setIsExporting] = useState(false)
   const [saveState, setSaveState] = useState('')
   const [error, setError] = useState('')
+  const [dataRevision, setDataRevision] = useState(null)
+  const [dataBase, setDataBase] = useState({})
+
+  function applyDraftData(data) {
+    setCard({
+      ...EMPTY_CARD, ...data,
+      tags: data.tags?.join(', ') ?? '',
+      nickname: data.nickname ?? '',
+      alternate_greetings: data.alternate_greetings ?? [],
+      group_only_greetings: data.group_only_greetings ?? [],
+    })
+    if (data.character_book) {
+      setBook({
+        name: data.character_book.name ?? '',
+        description: data.character_book.description ?? '',
+        scan_depth: data.character_book.scan_depth ?? '',
+        token_budget: data.character_book.token_budget ?? '',
+        recursive_scanning: data.character_book.recursive_scanning ?? false,
+      })
+      setLoreEntries(data.character_book.entries.map((entry, index) => ({
+        ...newLoreEntry(index), ...entry,
+        name: entry.name ?? '',
+        comment: entry.comment ?? '',
+        keys: entry.keys.join(', '),
+      })))
+    } else {
+      setBook({ ...EMPTY_BOOK })
+      setLoreEntries([])
+    }
+  }
 
   useEffect(() => {
     if (!user) return undefined
@@ -107,30 +144,12 @@ export function CharacterEditorPage() {
         tags: loadedResource.metadata.tags ?? [],
       })
       if (draft) {
-        const data = draft.data
-        setCard({
-          ...EMPTY_CARD, ...data,
-          tags: data.tags?.join(', ') ?? '',
-          nickname: data.nickname ?? '',
-          alternate_greetings: data.alternate_greetings ?? [],
-          group_only_greetings: data.group_only_greetings ?? [],
-        })
-        if (data.character_book) {
-          setBook({
-            name: data.character_book.name ?? '',
-            description: data.character_book.description ?? '',
-            scan_depth: data.character_book.scan_depth ?? '',
-            token_budget: data.character_book.token_budget ?? '',
-            recursive_scanning: data.character_book.recursive_scanning ?? false,
-          })
-          setLoreEntries(data.character_book.entries.map((entry, index) => ({
-            ...newLoreEntry(index), ...entry,
-            name: entry.name ?? '',
-            comment: entry.comment ?? '',
-            keys: entry.keys.join(', '),
-          })))
-        }
+        setDataRevision(draft.revision)
+        setDataBase(draft.data)
+        applyDraftData(draft.data)
       } else {
+        setDataRevision(null)
+        setDataBase({})
         setCard({ ...EMPTY_CARD })
         setBook({ ...EMPTY_BOOK })
         setLoreEntries([])
@@ -141,6 +160,7 @@ export function CharacterEditorPage() {
       if (active) setIsLoading(false)
     })
     return () => { active = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resource, resourceId, t, user])
 
   useEffect(() => {
@@ -177,6 +197,34 @@ export function CharacterEditorPage() {
     document.title = `${resource?.metadata.name ?? t('editor.title')} · ${t('app.title')}`
     return () => { document.title = t('app.title') }
   }, [resource, t])
+
+  const metadataSave = useConflictAwareSave({
+    apiSave: (payload, revision) => updateResource(resourceId, payload, revision),
+    extractComparable: toCharacterMetadataPayload,
+    extractRevision: (full) => full.revision,
+    onSaved: (updatedResource) => {
+      setResource(updatedResource)
+      setResourceFields({
+        name: updatedResource.metadata.name,
+        description: updatedResource.metadata.description,
+        language: updatedResource.metadata.language ?? 'en-uk',
+        visibility: updatedResource.metadata.visibility,
+        tags: updatedResource.metadata.tags ?? [],
+      })
+      setLinkedLorebooks(updatedResource.linkedLorebooks ?? [])
+    },
+  })
+
+  const dataSave = useConflictAwareSave({
+    apiSave: (payload, revision) => saveResourceData(resourceId, payload, revision),
+    extractComparable: (full) => full.data,
+    extractRevision: (full) => full.revision,
+    onSaved: (savedDocument) => {
+      setDataRevision(savedDocument.revision)
+      setDataBase(savedDocument.data)
+      applyDraftData(savedDocument.data)
+    },
+  })
 
   if (!isAuthLoading && !user) {
     return <Navigate to="/login" state={{ from: location.pathname }} replace />
@@ -243,12 +291,18 @@ export function CharacterEditorPage() {
     }
   }
 
+  // Returns false (instead of throwing) when a save was blocked by a merge conflict: the
+  // conflict modal is now open, and the caller should stop without treating this as success.
   async function persistDraft() {
-    const updatedResource = await updateResource(resourceId, {
-      ...resourceFields, linkedLorebooks,
-    })
-    setResource(updatedResource)
-    await saveResourceData(resourceId, makeDraftData())
+    const savedResource = await metadataSave.attempt(
+      { ...resourceFields, linkedLorebooks }, toCharacterMetadataPayload(resource), resource.revision,
+    )
+    if (!savedResource) return false
+
+    const savedData = await dataSave.attempt(makeDraftData(), dataBase, dataRevision)
+    if (!savedData) return false
+
+    return true
   }
 
   async function saveDraft(event) {
@@ -257,12 +311,32 @@ export function CharacterEditorPage() {
     setSaveState('')
     setIsSaving(true)
     try {
-      await persistDraft()
-      setSaveState(t('editor.saved'))
+      if (await persistDraft()) setSaveState(t('editor.saved'))
     } catch (requestError) {
       setError(requestError.status === 422 ? t('editor.validationFailed') : t('editor.saveFailed'))
     } finally {
       setIsSaving(false)
+    }
+  }
+
+  async function retryMetadataConflict(resolved) {
+    setError('')
+    try {
+      const savedResource = await metadataSave.retry(resolved)
+      if (!savedResource) return
+      const savedData = await dataSave.attempt(makeDraftData(), dataBase, dataRevision)
+      if (savedData) setSaveState(t('editor.saved'))
+    } catch {
+      setError(t('editor.conflictRetryFailed'))
+    }
+  }
+
+  async function retryDataConflict(resolved) {
+    setError('')
+    try {
+      if (await dataSave.retry(resolved)) setSaveState(t('editor.saved'))
+    } catch {
+      setError(t('editor.conflictRetryFailed'))
     }
   }
 
@@ -276,7 +350,7 @@ export function CharacterEditorPage() {
     setSaveState('')
     setIsPublishing(true)
     try {
-      await persistDraft()
+      if (!await persistDraft()) return
       const published = await publishResource(resourceId, releaseVersion.trim())
       setVersions((current) => [published, ...current])
       setIsPublishOpen(false)
@@ -305,7 +379,7 @@ export function CharacterEditorPage() {
     setSaveState('')
     setIsExporting(true)
     try {
-      await persistDraft()
+      if (!await persistDraft()) return
       const link = window.document.createElement('a')
       link.href = draftDownloadUrl(resourceId)
       link.download = ''
@@ -626,6 +700,24 @@ export function CharacterEditorPage() {
           </div>
         )}
       </form>
+      {metadataSave.conflict && (
+        <ConflictResolutionModal
+          conflicts={metadataSave.conflict.conflicts}
+          merged={metadataSave.conflict.merged}
+          isRetrying={metadataSave.isRetrying}
+          onApply={retryMetadataConflict}
+          onCancel={metadataSave.cancel}
+        />
+      )}
+      {dataSave.conflict && (
+        <ConflictResolutionModal
+          conflicts={dataSave.conflict.conflicts}
+          merged={dataSave.conflict.merged}
+          isRetrying={dataSave.isRetrying}
+          onApply={retryDataConflict}
+          onCancel={dataSave.cancel}
+        />
+      )}
     </section>
   )
 }

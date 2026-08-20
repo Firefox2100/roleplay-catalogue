@@ -8,6 +8,8 @@ import {
 import { useAuth } from '../auth/useAuth.js'
 import { TagEditor } from '../components/TagEditor.jsx'
 import { CoAuthorEditor } from '../components/CoAuthorEditor.jsx'
+import { ConflictResolutionModal } from '../components/ConflictResolutionModal.jsx'
+import { useConflictAwareSave } from '../hooks/useConflictAwareSave.js'
 
 const SECTION_TEMPLATES = {
   locations: () => ({ id: crypto.randomUUID(), name: '', description: '', parent_location_id: null }),
@@ -150,6 +152,8 @@ export function WorldEditorPage() {
   const [busy, setBusy] = useState('load')
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
+  const [dataRevision, setDataRevision] = useState(null)
+  const [dataBase, setDataBase] = useState(null)
 
   useEffect(() => {
     if (!user) return
@@ -159,13 +163,45 @@ export function WorldEditorPage() {
         if (!active) return
         if (loaded.resourceType !== 'world-simulation-engine/world') throw new Error('wrong type')
         setResource(loaded); setMetadata({ ...loaded.metadata, tags: [...loaded.metadata.tags] }); setVersions(releases)
-        try { const document = await getResourceData(resourceId); if (active) setBundle(document.data) }
-        catch (requestError) { if (requestError.status === 404 && active) setBundle(emptyWorld(loaded.metadata.name, loaded.metadata.description)); else throw requestError }
+        try {
+          const document = await getResourceData(resourceId)
+          if (active) { setBundle(document.data); setDataRevision(document.revision); setDataBase(document.data) }
+        } catch (requestError) {
+          if (requestError.status === 404 && active) {
+            const fresh = emptyWorld(loaded.metadata.name, loaded.metadata.description)
+            setBundle(fresh); setDataRevision(null); setDataBase(fresh)
+          } else throw requestError
+        }
       })
       .catch(() => { if (active) setError(t('world.loadFailed')) })
       .finally(() => { if (active) setBusy('') })
     return () => { active = false }
   }, [resourceId, user, t])
+
+  const metadataSave = useConflictAwareSave({
+    apiSave: (payload, revision) => updateResource(resourceId, payload, revision),
+    extractComparable: (full) => ({
+      name: full.metadata.name, description: full.metadata.description,
+      language: full.metadata.language, visibility: full.metadata.visibility,
+      tags: full.metadata.tags ?? [],
+    }),
+    extractRevision: (full) => full.revision,
+    onSaved: (updatedResource) => {
+      setResource(updatedResource)
+      setMetadata({ ...updatedResource.metadata, tags: [...updatedResource.metadata.tags] })
+    },
+  })
+
+  const dataSave = useConflictAwareSave({
+    apiSave: (payload, revision) => saveResourceData(resourceId, payload, revision),
+    extractComparable: (full) => full.data,
+    extractRevision: (full) => full.revision,
+    onSaved: (savedDocument) => {
+      setDataRevision(savedDocument.revision)
+      setDataBase(savedDocument.data)
+      setBundle(savedDocument.data)
+    },
+  })
 
   const registry = useMemo(() => {
     const result = {}
@@ -180,26 +216,62 @@ export function WorldEditorPage() {
 
   const isOwner = user.id === resource.authorId
 
+  function buildNextBundle(metadataFields) {
+    return { ...bundle, world: {
+      ...bundle.world, name: metadataFields.name, description: metadataFields.description,
+      language: metadataFields.language === 'zh-cn' ? 'zh' : 'en',
+      metadata: { ...(bundle.world.metadata ?? {}), tags: metadataFields.tags },
+    } }
+  }
+
+  // Sequential (metadata, then data) rather than the parallel Promise.all this used to be, so a
+  // merge conflict on one save doesn't race with the other's request in flight.
+  async function persist() {
+    const savedResource = await metadataSave.attempt(metadata, {
+      name: resource.metadata.name, description: resource.metadata.description,
+      language: resource.metadata.language, visibility: resource.metadata.visibility,
+      tags: resource.metadata.tags ?? [],
+    }, resource.revision)
+    if (!savedResource) return false
+
+    const savedData = await dataSave.attempt(buildNextBundle(savedResource.metadata), dataBase, dataRevision)
+    if (!savedData) return false
+
+    return true
+  }
   async function save() {
     setBusy('save'); setError(''); setMessage('')
+    try { if (await persist()) setMessage(t('world.saved')) } catch { setError(t('world.saveFailed')) } finally { setBusy('') }
+  }
+  async function retryMetadataConflict(resolved) {
+    setError('')
     try {
-      const nextBundle = { ...bundle, world: { ...bundle.world, name: metadata.name, description: metadata.description, language: metadata.language === 'zh-cn' ? 'zh' : 'en', metadata: { ...(bundle.world.metadata ?? {}), tags: metadata.tags } } }
-      const [updated] = await Promise.all([updateResource(resourceId, metadata), saveResourceData(resourceId, nextBundle)])
-      setResource(updated); setBundle(nextBundle); setMessage(t('world.saved'))
-    } catch { setError(t('world.saveFailed')) } finally { setBusy('') }
+      const savedResource = await metadataSave.retry(resolved)
+      if (!savedResource) return
+      const savedData = await dataSave.attempt(buildNextBundle(savedResource.metadata), dataBase, dataRevision)
+      if (savedData) setMessage(t('world.saved'))
+    } catch { setError(t('editor.conflictRetryFailed')) }
+  }
+  async function retryDataConflict(resolved) {
+    setError('')
+    try { if (await dataSave.retry(resolved)) setMessage(t('world.saved')) }
+    catch { setError(t('editor.conflictRetryFailed')) }
   }
   async function importBundle(file) {
     if (!file) return
     setBusy('import'); setError(''); setMessage('')
-    try { const result = await importWorldBundle(resourceId, file); setResource(result.resource); setMetadata({ ...result.resource.metadata, tags: [...result.resource.metadata.tags] }); setBundle(result.draft.data); setMessage(t('world.imported')) }
+    try {
+      const result = await importWorldBundle(resourceId, file)
+      setResource(result.resource); setMetadata({ ...result.resource.metadata, tags: [...result.resource.metadata.tags] })
+      setBundle(result.draft.data); setDataRevision(result.draft.revision); setDataBase(result.draft.data)
+      setMessage(t('world.imported'))
+    }
     catch { setError(t('world.importFailed')) } finally { setBusy(''); importInput.current.value = '' }
   }
   async function publish() {
     setBusy('publish'); setError('')
     try {
-      const nextBundle = { ...bundle, world: { ...bundle.world, name: metadata.name, description: metadata.description, language: metadata.language === 'zh-cn' ? 'zh' : 'en', metadata: { ...(bundle.world.metadata ?? {}), tags: metadata.tags } } }
-      const [updated] = await Promise.all([updateResource(resourceId, metadata), saveResourceData(resourceId, nextBundle)])
-      setResource(updated); setBundle(nextBundle)
+      if (!await persist()) return
       const version = await publishResource(resourceId, releaseVersion)
       setVersions((current) => [version, ...current]); setMessage(t('world.published'))
     }
@@ -244,5 +316,12 @@ export function WorldEditorPage() {
       {isOwner && <div className="world-publish-row"><input value={releaseVersion} onChange={(event) => setReleaseVersion(event.target.value)} /><button className="save-button" type="button" disabled={Boolean(busy) || !releaseVersion.trim()} onClick={publish}>{busy === 'publish' ? t('editor.publishing') : t('editor.publish')}</button></div>}
       <div className="release-grid">{versions.map((version) => <div className="release-tile" key={version.id}><div><strong>{version.version}</strong><small>#{version.versionNumber}</small></div></div>)}</div>
     </section>
-  </div></section>
+  </div>
+  {metadataSave.conflict && <ConflictResolutionModal conflicts={metadataSave.conflict.conflicts}
+    merged={metadataSave.conflict.merged} isRetrying={metadataSave.isRetrying}
+    onApply={retryMetadataConflict} onCancel={metadataSave.cancel} />}
+  {dataSave.conflict && <ConflictResolutionModal conflicts={dataSave.conflict.conflicts}
+    merged={dataSave.conflict.merged} isRetrying={dataSave.isRetrying}
+    onApply={retryDataConflict} onCancel={dataSave.cancel} />}
+  </section>
 }

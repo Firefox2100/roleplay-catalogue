@@ -1,6 +1,6 @@
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Header, HTTPException, Query, Response, status
 from fastapi.exceptions import RequestValidationError
 from pydantic import ConfigDict, Field, field_validator
 
@@ -29,11 +29,14 @@ from roleplay_catalogue.models.roleplay_resource.silly_tavern.card_v3 import (
     SillyTavernCardV3LoreBook,
 )
 from roleplay_catalogue.components import (
+    etag_header,
     get_data_repository,
     get_editable_resource,
     get_owned_resource,
     get_readable_resource,
     get_readable_version,
+    parse_if_match,
+    raise_stale_revision,
 )
 from .utils import (
     AuthenticatedUserDependency,
@@ -254,12 +257,14 @@ async def suggest_resource_tags(database: DatabaseDependency,
 async def get_resource(resource_id: str,
                        database: DatabaseDependency,
                        user: OptionalAuthenticatedUserDependency,
+                       response: Response,
                        ) -> ResourceListItem:
     resource = await get_readable_resource(database, resource_id, user)
     author = await database.user.get(resource.author_id)
     if not author:
         raise HTTPException(status.HTTP_404_NOT_FOUND, 'Resource author not found')
     co_authors = await database.user.get_many(set(resource.co_author_ids))
+    response.headers['ETag'] = etag_header(resource.revision)
     return ResourceListItem(
         **resource.model_dump(by_alias=True),
         authorUsername=author.username,
@@ -274,6 +279,7 @@ async def get_resource(resource_id: str,
 async def get_resource_data(resource_id: str,
                             database: DatabaseDependency,
                             user: AuthenticatedUserDependency,
+                            response: Response,
                             ) -> ResourceDataResponse:
     resource = await get_editable_resource(database, resource_id, user)
     if not resource.draft_data_id:
@@ -284,6 +290,7 @@ async def get_resource_data(resource_id: str,
     ).get(resource.draft_data_id)
     if not document or document.resource_version_id:
         raise HTTPException(status.HTTP_409_CONFLICT, 'Resource draft data is invalid')
+    response.headers['ETag'] = etag_header(document.revision)
     return document
 
 
@@ -292,6 +299,8 @@ async def upsert_resource_data(resource_id: str,
                                payload: ResourceDataUpsertRequest,
                                database: DatabaseDependency,
                                user: AuthenticatedUserDependency,
+                               response: Response,
+                               if_match: str | None = Header(None, alias='If-Match'),
                                ) -> ResourceDataResponse:
     resource = await get_editable_resource(database, resource_id, user)
     data = validate_resource_data(resource.resource_type, payload.data)
@@ -300,10 +309,8 @@ async def upsert_resource_data(resource_id: str,
     if not resource.draft_data_id:
         document = create_data_document(resource, data)
         await repository.create(document)
-        await database.resource.update(resource.model_copy(update={
-            'draft_data_id': document.id,
-            'updated_at': utc_now(),
-        }))
+        await database.resource.apply_update(resource.id, {'draftDataId': document.id})
+        response.headers['ETag'] = etag_header(document.revision)
         return document
 
     document = await repository.get(resource.draft_data_id)
@@ -312,9 +319,20 @@ async def upsert_resource_data(resource_id: str,
     if resource.resource_type == ResourceType.IMAGE:
         raise HTTPException(status.HTTP_409_CONFLICT, 'Image data is immutable')
 
+    expected_revision = parse_if_match(if_match)
     updated = document.model_copy(update={'data': data, 'updated_at': utc_now()})
-    await database.resource.update(resource.model_copy(update={'updated_at': utc_now()}))
-    return await repository.update(updated)
+    result = await repository.update_if_match(updated, expected_revision)
+    if result is None:
+        current = await repository.get(resource.draft_data_id)
+        if not current:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, 'Resource draft data no longer exists')
+        raise_stale_revision(current)
+
+    # Cosmetic "last active" signal only; must not touch Resource.revision, or an unrelated
+    # metadata edit racing this content save would spuriously fail its own If-Match check.
+    await database.resource.touch(resource.id)
+    response.headers['ETag'] = etag_header(result.revision)
+    return result
 
 
 @resource_router.put('/{resource_id}', response_model=Resource)
@@ -322,6 +340,8 @@ async def update_resource(resource_id: str,
                           payload: ResourceUpdateRequest,
                           database: DatabaseDependency,
                           user: AuthenticatedUserDependency,
+                          response: Response,
+                          if_match: str | None = Header(None, alias='If-Match'),
                           ) -> Resource:
     resource = await get_editable_resource(database, resource_id, user)
     linked_lorebooks = resource.linked_lorebooks
@@ -341,6 +361,7 @@ async def update_resource(resource_id: str,
             if version.resource_id != link.resource_id or \
                     version.resource_type != ResourceType.SILLY_TAVERN_LOREBOOK:
                 raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, 'Invalid lorebook release link')
+    expected_revision = parse_if_match(if_match)
     updated = resource.model_copy(update={
         'metadata': ResourceMetadata(
             name=payload.name,
@@ -352,7 +373,14 @@ async def update_resource(resource_id: str,
         'linked_lorebooks': linked_lorebooks,
         'updated_at': utc_now(),
     })
-    return await database.resource.update(updated)
+    result = await database.resource.update_if_match(updated, expected_revision)
+    if result is None:
+        current = await database.resource.get(resource_id)
+        if not current:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, 'Resource not found')
+        raise_stale_revision(current)
+    response.headers['ETag'] = etag_header(result.revision)
+    return result
 
 
 @resource_router.post('/{resource_id}/co-authors', response_model=Resource,
@@ -370,11 +398,10 @@ async def add_co_author(resource_id: str,
         raise HTTPException(status.HTTP_409_CONFLICT, 'The resource owner is already an author')
     if co_author.id in resource.co_author_ids:
         raise HTTPException(status.HTTP_409_CONFLICT, 'User is already a co-author')
-    updated = resource.model_copy(update={
-        'co_author_ids': (*resource.co_author_ids, co_author.id),
-        'updated_at': utc_now(),
-    })
-    return await database.resource.update(updated)
+    updated = await database.resource.add_co_author_to_resource(resource.id, co_author.id)
+    if not updated:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, 'Resource not found')
+    return updated
 
 
 @resource_router.delete('/{resource_id}/co-authors/{co_author_id}', response_model=Resource)
@@ -388,13 +415,10 @@ async def remove_co_author(resource_id: str,
         raise HTTPException(status.HTTP_404_NOT_FOUND, 'Resource not found')
     if co_author_id not in resource.co_author_ids:
         raise HTTPException(status.HTTP_404_NOT_FOUND, 'Co-author not found')
-    updated = resource.model_copy(update={
-        'co_author_ids': tuple(
-            existing_id for existing_id in resource.co_author_ids if existing_id != co_author_id
-        ),
-        'updated_at': utc_now(),
-    })
-    return await database.resource.update(updated)
+    updated = await database.resource.remove_co_author_from_resource(resource.id, co_author_id)
+    if not updated:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, 'Resource not found')
+    return updated
 
 
 @resource_router.delete('/{resource_id}', status_code=status.HTTP_204_NO_CONTENT)

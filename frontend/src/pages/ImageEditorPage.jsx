@@ -8,6 +8,9 @@ import { useAuth } from '../auth/useAuth.js'
 import { ResourceImage } from '../components/ResourceImage.jsx'
 import { TagEditor } from '../components/TagEditor.jsx'
 import { CoAuthorEditor } from '../components/CoAuthorEditor.jsx'
+import { ConflictResolutionModal } from '../components/ConflictResolutionModal.jsx'
+import { useConflictAwareSave } from '../hooks/useConflictAwareSave.js'
+import { resourceToMetadataPayload } from '../utils/resourceMetadataPayload.js'
 
 const VISIBILITIES = ['private', 'authenticated', 'public']
 
@@ -54,6 +57,22 @@ export function ImageEditorPage() {
     return () => { document.title = t('app.title') }
   }, [resource, t])
 
+  const metadataSave = useConflictAwareSave({
+    apiSave: (payload, revision) => updateImageMetadata(resourceId, payload, revision),
+    extractComparable: resourceToMetadataPayload,
+    extractRevision: (full) => full.revision,
+    onSaved: (updatedResource) => {
+      setResource(updatedResource)
+      setFields({
+        name: updatedResource.metadata.name,
+        description: updatedResource.metadata.description,
+        language: updatedResource.metadata.language ?? 'en-uk',
+        visibility: updatedResource.metadata.visibility,
+        tags: updatedResource.metadata.tags ?? [],
+      })
+    },
+  })
+
   if (!isAuthLoading && !user) {
     return <Navigate to="/login" state={{ from: location.pathname }} replace />
   }
@@ -69,15 +88,23 @@ export function ImageEditorPage() {
     setError('')
     setMessage('')
     try {
-      const updated = await updateImageMetadata(resourceId, fields)
-      setResource(updated)
-      setMessage(t('imageEditor.saved'))
+      const saved = await metadataSave.attempt(fields, resourceToMetadataPayload(resource), resource.revision)
+      if (saved) setMessage(t('imageEditor.saved'))
     } catch (requestError) {
       setError(requestError.status === 422
         ? t('imageEditor.validationFailed')
         : t('imageEditor.saveFailed'))
     } finally {
       setIsSaving(false)
+    }
+  }
+
+  async function retryConflict(resolved) {
+    setError('')
+    try {
+      if (await metadataSave.retry(resolved)) setMessage(t('imageEditor.saved'))
+    } catch {
+      setError(t('editor.conflictRetryFailed'))
     }
   }
 
@@ -132,6 +159,15 @@ export function ImageEditorPage() {
           </div>
         </div>
       </form>
+      {metadataSave.conflict && (
+        <ConflictResolutionModal
+          conflicts={metadataSave.conflict.conflicts}
+          merged={metadataSave.conflict.merged}
+          isRetrying={metadataSave.isRetrying}
+          onApply={retryConflict}
+          onCancel={metadataSave.cancel}
+        />
+      )}
     </section>
   )
 }
