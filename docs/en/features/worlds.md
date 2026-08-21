@@ -2,7 +2,7 @@
 
 ## Overview
 
-Worlds in the Roleplay Catalogue are complete packages designed for the **World Simulation Engine (WorldSE)**. They are uploaded as ZIP bundles containing game data — including scenes, characters, maps, scripts, and world configuration — plus embedded images.
+Worlds in the Roleplay Catalogue are complete packages designed for the **World Simulation Engine (WorldSE)**. They are uploaded as ZIP bundles containing structured graph data—including locations, landmarks, multiple foreground and background characters, inventory, events, memories, intents, relationships, and tracked variables—plus model configuration assignments, prompts, image workflows, and media.
 
 Worlds function as standalone settings, modules, or expansions that characters can interact with in a conversation. Each world is a first-class catalogue resource: it has a name, description, tags, visibility setting, language, version history, and an exported ZIP artifact.
 
@@ -44,11 +44,11 @@ This ZIP is ready to use offline with the WorldSE client.
 
 A published world includes the following data:
 
-- **World configuration** — engine settings, default parameters, and global options.
-- **Scenes** — defined locations or stages that characters can move through.
-- **Characters** — NPCs and entities defined within the world.
-- **Maps** — spatial layouts and positional reference data.
-- **Scripts** — custom logic files executed by the WorldSE engine.
+- **World record and configuration** — simulation settings, model assignment data, and global options.
+- **Locations and landmarks** — the hierarchy and spatial state characters can move through.
+- **Characters** — multiple foreground and background characters defined within the world.
+- **Simulation graph** — inventory, events, turns, memories, intents, relationships, claims, and variables.
+- **Prompts, workflows, and media** — simulator prompt definitions, image-generation workflows, and referenced files. Bundles do not contain executable script files.
 
 ### Artifact Verification
 
