@@ -50,7 +50,9 @@ it('creates a character and opens its editor', async () => {
   expect(createResource).toHaveBeenCalledWith(expect.objectContaining({
     name: 'Aster', resourceType: 'sillytavern/character', visibility: 'public', tags: ['fantasy'],
   }))
-  expect(screen.getByTestId('location')).toHaveTextContent('/resources/character-1/edit')
+  await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent(
+    '/resources/character-1/edit',
+  ))
 })
 
 it('uploads image resources and shows their completion summary', async () => {
