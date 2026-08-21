@@ -5,6 +5,7 @@ import { beforeEach, expect, it, vi } from 'vitest'
 import {
   getResource,
   getResourceData,
+  importCharacterCard,
   listResources,
   listResourceVersions,
   saveResourceData,
@@ -31,7 +32,9 @@ vi.mock('../api/resources.js', () => ({
   uploadCharacterCover: vi.fn(),
 }))
 vi.mock('../components/TagEditor.jsx', () => ({ TagEditor: () => <div>tag-editor</div> }))
-vi.mock('../components/ResourceImage.jsx', () => ({ ResourceImage: () => <div>image</div> }))
+vi.mock('../components/ResourceImage.jsx', () => ({
+  ResourceImage: ({ imageResourceId }) => <div data-testid="resource-image">{imageResourceId}</div>,
+}))
 vi.mock('../components/CoAuthorEditor.jsx', () => ({ CoAuthorEditor: () => <div>coauthors</div> }))
 vi.mock('../components/ConflictResolutionModal.jsx', () => ({ ConflictResolutionModal: () => <div>conflict</div> }))
 vi.mock('../hooks/useConflictAwareSave.js', () => ({
@@ -103,6 +106,7 @@ beforeEach(() => {
   })
   updateResource.mockReset().mockResolvedValue({ revision: 'rev-2' })
   saveResourceData.mockReset().mockResolvedValue({ revision: 'data-2', data: { name: 'Aster' } })
+  importCharacterCard.mockReset()
 })
 
 it('loads character draft/editor state and saves draft changes', async () => {
@@ -129,3 +133,33 @@ it('redirects anonymous users to login', () => {
   expect(screen.getByTestId('location')).toHaveTextContent('/login')
 })
 
+it('shows the imported PNG cover and card data without requiring a refresh', async () => {
+  importCharacterCard.mockResolvedValue({
+    resource: {
+      id: 'character-1', authorId: 'author-1', resourceType: 'sillytavern/character',
+      revision: 'rev-2', coverImageResourceId: 'imported-cover', linkedLorebooks: [],
+      metadata: {
+        name: 'Aster', description: 'Imported description', language: 'en-uk',
+        visibility: 'private', tags: ['imported'],
+      },
+    },
+    draft: {
+      revision: 'data-2',
+      data: {
+        name: 'Imported Aster', tags: [], nickname: '',
+        alternate_greetings: [], group_only_greetings: [],
+      },
+    },
+  })
+  const user = userEvent.setup()
+  const { container } = renderPage()
+  await screen.findByRole('heading', { name: 'Aster' })
+
+  const file = new File(['png'], 'character.png', { type: 'image/png' })
+  await user.upload(container.querySelector('input[accept*=".png"]'), file)
+
+  await waitFor(() => expect(importCharacterCard).toHaveBeenCalledWith('character-1', file))
+  expect(await screen.findByTestId('resource-image')).toHaveTextContent('imported-cover')
+  expect(screen.getByDisplayValue('Imported Aster')).toBeInTheDocument()
+  expect(screen.getByDisplayValue('Imported description')).toBeInTheDocument()
+})

@@ -67,6 +67,68 @@ def test_world_bundle_rejects_duplicate_graph_ids() -> None:
         parse_world_bundle(world_zip(duplicate_id=True))
 
 
+def minimal_world_data(**sections) -> WorldBundleData:
+    return WorldBundleData(
+        world={
+            'id': 'world-1', 'name': 'Test world',
+            'starting_time': '2026-01-01T00:00:00Z', 'language': 'en',
+        },
+        sections=sections,
+    )
+
+
+def test_world_bundle_rejects_invalid_wse_enum_values() -> None:
+    with pytest.raises(ValueError, match=r'intents\[0\]\.status has invalid value'):
+        minimal_world_data(intents=[{
+            'id': 'intent-1', 'type': 'quest', 'status': 'todo', 'horizon': 'short',
+        }])
+
+
+def test_world_bundle_rejects_dangling_graph_references() -> None:
+    with pytest.raises(ValueError, match=r'item_stacks\[0\]\.item_id references unknown id'):
+        minimal_world_data(item_stacks=[{
+            'id': 'stack-1', 'item_id': 'missing-item', 'location_id': None, 'holder_id': None,
+        }])
+
+
+def test_world_bundle_rejects_conflicting_placement() -> None:
+    with pytest.raises(ValueError, match='cannot have both location_id and holder_id'):
+        minimal_world_data(
+            locations=[{'id': 'location-1'}], characters=[{'id': 'character-1'}],
+            equipment=[{
+                'id': 'equipment-1', 'location_id': 'location-1', 'holder_id': 'character-1',
+            }],
+        )
+
+
+def test_world_bundle_rejects_invalid_relationship_invariants() -> None:
+    with pytest.raises(ValueError, match='source and target must be different'):
+        minimal_world_data(
+            characters=[{'id': 'character-1'}],
+            entity_relationships=[{
+                'id': 'relationship-1', 'scope_type': 'world',
+                'source': {'type': 'character', 'id': 'character-1'},
+                'target': {'type': 'character', 'id': 'character-1'},
+                'visibility': 'objective',
+            }],
+        )
+
+
+def test_world_bundle_accepts_valid_typed_links() -> None:
+    data = minimal_world_data(
+        locations=[{'id': 'location-1'}], items=[{'id': 'item-1'}],
+        item_stacks=[{
+            'id': 'stack-1', 'item_id': 'item-1', 'location_id': 'location-1', 'holder_id': None,
+        }],
+        containers=[{
+            'id': 'container-1', 'state': 'locked', 'location_id': 'location-1',
+            'holder_id': None, 'unlocking_item_ids': ['item-1'], 'held_stack_ids': ['stack-1'],
+        }],
+    )
+
+    assert data.sections['containers'][0]['state'] == 'locked'
+
+
 def test_catalogue_metadata_controls_exported_world_language_and_description() -> None:
     data = parse_world_bundle(world_zip()).data
     resource = Resource(

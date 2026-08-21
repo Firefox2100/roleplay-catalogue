@@ -39,10 +39,13 @@ const REFERENCE_TARGETS = {
 }
 const ENUMS = {
   language: ['en', 'zh'], state: ['hidden', 'locked', 'unlocked', 'open'],
-  type: [], visibility: ['public', 'private', 'objective'],
+  type: [], scope_type: ['world', 'simulation'], visibility: ['public', 'private', 'objective'],
   support_type: ['direct', 'inferred', 'reported', 'contradicts'],
   horizon: ['immediate', 'short', 'day', 'long', 'open_ended'],
   status: ['active', 'paused', 'completed', 'failed', 'abandoned'],
+  category: ['appearance', 'personality', 'preference', 'aversion', 'capability', 'habit', 'value', 'relationship_expectation', 'identity', 'state', 'safety', 'access', 'contents', 'purpose', 'condition', 'ownership', 'risk', 'history', 'other'],
+  stance: ['believes', 'suspects', 'uncertain', 'doubts', 'denies'],
+  owner_type: ['world', 'character', 'background_character', 'item', 'item_stack', 'equipment', 'container', 'location', 'landmark', 'body', 'unknown'],
 }
 const LONG_FIELDS = new Set(['description', 'appearance', 'public_state', 'private_state', 'content', 'summary', 'outcome', 'comment', 'speech_style', 'statement', 'normalized_statement', 'public_description', 'private_description'])
 const INTERNAL_FIELDS = new Set(['id', 'scope_id', 'world_id', 'source_id', 'simulation_id', 'cover_media_id'])
@@ -89,7 +92,7 @@ function WorldField({ field, value, onChange, registry, section, t }) {
     }}><option value="">—</option>{registry.allPhysical.map((option) => <option key={`${option.type}:${option.id}`} value={option.id}>{option.label}</option>)}</select></label>
   }
   const target = REFERENCE_TARGETS[field]
-  const genericEntityReference = ['owner_id', 'holder_id', 'owner_id'].includes(field)
+  const genericEntityReference = ['owner_id', 'holder_id'].includes(field)
   const options = target ? registry[target] : genericEntityReference ? registry.allPhysical : null
   if (options && Array.isArray(value)) {
     return <label>{label}<select multiple value={value} onChange={(event) => onChange(
@@ -213,7 +216,10 @@ export function WorldEditorPage() {
   const registry = useMemo(() => {
     const result = {}
     for (const [section, rows] of Object.entries(bundle?.sections ?? {})) result[section] = rows.map((row, index) => ({ id: row.id, label: displayName(row, `${section} ${index + 1}`), type: section === 'background_characters' ? 'background_character' : section.replace(/s$/, '') }))
-    result.allPhysical = ['locations', 'landmarks', 'characters', 'background_characters', 'items', 'equipment', 'containers'].flatMap((section) => result[section] ?? [])
+    result.allPhysical = [
+      { id: bundle?.world?.id, label: bundle?.world?.name, type: 'world' },
+      ...['locations', 'landmarks', 'characters', 'background_characters', 'items', 'item_stacks', 'equipment', 'containers'].flatMap((section) => result[section] ?? []),
+    ].filter((option) => option.id)
     return result
   }, [bundle])
 

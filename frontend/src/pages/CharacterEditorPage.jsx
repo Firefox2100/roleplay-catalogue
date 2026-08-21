@@ -66,7 +66,8 @@ export function CharacterEditorPage() {
   const { user, isLoading: isAuthLoading } = useAuth()
   const imageInput = useRef(null)
   const cardInput = useRef(null)
-  const [resource, setResource] = useState(location.state?.resource ?? null)
+  const [initialResource] = useState(() => location.state?.resource ?? null)
+  const [resource, setResource] = useState(initialResource)
   const [resourceFields, setResourceFields] = useState({ name: '', description: '', language: 'en-uk', visibility: 'private', tags: [] })
   const [card, setCard] = useState(EMPTY_CARD)
   const [book, setBook] = useState(EMPTY_BOOK)
@@ -121,7 +122,9 @@ export function CharacterEditorPage() {
   useEffect(() => {
     if (!user) return undefined
     let active = true
-    const resourceRequest = resource ? Promise.resolve(resource) : getResource(resourceId)
+    const resourceRequest = initialResource
+      ? Promise.resolve(initialResource)
+      : getResource(resourceId)
     Promise.all([
       resourceRequest,
       getResourceData(resourceId).catch((requestError) => (
@@ -160,7 +163,7 @@ export function CharacterEditorPage() {
       if (active) setIsLoading(false)
     })
     return () => { active = false }
-  }, [resource, resourceId, t, user])
+  }, [initialResource, resourceId, t, user])
 
   useEffect(() => {
     if (!user) return undefined
@@ -429,10 +432,25 @@ export function CharacterEditorPage() {
     setIsImportingCard(true)
     setError('')
     try {
-      await importCharacterCard(resourceId, file)
-      window.location.reload()
+      const imported = await importCharacterCard(resourceId, file)
+      const importedResource = imported.resource
+      const importedDraft = imported.draft
+      setResource(importedResource)
+      setCoverImageId(importedResource.coverImageResourceId ?? '')
+      setLinkedLorebooks(importedResource.linkedLorebooks ?? [])
+      setResourceFields({
+        name: importedResource.metadata.name,
+        description: importedResource.metadata.description,
+        language: importedResource.metadata.language ?? 'en-uk',
+        visibility: importedResource.metadata.visibility,
+        tags: importedResource.metadata.tags ?? [],
+      })
+      setDataRevision(importedDraft.revision)
+      setDataBase(importedDraft.data)
+      applyDraftData(importedDraft.data)
     } catch {
       setError(t('editor.cardImportFailed'))
+    } finally {
       setIsImportingCard(false)
       event.target.value = ''
     }
