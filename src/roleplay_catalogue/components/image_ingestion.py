@@ -43,7 +43,7 @@ async def read_and_convert_image(file: UploadFile) -> tuple[bytes, int, int]:
     try:
         return await to_thread(convert_to_clean_png, source)
     except ValueError as error:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(error)) from error
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(error)) from error
 
 
 async def create_image_resource(*,
@@ -64,7 +64,7 @@ async def create_image_resource(*,
     picture (e.g. as a character's cover and again embedded in a lorebook) does not create copies.
     """
     if not name.strip():
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, 'Image name must not be blank')
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, 'Image name must not be blank')
     if source is None:
         if file is None:
             raise ValueError('An image file or source bytes are required')
@@ -73,7 +73,7 @@ async def create_image_resource(*,
         try:
             png, width, height = await to_thread(convert_to_clean_png, source)
         except ValueError as error:
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(error)) from error
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(error)) from error
     digest = sha256(png).hexdigest()
     for existing_document in await database.image_data.list_by_sha256(digest):
         existing_resource = await database.resource.get(existing_document.resource_id)

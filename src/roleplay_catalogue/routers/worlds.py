@@ -42,7 +42,7 @@ async def import_world_bundle(resource_id: str,
     try:
         parsed = parse_world_bundle(payload)
     except WorldBundleError as error:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(error)) from error
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(error)) from error
 
     references = []
     for reference in parsed.data.media:

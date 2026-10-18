@@ -223,9 +223,9 @@ export function WorldEditorPage() {
     return result
   }, [bundle])
 
-  if (authLoading || busy === 'load') return <div className="page-loading">{t('world.loading')}</div>
+  if (authLoading || busy === 'load') return <div className="page-loading" role="status">{t('world.loading')}</div>
   if (!user) return <Navigate to="/login" state={{ from: location.pathname }} replace />
-  if (!resource || !bundle || !metadata) return <div className="page-loading">{error || t('world.loadFailed')}</div>
+  if (!resource || !bundle || !metadata) return <div className="page-loading error" role="alert">{error || t('world.loadFailed')}</div>
 
   const isOwner = user.id === resource.authorId
 
@@ -300,7 +300,7 @@ export function WorldEditorPage() {
         <button className="save-button" type="button" onClick={save} disabled={Boolean(busy)}>{busy === 'save' ? t('editor.saving') : t('editor.save')}</button>
       </div></header>
     <input ref={importInput} hidden type="file" accept=".zip,application/zip" onChange={(event) => importBundle(event.target.files?.[0])} />
-    {error && <p className="editor-message error">{error}</p>}{message && <p className="editor-message success">{message}</p>}
+    {error && <p className="editor-message error" role="alert">{error}</p>}{message && <p className="editor-message success" role="status">{message}</p>}
     <section className="resource-metadata-editor"><div><h2>{t('editor.resourceMetadata')}</h2><p>{t('editor.resourceMetadataHelp')}</p></div>
       <div className="editor-field-grid"><label>{t('resource.name')}<input value={metadata.name} onChange={(event) => setMetadata({ ...metadata, name: event.target.value })} /></label>
         <label>{t('resource.visibility')}<select value={metadata.visibility} onChange={(event) => setMetadata({ ...metadata, visibility: event.target.value })}><option value="private">{t('resource.visibilities.private')}</option><option value="authenticated">{t('resource.visibilities.authenticated')}</option><option value="public">{t('resource.visibilities.public')}</option></select></label>

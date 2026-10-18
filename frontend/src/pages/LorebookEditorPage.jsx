@@ -151,7 +151,7 @@ export function LorebookEditorPage() {
   if (!isAuthLoading && !user) {
     return <Navigate to="/login" state={{ from: location.pathname }} replace />
   }
-  if (isAuthLoading || isLoading) return <div className="page-loading">{t('lorebookEditor.loading')}</div>
+  if (isAuthLoading || isLoading) return <div className="page-loading" role="status">{t('lorebookEditor.loading')}</div>
 
   const isOwner = user.id === resource.authorId
 

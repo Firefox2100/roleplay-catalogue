@@ -104,8 +104,8 @@ export function PresetEditorPage() {
 
   const advanced = useMemo(() => Object.fromEntries(Object.entries(data).filter(([key]) => !KNOWN.has(key))), [data])
   if (!authLoading && !user) return <Navigate to="/login" state={{ from: location.pathname }} replace />
-  if (authLoading || busy === 'load') return <div className="page-loading">{t('preset.loading')}</div>
-  if (!resource || !metadata) return <div className="page-loading error">{error || t('preset.loadFailed')}</div>
+  if (authLoading || busy === 'load') return <div className="page-loading" role="status">{t('preset.loading')}</div>
+  if (!resource || !metadata) return <div className="page-loading error" role="alert">{error || t('preset.loadFailed')}</div>
 
   const isOwner = user.id === resource.authorId
 
@@ -187,7 +187,7 @@ export function PresetEditorPage() {
       <button className="save-button" type="button" disabled={Boolean(busy)} onClick={save}>{busy === 'save' ? t('editor.saving') : t('editor.save')}</button>
     </div></header>
     <input hidden ref={fileInput} type="file" accept=".json,application/json" onChange={(event) => upload(event.target.files?.[0])} />
-    {error && <p className="editor-message error">{error}</p>}{message && <p className="editor-message success">{message}</p>}
+    {error && <p className="editor-message error" role="alert">{error}</p>}{message && <p className="editor-message success" role="status">{message}</p>}
     <section className="resource-metadata-editor"><h2>{t('editor.resourceMetadata')}</h2><div className="editor-field-grid">
       <label>{t('resource.name')}<input value={metadata.name} onChange={(event) => setMetadata({ ...metadata, name: event.target.value })} /></label>
       <label>{t('resource.visibility')}<select value={metadata.visibility} onChange={(event) => setMetadata({ ...metadata, visibility: event.target.value })}>{['private', 'authenticated', 'public'].map((item) => <option key={item} value={item}>{t(`resource.visibilities.${item}`)}</option>)}</select></label>

@@ -66,7 +66,8 @@ export function TagEditor({ id, value, onChange, allowCreate = true, showPopular
               onClick={() => onChange(value.filter((item) => item !== tag))}>×</button>
           </span>
         ))}
-        <input id={id} value={input} placeholder={value.length ? '' : t('tags.placeholder')}
+        <input id={id} value={input}
+          placeholder={value.length ? '' : t(allowCreate ? 'tags.placeholder' : 'tags.selectPlaceholder')}
           onChange={(event) => { setInput(event.target.value); setSuggestions([]) }}
           onKeyDown={handleKeyDown}
           onFocus={() => setIsFocused(true)} onBlur={() => setTimeout(() => setIsFocused(false), 120)} />
@@ -98,7 +99,7 @@ export function TagEditor({ id, value, onChange, allowCreate = true, showPopular
           ))}
         </div>
       )}
-      <p className="field-help">{t('tags.help')}</p>
+      <p className="field-help">{t(allowCreate ? 'tags.help' : 'tags.selectHelp')}</p>
     </div>
   )
 }

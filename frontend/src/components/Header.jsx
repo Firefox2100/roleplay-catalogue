@@ -80,6 +80,12 @@ export function Header() {
   const { user, isLoading } = useAuth()
   const location = useLocation()
   const loginDestination = `${location.pathname}${location.search}${location.hash}`
+  const [theme, setTheme] = useState(() => localStorage.getItem('roleplay-catalogue.theme') || 'light')
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme
+    localStorage.setItem('roleplay-catalogue.theme', theme)
+  }, [theme])
 
   return (
     <header className="site-header">
@@ -96,6 +102,15 @@ export function Header() {
           <NavLink to="/resources/new">{t('nav.new')}</NavLink>
         </nav>
         <div className="header-account">
+          <button className="theme-toggle" type="button"
+            aria-label={t(theme === 'light' ? 'theme.switchDark' : 'theme.switchLight')}
+            onClick={() => setTheme((current) => current === 'light' ? 'dark' : 'light')}>
+            {theme === 'light' ? (
+              <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3v2m0 14v2M3 12h2m14 0h2M5.6 5.6 7 7m10 10 1.4 1.4M18.4 5.6 17 7M7 17l-1.4 1.4"/><circle cx="12" cy="12" r="4"/></svg>
+            ) : (
+              <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M20 15.3A8.5 8.5 0 0 1 8.7 4a8.5 8.5 0 1 0 11.3 11.3Z"/></svg>
+            )}
+          </button>
           {isLoading ? (
             <span className="account-placeholder" aria-label={t('auth.checkingSession')} />
           ) : user ? (

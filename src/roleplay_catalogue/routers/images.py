@@ -149,7 +149,7 @@ async def update_image_metadata(image_resource_id: str,
                                 ) -> Resource:
     image = await get_editable_resource(database, image_resource_id, user, ResourceType.IMAGE)
     if not payload.name.strip():
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, 'Image name must not be blank')
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, 'Image name must not be blank')
     metadata = ResourceMetadata(
         name=payload.name.strip(),
         description=payload.description.strip(),

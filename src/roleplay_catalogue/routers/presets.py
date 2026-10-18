@@ -42,7 +42,7 @@ async def import_preset(resource_id: str,
         data = SillyTavernPresetData.model_validate(raw)
     except (UnicodeDecodeError, json.JSONDecodeError, ValidationError, ValueError) as error:
         raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_ENTITY, 'File is not a valid SillyTavern preset JSON',
+            status.HTTP_422_UNPROCESSABLE_CONTENT, 'File is not a valid SillyTavern preset JSON',
         ) from error
 
     existing = (

@@ -32,8 +32,8 @@ it('loads catalogue cards with metrics and navigates to details', async () => {
     <Route path="*" element={<><HomePage /><Location /></>} />
   </Routes></MemoryRouter>)
   expect(await screen.findByRole('heading', { name: 'Aster' })).toBeInTheDocument()
-  expect(screen.getByTitle('Views')).toHaveTextContent('1,234')
-  expect(screen.getByTitle('Downloads')).toHaveTextContent('56')
+  expect(screen.getAllByTitle('Views')[0]).toHaveTextContent('1,234')
+  expect(screen.getAllByTitle('Downloads')[0]).toHaveTextContent('56')
   await user.click(screen.getByRole('heading', { name: 'Aster' }))
   expect(screen.getByTestId('location')).toHaveTextContent('/characters/character-1')
 })

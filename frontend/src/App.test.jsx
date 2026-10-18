@@ -37,9 +37,9 @@ describe('App routes', () => {
     ['/presets/1/edit', 'preset-editor'], ['/characters/1', 'character-detail'],
     ['/images/1', 'image-detail'], ['/lorebooks/1', 'lorebook-detail'],
     ['/worlds/1', 'world-detail'], ['/presets/1', 'preset-detail'], ['/unknown', 'home'],
-  ])('renders %s through the shared layout', (path, expected) => {
+  ])('renders %s through the shared layout', async (path, expected) => {
     render(<MemoryRouter initialEntries={[path]}><App /></MemoryRouter>)
     expect(screen.getByText('layout')).toBeInTheDocument()
-    expect(screen.getByText(expected)).toBeInTheDocument()
+    expect(await screen.findByText(expected)).toBeInTheDocument()
   })
 })

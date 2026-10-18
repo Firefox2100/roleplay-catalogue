@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, Header, HTTPException, Query, Response, status
 from fastapi.exceptions import RequestValidationError
@@ -200,6 +200,7 @@ async def list_resources(database: DatabaseDependency,
                          author: str | None = Query(None, min_length=1, max_length=100),
                          published_only: bool = Query(False, alias='publishedOnly'),
                          search_string: str | None = Query(None, max_length=200),
+                         sort_by: Literal['recent', 'popular'] = Query('recent', alias='sort'),
                          ) -> ResourceListResponse:
     author_id = None
     if author:
@@ -214,18 +215,36 @@ async def list_resources(database: DatabaseDependency,
     published_resource_ids = None
     if published_only:
         published_resource_ids = await database.resource_version.list_published_resource_ids()
+    fetch_offset = 0 if sort_by == 'popular' else offset
+    fetch_limit = (
+        max(len(published_resource_ids or []), limit + 1)
+        if sort_by == 'popular' else limit + 1
+    )
     resources = await database.resource.list_visible(
         user.id if user else None,
-        offset,
-        limit + 1,
+        fetch_offset,
+        fetch_limit,
         resource_type=resource_type,
         tags=normalised_tags,
         author_id=author_id,
         published_resource_ids=published_resource_ids,
         search_string=search_string.strip() if search_string else None,
     )
-    has_more = len(resources) > limit
-    resources = resources[:limit]
+    if sort_by == 'popular':
+        all_metrics = await cache.resource_metrics.get_many([resource.id for resource in resources])
+        resources.sort(
+            key=lambda resource: (
+                all_metrics[resource.id].downloads,
+                all_metrics[resource.id].views,
+                resource.updated_at,
+            ),
+            reverse=True,
+        )
+        has_more = len(resources) > offset + limit
+        resources = resources[offset:offset + limit]
+    else:
+        has_more = len(resources) > limit
+        resources = resources[:limit]
     users = await database.user.get_many({
         user_id for resource in resources
         for user_id in (resource.author_id, *resource.co_author_ids)
@@ -360,7 +379,7 @@ async def update_resource(resource_id: str,
         if resource.resource_type != ResourceType.SILLY_TAVERN_CHARACTER:
             raise HTTPException(status.HTTP_409_CONFLICT, 'Only character cards can link lorebooks')
         if len({link.resource_id for link in payload.linked_lorebooks}) != len(payload.linked_lorebooks):
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, 'A lorebook can only be linked once')
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, 'A lorebook can only be linked once')
         linked_lorebooks = tuple(payload.linked_lorebooks)
         for link in linked_lorebooks:
             if link.version_id is None:
@@ -371,7 +390,7 @@ async def update_resource(resource_id: str,
             version = await get_readable_version(database, link.version_id, user)
             if version.resource_id != link.resource_id or \
                     version.resource_type != ResourceType.SILLY_TAVERN_LOREBOOK:
-                raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, 'Invalid lorebook release link')
+                raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, 'Invalid lorebook release link')
     expected_revision = parse_if_match(if_match)
     updated = resource.model_copy(update={
         'metadata': ResourceMetadata(

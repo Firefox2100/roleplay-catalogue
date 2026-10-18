@@ -46,7 +46,7 @@ export async function createResource(resource) {
 }
 
 export async function listResources({ resourceType, tags = [], author = '', limit, offset,
-  publishedOnly = false, searchString = '' } = {}) {
+  publishedOnly = false, searchString = '', sort = '' } = {}) {
   const query = new URLSearchParams()
   if (resourceType) query.set('resourceType', resourceType)
   tags.forEach((tag) => query.append('tags', tag))
@@ -55,6 +55,7 @@ export async function listResources({ resourceType, tags = [], author = '', limi
   if (offset) query.set('offset', offset)
   if (publishedOnly) query.set('publishedOnly', 'true')
   if (searchString.trim()) query.set('search_string', searchString.trim())
+  if (sort) query.set('sort', sort)
   const suffix = query.size ? `?${query}` : ''
   return (await request(`/api/resources${suffix}`)).json()
 }

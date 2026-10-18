@@ -8,6 +8,7 @@ from roleplay_catalogue.models import Resource, ResourceType, ResourceVersion, U
 from roleplay_catalogue.models.roleplay_resource.resource import utc_now
 from roleplay_catalogue.routers.utils import (
     authenticate_user,
+    get_auth_component,
     get_cache_service,
     get_database_service,
     get_storage_service,
@@ -267,8 +268,10 @@ async def cache_dependency():
     async def get_cache():
         return cache
     app.dependency_overrides[get_cache_service] = get_cache
+    app.dependency_overrides[get_auth_component] = lambda: object()
     yield cache
     app.dependency_overrides.pop(get_cache_service, None)
+    app.dependency_overrides.pop(get_auth_component, None)
 
 
 async def authenticated_user() -> User:

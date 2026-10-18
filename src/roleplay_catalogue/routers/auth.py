@@ -254,7 +254,7 @@ async def create_api_key(payload: ApiKeyCreateRequest,
                          auth: AuthDependency) -> CreatedApiKeyResponse:
     name = payload.name.strip()
     if not name:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, 'API key name must not be blank')
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, 'API key name must not be blank')
     api_key, secret = await auth.create_api_key(user, name, API_KEY_LIFETIMES[payload.lifetime])
     return CreatedApiKeyResponse(
         id=api_key.id,

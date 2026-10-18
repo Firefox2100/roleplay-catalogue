@@ -139,7 +139,7 @@ async def import_character_card(resource_id: str,
         else:
             raise ValueError('Only JSON and PNG character cards are supported')
     except ValueError as error:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(error)) from error
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(error)) from error
 
     existing = (
         await database.silly_tavern_character_data.get(resource.draft_data_id)
@@ -156,7 +156,7 @@ async def import_character_card(resource_id: str,
         merged_data = SillyTavernCharacterData.model_validate(merged_payload)
     except ValidationError as error:
         raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
             'Imported card could not be merged into the current V3 draft',
         ) from error
 
@@ -223,7 +223,7 @@ async def import_lorebook(resource_id: str,
         else:
             raise ValueError('Only JSON lorebooks and JSON/PNG character cards are supported')
     except ValueError as error:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(error)) from error
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(error)) from error
 
     existing = (
         await database.silly_tavern_lorebook_data.get(resource.draft_data_id)
@@ -238,7 +238,7 @@ async def import_lorebook(resource_id: str,
         merged_data = SillyTavernCardV3LoreBook.model_validate(merged_payload)
     except ValidationError as error:
         raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
             'Imported lorebook could not be merged into the current V3 draft',
         ) from error
 
