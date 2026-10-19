@@ -27,6 +27,8 @@ class AccountComponent:
                 document = await repository.get(version.data_id)
                 if resource.resource_type == ResourceType.IMAGE and document:
                     object_keys.add(document.object_key)
+                if resource.resource_type == ResourceType.DSH_AGENTIC_ROLEPLAY_WORLD and document:
+                    object_keys.add(document.data.object_key)
                 if version.artifact_object_key:
                     object_keys.add(version.artifact_object_key)
 
@@ -41,6 +43,9 @@ class AccountComponent:
                     await self._database.resource_version.delete(version.id)
 
                 if resource.draft_data_id:
+                    draft = await repository.get(resource.draft_data_id)
+                    if resource.resource_type == ResourceType.DSH_AGENTIC_ROLEPLAY_WORLD and draft:
+                        object_keys.add(draft.data.object_key)
                     await repository.delete(resource.draft_data_id)
                 if resource.resource_type == ResourceType.IMAGE:
                     await self._database.resource.clear_cover_reference(resource.id)

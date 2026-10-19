@@ -66,6 +66,10 @@ INDEXES: tuple[IndexDefinition, ...] = (
     IndexDefinition('world_data', 'world_data_resource', [('resourceId', ASCENDING)], {}),
     IndexDefinition('world_data', 'world_data_version', [('resourceVersionId', ASCENDING)], {}),
     IndexDefinition('world_data', 'world_data_media_image', [('data.media.imageResourceId', ASCENDING)], {}),
+    IndexDefinition('dsh_world_data', 'dsh_world_data_id_unique', [('id', ASCENDING)], {'unique': True}),
+    IndexDefinition('dsh_world_data', 'dsh_world_data_resource', [('resourceId', ASCENDING)], {}),
+    IndexDefinition('dsh_world_data', 'dsh_world_data_version', [('resourceVersionId', ASCENDING)], {}),
+    IndexDefinition('dsh_world_data', 'dsh_world_data_sha256', [('data.sha256', ASCENDING)], {}),
 )
 
 

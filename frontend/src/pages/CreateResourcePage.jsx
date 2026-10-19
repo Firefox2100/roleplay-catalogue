@@ -11,6 +11,7 @@ const RESOURCE_TYPES = [
   'sillytavern/preset',
   'core/image',
   'world-simulation-engine/world',
+  'dsh-agentic-roleplay/world',
 ]
 
 const VISIBILITIES = ['private', 'authenticated', 'public']
@@ -54,11 +55,14 @@ export function CreateResourcePage() {
       if (resource.resourceType === 'sillytavern/character' ||
           resource.resourceType === 'sillytavern/lorebook' ||
           resource.resourceType === 'sillytavern/preset' ||
-          resource.resourceType === 'world-simulation-engine/world') {
+          resource.resourceType === 'world-simulation-engine/world' ||
+          resource.resourceType === 'dsh-agentic-roleplay/world') {
         const editorPath = resource.resourceType === 'sillytavern/lorebook'
           ? `/lorebooks/${resource.id}/edit`
           : resource.resourceType === 'sillytavern/preset'
             ? `/presets/${resource.id}/edit`
+          : resource.resourceType === 'dsh-agentic-roleplay/world'
+            ? `/agentic-worlds/${resource.id}/edit`
           : resource.resourceType === 'world-simulation-engine/world'
             ? `/worlds/${resource.id}/edit`
             : `/resources/${resource.id}/edit`

@@ -13,6 +13,7 @@ const RESOURCE_TABS = [
   { value: 'sillytavern/preset', label: 'presets' },
   { value: 'core/image', label: 'images' },
   { value: 'world-simulation-engine/world', label: 'worlds' },
+  { value: 'dsh-agentic-roleplay/world', label: 'agenticWorlds' },
 ]
 
 function PersonalResourceCard({ resource }) {
@@ -22,7 +23,8 @@ function PersonalResourceCard({ resource }) {
   const isPreset = resource.resourceType === 'sillytavern/preset'
   const isImage = resource.resourceType === 'core/image'
   const isWorld = resource.resourceType === 'world-simulation-engine/world'
-  const isEditable = isCharacter || isLorebook || isPreset || isImage || isWorld
+  const isDshWorld = resource.resourceType === 'dsh-agentic-roleplay/world'
+  const isEditable = isCharacter || isLorebook || isPreset || isImage || isWorld || isDshWorld
   const imageUrl = resourceImageUrl(resource)
   const content = (
     <article className={`catalogue-card ${isEditable ? 'editable' : 'unavailable'}`}>
@@ -47,7 +49,8 @@ function PersonalResourceCard({ resource }) {
     ? `/images/${resource.id}/edit`
     : isLorebook ? `/lorebooks/${resource.id}/edit`
     : isPreset ? `/presets/${resource.id}/edit`
-      : isWorld ? `/worlds/${resource.id}/edit` : `/resources/${resource.id}/edit`
+      : isWorld ? `/worlds/${resource.id}/edit`
+        : isDshWorld ? `/agentic-worlds/${resource.id}/edit` : `/resources/${resource.id}/edit`
   return (
     <Link className="my-resource-link" to={editorPath}
       state={{ resource }} aria-label={t('myResources.editResource', { name: resource.metadata.name })}>

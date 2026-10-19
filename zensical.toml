@@ -21,6 +21,7 @@ nav = [
     { "Chat Presets" = "features/chat-presets.md" },
     { "Images and Covers" = "features/images.md" },
     { "World Bundles" = "features/worlds.md" },
+    { "Agentic Roleplay Worlds" = "features/agentic-roleplay-worlds.md" },
     { "Versioning and Releases" = "features/versioning.md" },
     { "Forking" = "features/forking.md" },
     { "Collaborative Editing" = "features/collaborative-editing.md" },

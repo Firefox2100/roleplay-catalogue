@@ -196,6 +196,14 @@ export async function importPreset(resourceId, file) {
   })).json()
 }
 
+export async function importDshWorld(resourceId, file) {
+  const form = new FormData()
+  form.append('file', file)
+  return (await request(`/api/resources/${resourceId}/import-dsh-world`, {
+    method: 'POST', headers: await csrfHeaders(), body: form,
+  })).json()
+}
+
 export async function getResource(resourceId) {
   return (await request(`/api/resources/${resourceId}`)).json()
 }

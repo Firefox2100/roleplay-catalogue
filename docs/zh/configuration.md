@@ -37,7 +37,7 @@
 | `RC_MONGODB_PORT` | `27017` | MongoDB 端口。 |
 | `RC_MONGODB_NAME` | `roleplay-catalogue` | 数据库名称。 |
 | `RC_MONGODB_DIRECT_CONNECTION` | `false` | 如果为 `true`，跳过副本集发现机制，仅连接 `RC_MONGODB_HOST` 列出的主机。事务要求使用副本集模式。 |
-| `RC_MONGODB_REPLICA_SET` | `rs0` | 副本集名称。`mongod` 命令行 `--replSet` 标志的值必须与此一致。留空表示使用独立 MongoDB 连接。 |
+| `RC_MONGODB_REPLICA_SET` | 空 | 副本集名称。项目提供的 Compose 环境将其设为 `rs0`。事务需要副本集或分片集群。 |
 | `RC_MONGODB_USERNAME` | 空 | MongoDB 认证的可选用户名。与 `RC_MONGODB_PASSWORD` 都留空表示不使用认证连接。 |
 | `RC_MONGODB_PASSWORD` | 空 | MongoDB 认证的可选密码，与 `RC_MONGODB_USERNAME` 搭配使用。认证数据库（`authSource`）为 `RC_MONGODB_NAME`。 |
 
@@ -59,13 +59,14 @@ MongoDB 事务对原子多文档操作（例如在一次写入中创建资源、
 
 | 变量 | 默认值 | 说明 |
 |---|---|---|
-| `RC_S3_ENDPOINT_URL` | `http://127.0.0.1:9000` | S3 API 端点 URL。生产环境设为 `https://s3.amazonaws.com` 或你的提供商端点。 |
+| `RC_S3_ENDPOINT_URL` | 空 | 可选的 S3 API 端点 URL。项目提供的 Compose 环境会指向 MinIO。 |
 | `RC_S3_REGION` | `us-east-1` | AWS 区域标识符。部分提供商要求为空字符串。 |
-| `RC_S3_ACCESS_KEY_ID` | `minioadmin` | S3 访问密钥。 |
-| `RC_S3_SECRET_ACCESS_KEY` | `minioadmin` | S3 密钥。 |
+| `RC_S3_ACCESS_KEY_ID` | 空 | S3 访问密钥。Compose 配置默认为 `minioadmin`。 |
+| `RC_S3_SECRET_ACCESS_KEY` | 空 | S3 秘密密钥。Compose 配置默认为 `minioadmin`。 |
 | `RC_S3_BUCKET` | `roleplay-catalogue` | S3 存储桶名称。Docker Compose 初始化任务会自动创建。外部服务请确保已存在。 |
 | `RC_IMAGE_MAX_BYTES` | `20971520`（20 MiB） | 图片上传的最大大小（封面图、独立图片）。 |
 | `RC_WORLD_BUNDLE_MAX_BYTES` | `104857600`（100 MiB） | 世界模拟数据包上传的最大大小。 |
+| `RC_DSH_WORLD_MAX_BYTES` | `104857600`（100 MiB） | DeepSeek Harness Agentic Roleplay 世界 ZIP 的最大压缩大小。解包后内容上限为 512 MiB，最多 5,000 个条目。 |
 | `RC_PRESET_MAX_BYTES` | `5242880`（5 MiB） | SillyTavern 预设上传的最大大小。 |
 
 ## SMTP（邮件）
@@ -119,4 +120,4 @@ MongoDB 事务对原子多文档操作（例如在一次写入中创建资源、
 
 ## CSRF 保护
 
-跨站请求伪造保护由一个中间件提供，该中间件要求每个会修改数据的请求携带 `x-csrf-token` 头（GET 和 OPTIONS 请求除外）。令牌来自前一次请求中的 `SEC_COOKIE_NAME` Cookie。通过 Bearer Token 认证 API 请求可豁免 CSRF 检查。
+会修改数据的请求必须携带 `x-csrf-token` 请求头。先请求 `GET /auth/csrf` 获取令牌，令牌保存在签名 Session 中。`GET`、`HEAD`、`OPTIONS` 和 `TRACE` 请求无需令牌。仅使用 Bearer API Key 认证时也可免除检查；如果请求同时带有活跃的浏览器 Session，仍需提供令牌。

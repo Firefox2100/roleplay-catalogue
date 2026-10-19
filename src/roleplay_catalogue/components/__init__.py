@@ -30,3 +30,6 @@ from .world_bundle import (
     parse_world_bundle,
     resource_language_from_world,
 )
+from .dsh_world_bundle import (
+    DshWorldBundleError, ParsedDshWorldBundle, parse_dsh_world_bundle,
+)

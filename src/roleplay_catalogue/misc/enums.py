@@ -17,6 +17,7 @@ class ResourceType(StrEnum):
     SILLY_TAVERN_PRESET = 'sillytavern/preset'
     IMAGE = 'core/image'
     WORLD_SIMULATION_WORLD = 'world-simulation-engine/world'
+    DSH_AGENTIC_ROLEPLAY_WORLD = 'dsh-agentic-roleplay/world'
 
 
 class ResourceVisibility(StrEnum):

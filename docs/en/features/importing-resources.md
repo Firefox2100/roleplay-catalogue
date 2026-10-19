@@ -4,7 +4,7 @@ The **import** feature lets you merge external content into an existing resource
 
 ## Overview
 
-Import handles three scenarios:
+Import handles two common scenarios:
 
 - **Merge**: The resource already has draft data. The imported content fills blank fields or appends to existing lists, preserving what's already there.
 - **Initialisation**: The resource has no draft data yet. Import creates the initial draft from the imported content.
@@ -21,6 +21,8 @@ When importing into an existing draft, the system uses a **recursive merge** alg
 | Nested objects | Recursively merged at each level |
 
 Character-card and lore-book imports preserve existing non-blank fields and merge incoming data. Preset imports are different: importing a preset replaces the preset draft. Export the current draft first if you may need it later.
+
+WorldSE imports update their structured draft. DeepSeek Harness agentic-roleplay uploads replace the native draft ZIP as a whole.
 
 ## How to import by type
 
@@ -94,6 +96,16 @@ After import, the world resource's metadata is updated:
 - **Tags** imported from the world are appended to existing tags (deduplication applied).
 - **Description** follows the merge rule: existing description is kept; imported description fills only when empty.
 
+### DeepSeek Harness agentic-roleplay worlds
+
+**Endpoint**: `POST /resources/{resourceId}/import-dsh-world`
+
+**Format**: `.zip` containing one native world folder
+
+This upload replaces the draft package instead of merging individual files. The ZIP must contain one top-level folder with `world.json` directly inside it. The importer validates safe paths and JSON syntax, normalizes the archive, indexes its files for release diffs, and adds an ID to `world.json` when one is missing.
+
+Native metadata is kept separate from catalogue metadata. In the editor, **Use package metadata** copies the world name and description and merges its tags when you want them. See [DeepSeek Harness Agentic Roleplay Worlds](agentic-roleplay-worlds.md) for the package rules and installation steps.
+
 ## Importing from the UI
 
 Each resource type has an import button on its editing page. Click import, select the file, and choose one of the supported formats. The system validates the file, extracts the data, and merges it into your draft.
@@ -106,6 +118,7 @@ Each resource type has an import button on its editing page. Click import, selec
 | File size — character cards | Limited by `RC_IMAGE_MAX_BYTES` (default 20 MiB) |
 | File size — presets | Limited by `RC_PRESET_MAX_BYTES` (default 5 MiB) |
 | File size — world bundles | Limited by `RC_WORLD_BUNDLE_MAX_BYTES` (default 100 MiB) |
+| Agentic-roleplay world file size | Limited by `RC_DSH_WORLD_MAX_BYTES` (default 100 MiB compressed) |
 | PNG card detection | Reads `tEXt` chunks: `ccv3` → V3, `chara` → V2 |
 | Lorebook extraction from PNG | Requires the card's `character_book` field to be present |
 

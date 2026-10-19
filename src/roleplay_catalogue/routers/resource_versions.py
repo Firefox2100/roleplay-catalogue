@@ -25,6 +25,7 @@ from roleplay_catalogue.components import (
     get_owned_resource,
     get_readable_version,
     merge_linked_lorebooks,
+    parse_dsh_world_bundle,
     read_storage_object,
     resolve_download_asset,
     resource_editor_ids,
@@ -115,6 +116,7 @@ async def export_resource_draft(resource_id: str, database: DatabaseDependency,
             ResourceType.SILLY_TAVERN_LOREBOOK,
             ResourceType.SILLY_TAVERN_PRESET,
             ResourceType.WORLD_SIMULATION_WORLD,
+            ResourceType.DSH_AGENTIC_ROLEPLAY_WORLD,
     ):
         raise HTTPException(status.HTTP_409_CONFLICT, 'Resource type cannot be exported')
     if not resource.draft_data_id:
@@ -156,9 +158,13 @@ async def export_resource_draft(resource_id: str, database: DatabaseDependency,
         data = draft.data
         artifact = data.model_dump_json(by_alias=True, exclude_none=True).encode('utf-8')
         content_type, extension = 'application/json', '.json'
-    else:
+    elif resource.resource_type == ResourceType.WORLD_SIMULATION_WORLD:
         data = apply_resource_metadata_to_world(draft.data, resource)
         artifact = await build_world_bundle(data, database, storage)
+        content_type, extension = 'application/zip', '.zip'
+    else:
+        data = draft.data
+        artifact = await read_storage_object(storage, data.object_key)
         content_type, extension = 'application/zip', '.zip'
     export_name = data.name if resource.resource_type == ResourceType.SILLY_TAVERN_CHARACTER else resource.metadata.name
     file_name = f'{export_name or resource.metadata.name}.draft{extension}'
@@ -183,6 +189,7 @@ async def publish_resource(resource_id: str, payload: PublishResourceRequest,
             ResourceType.SILLY_TAVERN_LOREBOOK,
             ResourceType.SILLY_TAVERN_PRESET,
             ResourceType.WORLD_SIMULATION_WORLD,
+            ResourceType.DSH_AGENTIC_ROLEPLAY_WORLD,
     ):
         raise HTTPException(status.HTTP_409_CONFLICT, 'This resource type cannot be published yet')
     if not resource.draft_data_id:
@@ -232,11 +239,17 @@ async def publish_resource(resource_id: str, payload: PublishResourceRequest,
         snapshot_data = draft.data
         artifact = snapshot_data.model_dump_json(by_alias=True, exclude_none=True).encode('utf-8')
         content_type, extension = 'application/json', '.json'
-    else:
+    elif resource.resource_type == ResourceType.WORLD_SIMULATION_WORLD:
         snapshot_data = apply_resource_metadata_to_world(draft.data, resource)
         artifact = await build_world_bundle(snapshot_data, database, storage)
         content_type, extension = 'application/zip', '.zip'
+    else:
+        snapshot_data = draft.data
+        artifact = await read_storage_object(storage, snapshot_data.object_key)
+        content_type, extension = 'application/zip', '.zip'
     object_key = f'releases/{resource.id}/{version_id}{extension}'
+    if resource.resource_type == ResourceType.DSH_AGENTIC_ROLEPLAY_WORLD:
+        snapshot_data = snapshot_data.model_copy(update={'object_key': object_key})
     artifact_name = (
         snapshot_data.name
         if resource.resource_type == ResourceType.SILLY_TAVERN_CHARACTER
@@ -351,6 +364,7 @@ async def fork_resource_version(version_id: str, database: DatabaseDependency,
             ResourceType.SILLY_TAVERN_LOREBOOK,
             ResourceType.SILLY_TAVERN_PRESET,
             ResourceType.WORLD_SIMULATION_WORLD,
+            ResourceType.DSH_AGENTIC_ROLEPLAY_WORLD,
     ):
         raise HTTPException(status.HTTP_409_CONFLICT, 'This release type cannot be forked')
     source = await database.resource.get(version.resource_id)
@@ -422,6 +436,18 @@ async def fork_resource_version(version_id: str, database: DatabaseDependency,
         ),
     )
     draft = draft.model_copy(update={'resource_id': fork.id})
+    fork_object_key = None
+    if version.resource_type == ResourceType.DSH_AGENTIC_ROLEPLAY_WORLD:
+        fork_object_key = f'drafts/dsh-worlds/{fork.id}/{uuid4()}.zip'
+        source_bytes = await read_storage_object(storage, snapshot.data.object_key)
+        parsed_fork = parse_dsh_world_bundle(
+            source_bytes, fork_object_key, assign_new_id=True,
+        )
+        await storage.upload(fork_object_key, parsed_fork.payload, 'application/zip')
+        await storage.wait_until_available(fork_object_key)
+        draft = draft.model_copy(update={
+            'data': parsed_fork.data,
+        })
     try:
         await database.resource.create(fork)
         try:
@@ -431,6 +457,8 @@ async def fork_resource_version(version_id: str, database: DatabaseDependency,
             raise
         return fork
     except Exception:
+        if fork_object_key:
+            await storage.remove(fork_object_key)
         if created_cover:
             image_version = await database.resource_version.get_latest(created_cover.id)
             image_document = (

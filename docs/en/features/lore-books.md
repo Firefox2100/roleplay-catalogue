@@ -35,8 +35,8 @@ Every character card draft maintains a list of **linked lorebook references**. F
 
 | Mode | Behaviour |
 |------|-----------|
-| **Link Draft** | Live — the character card will always use the latest published content when the card itself is re-published. |
-| **Link Release Version** | Locked — the character card preserves the exact state of the lorebook at the time of linking. |
+| **Link Draft** | Available while editing. Select a release before publishing the character card. |
+| **Link Release Version** | Pins the exact lorebook release used by the character card. |
 
 When a character card is published, every linked lorebook is **merged into the compiled JSON** of the card. The publishing user does not need to export or download the lorebooks separately.
 
@@ -59,7 +59,7 @@ You can fork a published lorebook. A forked lorebook carries all of the source v
 
 ## Tips and Notes
 
-- **Links are a double-edged sword.** When the published source lorebook changes, every character card that links to its *live* draft will reflect that change on their next publish. If you want stability, link a pinned release version instead.
+- **Pin before publishing.** A character draft may point at a lorebook draft, but publication requires a specific lorebook release. This keeps the character artifact reproducible.
 - **Deletion protection.** A lorebook that is currently linked to a character card cannot be deleted from the catalogue. You must remove the link first.
 - **PNG import convenience.** If your lorebook is embedded inside a PNG character card, one upload gives you both — perfect for sharing complete sets.
 - **Versioning is automatic.** Every time you publish, a new immutable version is created and added to the version history — you can always roll back or diff back.

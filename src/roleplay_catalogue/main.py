@@ -26,6 +26,7 @@ from roleplay_catalogue.routers import (
     resource_version_router,
     world_router,
     preset_router,
+    dsh_world_router,
 )
 from roleplay_catalogue.middleware import CSRFMiddleware, SecurityHeadersMiddleware
 
@@ -183,6 +184,7 @@ for router in (
     image_data_router, image_router,
     world_router,
     preset_router,
+    dsh_world_router,
 ):
     app.include_router(router, prefix=CONFIG.api_prefix)
 

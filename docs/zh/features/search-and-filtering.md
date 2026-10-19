@@ -1,6 +1,6 @@
 # 搜索与过滤
 
-角色扮演资源库提供对角色卡、世界书、预设和世界的全文搜索，并支持按资源类型、标签、作者和发布状态进行过滤。结果分页显示，可按相关度或日期排序。
+角色扮演资源库可搜索资源名称和描述，也支持按资源类型、标签、作者和发布状态过滤。结果可按最近更新或热度排序；文本搜索优先按相关度排序。
 
 ## 概览
 
@@ -8,13 +8,7 @@
 
 ### 搜索索引
 
-`searchString` 参数利用 **MongoDB Community Search**（`$text` 查询）对资源集合上的文本索引进行检索。索引包含：
-
-- 资源元数据（名称、描述、标签）
-- 草稿类型特定数据中渲染的内容（例如角色卡的完整 JSON、世界书条目、预设参数）
-- 对于角色卡，**合并内容** — 卡片数据与任意关联并合并的世界书条目文本的组合
-
-这意味着搜索角色卡可以匹配在卡片本身或附加的世界书中出现的关键字。
+`searchString` 参数使用 MongoDB `$text` 查询和加权文本索引。名称的权重高于描述。标签以及上传的角色卡、世界书、预设和世界内容不在该文本索引中。
 
 ## 过滤选项
 
@@ -23,16 +17,17 @@
 过滤到单一资源分类：
 
 ```
-GET /resources?resourceType=character
+GET /resources?resourceType=sillytavern/character
 ```
 
 | 接受的值 | 描述 |
 |---|---|
-| `character` | SillyTavern 角色卡 |
-| `lorebook` | 世界书资源 |
-| `preset` | 聊天完成预设 |
-| `world` | World Simulation Engine 世界 |
-| `image` | 独立图片资源 |
+| `sillytavern/character` | SillyTavern 角色卡 |
+| `sillytavern/lorebook` | 世界书资源 |
+| `sillytavern/preset` | 聊天完成预设 |
+| `world-simulation-engine/world` | World Simulation Engine 世界 |
+| `dsh-agentic-roleplay/world` | DeepSeek Harness Agentic Roleplay 世界 |
+| `core/image` | 独立图片资源 |
 
 ### 按标签
 
@@ -58,7 +53,7 @@ GET /resources/tags?search=cy&limit=10
 GET /resources?author=Alice
 ```
 
-作者过滤器使用精确用户名（区分大小写）。如果作者不存在，则返回空结果集。
+作者过滤器会查找所提供的用户名。如果作者不存在，则返回空结果集。
 
 ### 按发布状态
 
@@ -121,7 +116,8 @@ GET /resources?offset=0&limit=50
 资源排序规则如下：
 
 - **搜索结果**（提供 `searchString`）：相关度评分（降序），然后 `updatedAt`（降序）。
-- **非搜索结果**：`updatedAt`（降序 — 最新更新优先）。
+- **非搜索结果**：默认按 `updatedAt` 降序。
+- **热门结果**（`sort=popular`）：依次按下载次数、浏览次数和 `updatedAt` 降序。计数归属于资源本身，各个发布版本共用同一组总数。
 
 ## 浏览与下载次数
 
@@ -139,9 +135,6 @@ GET /resources?offset=0&limit=50
 
 > [!NOTE]
 > **自动完成端点感知可见性。** 已登录用户看到的标签涵盖 `AUTHENTICATED` 资源以及 `PUBLIC` 资源。未登录用户仅看到 `PUBLIC` 资源标签。
-
-> [!NOTE]
-> **搜索时合并角色卡的世界书内容。** 如果角色卡关联了世界书，在世界书中搜索关键字也能匹配到该角色卡，即使该关键字未出现在卡片本身。
 
 > [!NOTE]
 > **导入时标签去重。** 导入卡片或世界书时，新标签仅在资源现有标签列表不存在时才被追加。

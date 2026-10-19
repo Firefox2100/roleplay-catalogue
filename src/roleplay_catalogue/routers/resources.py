@@ -18,6 +18,8 @@ from roleplay_catalogue.models import (
     SillyTavernPresetDataDocument,
     WorldBundleData,
     WorldDataDocument,
+    DshWorldData,
+    DshWorldDataDocument,
 )
 from roleplay_catalogue.models.roleplay_resource.resource import utc_now
 from roleplay_catalogue.models.roleplay_resource.silly_tavern import (
@@ -43,6 +45,7 @@ from .utils import (
     CacheDependency,
     DatabaseDependency,
     OptionalAuthenticatedUserDependency,
+    StorageDependency,
 )
 
 
@@ -122,19 +125,23 @@ ResourceDataResponse = (
     SillyTavernLorebookDataDocument |
     ImageDataDocument |
     SillyTavernPresetDataDocument |
-    WorldDataDocument
+    WorldDataDocument |
+    DshWorldDataDocument
 )
 
 
-def validate_resource_data(resource_type: ResourceType,
-                           data: dict[str, Any],
-                           ) -> SillyTavernCharacterData | SillyTavernCardV3LoreBook | SillyTavernPresetData | ImageData | WorldBundleData:
+def validate_resource_data(
+        resource_type: ResourceType,
+        data: dict[str, Any],
+) -> (SillyTavernCharacterData | SillyTavernCardV3LoreBook | SillyTavernPresetData |
+      ImageData | WorldBundleData | DshWorldData):
     models = {
         ResourceType.SILLY_TAVERN_CHARACTER: SillyTavernCharacterData,
         ResourceType.SILLY_TAVERN_LOREBOOK: SillyTavernCardV3LoreBook,
         ResourceType.SILLY_TAVERN_PRESET: SillyTavernPresetData,
         ResourceType.IMAGE: ImageData,
         ResourceType.WORLD_SIMULATION_WORLD: WorldBundleData,
+        ResourceType.DSH_AGENTIC_ROLEPLAY_WORLD: DshWorldData,
     }
     try:
         return models[resource_type].model_validate(data)
@@ -144,15 +151,18 @@ def validate_resource_data(resource_type: ResourceType,
         raise
 
 
-def create_data_document(resource: Resource,
-                         data: SillyTavernCharacterData | SillyTavernCardV3LoreBook | SillyTavernPresetData | ImageData | WorldBundleData,
-                         ) -> ResourceDataResponse:
+def create_data_document(
+        resource: Resource,
+        data: (SillyTavernCharacterData | SillyTavernCardV3LoreBook | SillyTavernPresetData |
+               ImageData | WorldBundleData | DshWorldData),
+) -> ResourceDataResponse:
     models = {
         ResourceType.SILLY_TAVERN_CHARACTER: SillyTavernCharacterDataDocument,
         ResourceType.SILLY_TAVERN_LOREBOOK: SillyTavernLorebookDataDocument,
         ResourceType.SILLY_TAVERN_PRESET: SillyTavernPresetDataDocument,
         ResourceType.IMAGE: ImageDataDocument,
         ResourceType.WORLD_SIMULATION_WORLD: WorldDataDocument,
+        ResourceType.DSH_AGENTIC_ROLEPLAY_WORLD: DshWorldDataDocument,
     }
     if resource.resource_type == ResourceType.IMAGE:
         return models[resource.resource_type](
@@ -333,6 +343,11 @@ async def upsert_resource_data(resource_id: str,
                                if_match: str | None = Header(None, alias='If-Match'),
                                ) -> ResourceDataResponse:
     resource = await get_editable_resource(database, resource_id, user)
+    if resource.resource_type == ResourceType.DSH_AGENTIC_ROLEPLAY_WORLD:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            'DeepSeek Harness world data must be replaced through a ZIP upload',
+        )
     data = validate_resource_data(resource.resource_type, payload.data)
     repository = get_data_repository(database, resource.resource_type)
 
@@ -455,6 +470,7 @@ async def remove_co_author(resource_id: str,
 async def delete_resource(resource_id: str,
                           database: DatabaseDependency,
                           cache: CacheDependency,
+                          storage: StorageDependency,
                           user: AuthenticatedUserDependency,
                           ) -> None:
     resource = await get_owned_resource(database, resource_id, user)
@@ -470,6 +486,11 @@ async def delete_resource(resource_id: str,
             'Published resources cannot be deleted',
         )
 
+    draft_object_key = None
+    if resource.draft_data_id and resource.resource_type == ResourceType.DSH_AGENTIC_ROLEPLAY_WORLD:
+        draft = await database.dsh_world_data.get(resource.draft_data_id)
+        draft_object_key = draft.data.object_key if draft else None
+
     async def delete_records() -> None:
         if resource.draft_data_id:
             repository = get_data_repository(database, resource.resource_type)
@@ -477,4 +498,6 @@ async def delete_resource(resource_id: str,
         await database.resource.delete(resource.id)
 
     await database.transaction(delete_records)
+    if draft_object_key:
+        await storage.remove(draft_object_key)
     await cache.resource_metrics.delete(resource.id)

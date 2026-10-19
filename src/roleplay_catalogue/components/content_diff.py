@@ -3,11 +3,13 @@ from difflib import unified_diff
 from pydantic import BaseModel
 
 
-def render_release_text(payload: BaseModel | None) -> str | None:
+def render_release_text(payload: BaseModel | None, *, exclude: set[str] | None = None) -> str | None:
     """Render a release payload as deterministic, indented JSON text for diffing."""
     if payload is None:
         return None
-    return payload.model_dump_json(by_alias=True, exclude_none=True, indent=2) + '\n'
+    return payload.model_dump_json(
+        by_alias=True, exclude_none=True, exclude=exclude, indent=2,
+    ) + '\n'
 
 
 def build_content_diff(previous_text: str | None, current_text: str | None) -> str | None:

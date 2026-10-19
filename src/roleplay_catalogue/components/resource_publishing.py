@@ -187,7 +187,12 @@ async def compute_release_content_diff(*, resource: Resource,
     else:
         diff_current = current_data
         diff_previous = previous_document.data if previous_document else None
-    return build_content_diff(render_release_text(diff_previous), render_release_text(diff_current))
+    excluded = {'object_key'} if resource.resource_type == \
+        ResourceType.DSH_AGENTIC_ROLEPLAY_WORLD else None
+    return build_content_diff(
+        render_release_text(diff_previous, exclude=excluded),
+        render_release_text(diff_current, exclude=excluded),
+    )
 
 
 async def snapshot_lorebook_references(links: tuple[LorebookReference, ...],

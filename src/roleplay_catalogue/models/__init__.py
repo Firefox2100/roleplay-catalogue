@@ -20,4 +20,7 @@ from .roleplay_resource import (
     WorldBundleData,
     WorldDataDocument,
     WorldMediaReference,
+    DshWorldData,
+    DshWorldDataDocument,
+    DshWorldFile,
 )

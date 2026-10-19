@@ -42,15 +42,21 @@ Upload and share WorldSE-compatible `.zip` bundles. Embedded images are extracte
 
 - [Detailed guide: World Bundles](features/worlds.md)
 
+### DeepSeek Harness Agentic Roleplay Worlds
+
+Upload a native `dsh-agentic-roleplay` world folder as a ZIP and publish install-ready releases without converting the package to WorldSE. The catalogue indexes the package for metadata, cover handling, and file-manifest diffs while leaving full world-model validation to Harness.
+
+- [Detailed guide: Agentic Roleplay Worlds](features/agentic-roleplay-worlds.md)
+
 ### Versioning & Releases
 
-Every resource follows a **draft → release** workflow. The draft is editable at any time; releasing creates an immutable snapshot with its own visibility, content diff, and S3 artifact.
+Characters, lorebooks, presets, and both world formats use a draft and release workflow. The draft remains editable; publishing creates an immutable snapshot with its own visibility, content diff, and stored artifact. Images are uploaded as immutable resources and are not published separately.
 
 - [Detailed guide: Versioning](features/versioning.md)
 
 ### Forking
 
-Fork any published version to create a derived resource under your account. Cover images are deduplicated, lorebooks carry over, and the fork starts private for safe editing before share.
+Fork a readable published character, lorebook, preset, or world release to create a private draft under your account. The new resource keeps its source reference, and reusable cover images are matched by SHA-256 within the fork owner's library.
 
 - [Detailed guide: Forking](features/forking.md)
 
@@ -62,7 +68,7 @@ Authors invite co-authors to edit a resource's draft. Co-authors can upload data
 
 ### Search & Filtering
 
-Full-text search via MongoDB Community Search, tag / type / author filtering, pagination, and tag-autocomplete.
+MongoDB text search, tag / type / author filtering, pagination, tag autocomplete, and recent or popular sorting.
 
 Resource cards and detail pages also show anonymous view and download counts. Opening a detail page records a view. Downloading through the application or creating a signed download link records a download.
 
@@ -70,6 +76,6 @@ Resource cards and detail pages also show anonymous view and download counts. Op
 
 ### Importing Resources
 
-Import existing SillyTavern content — character cards (JSON / PNG), lorebooks, presets, and world bundles. The catalogue **merges** incoming data into drafts to avoid overwriting hand-crafted edits.
+Import existing SillyTavern content, WorldSE bundles, and native agentic-roleplay world ZIPs. Character and lorebook imports merge with their drafts; presets and native agentic-world ZIPs replace the type-specific draft payload.
 
 - [Detailed guide: Importing Resources](features/importing-resources.md)

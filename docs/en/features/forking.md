@@ -23,7 +23,7 @@ Navigate to the detail page of any publishable resource version. Click the **For
 
 | Field | Source → Fork |
 |---|---|
-| Resource type | Identical (character, lorebook, preset, or world) |
+| Resource type | Identical (character, lorebook, preset, WorldSE world, or agentic-roleplay world) |
 | Draft data | Full snapshot of the version's data becomes your editable draft |
 | `forkedFrom` | Records the original `resourceId` and `versionId` as a reference chain |
 | Name | Default: **"Forked from [source name]"** — you can rename freely |
@@ -66,11 +66,13 @@ Before publishing, you can export the fork's draft exactly as any other resource
 - Presets: `.draft.json`
 - Worlds: `.draft.zip`
 
+For a DeepSeek Harness agentic-roleplay world, the fork is built from the selected release ZIP and receives a new native world ID. This prevents an installed fork from colliding with its source.
+
 ## Constraints
 
 | Constraint | Limit |
 |---|---|
-| Resource types supportable | Character, Lorebook, Preset, World |
+| Supported resource types | Character, Lorebook, Preset, WorldSE world, DeepSeek Harness agentic-roleplay world |
 | Image resources | Not forkable (image data is inherently a single immutable upload) |
 | Published versions only | Unpublished draft edits are not included |
 | Fork naming | Default is auto-generated; can be changed freely |

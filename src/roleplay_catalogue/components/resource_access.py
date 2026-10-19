@@ -92,5 +92,6 @@ def get_data_repository(database: DatabaseService,
         ResourceType.SILLY_TAVERN_PRESET: 'silly_tavern_preset_data',
         ResourceType.IMAGE: 'image_data',
         ResourceType.WORLD_SIMULATION_WORLD: 'world_data',
+        ResourceType.DSH_AGENTIC_ROLEPLAY_WORLD: 'dsh_world_data',
     }[resource_type]
     return getattr(database, attribute)

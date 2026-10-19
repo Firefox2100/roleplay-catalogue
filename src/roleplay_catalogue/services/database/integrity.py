@@ -15,6 +15,8 @@ async def check_integrity(database: AsyncDatabase) -> list[str]:
          'preset documents with a missing resource'),
         ('image_data', 'resourceId', 'resources', 'id', 'image documents with a missing resource'),
         ('world_data', 'resourceId', 'resources', 'id', 'world documents with a missing resource'),
+        ('dsh_world_data', 'resourceId', 'resources', 'id',
+         'DeepSeek Harness world documents with a missing resource'),
     )
     problems: list[str] = []
     for source, local_field, target, foreign_field, description in checks:
@@ -38,6 +40,7 @@ async def check_integrity(database: AsyncDatabase) -> list[str]:
         ('sillytavern_preset_data', 'preset snapshots'),
         ('image_data', 'image snapshots'),
         ('world_data', 'world snapshots'),
+        ('dsh_world_data', 'DeepSeek Harness world snapshots'),
     ):
         cursor = await database[collection].aggregate([
             {'$match': {'resourceVersionId': {'$ne': None}}},

@@ -1,6 +1,6 @@
 # Configuration
 
-The Roleplay Catalogue is configured entirely through environment variables. Every variable is prefixed with `RC_` unless it belongs to an external service (MongoDB, MinIO, etc.). The canonical reference is `example.env` at the repository root — copy it to `.env` before first use.
+Roleplay Catalogue is configured through environment variables. Application variables use the `RC_` prefix; Compose also reads variables for MongoDB, Nginx, and its exposed port. The canonical reference is `example.env` at the repository root. Copy it to `.env` before first use.
 
 All configuration is validated at startup by a [Pydantic Settings](https://docs.pydantic.dev/latest/concepts/pydantic_settings/) model. Invalid values cause the container to exit with an error message.
 
@@ -37,7 +37,7 @@ These variables come from `compose.yaml` and affect the Docker environment. They
 | `RC_MONGODB_PORT` | `27017` | MongoDB port. |
 | `RC_MONGODB_NAME` | `roleplay-catalogue` | Database name. |
 | `RC_MONGODB_DIRECT_CONNECTION` | `false` | If `true`, bypasses the replica set discovery mechanism and connects directly to the host listed in `RC_MONGODB_HOST` only. Replica set mode is required for transactions. |
-| `RC_MONGODB_REPLICA_SET` | `rs0` | Replica set name. The `mongod` command-line `--replSet` flag must match this value. Leave blank for a standalone MongoDB connection. |
+| `RC_MONGODB_REPLICA_SET` | empty | Replica set name. The supplied Compose environment sets it to `rs0`. Transactions require a replica set or sharded cluster. |
 | `RC_MONGODB_USERNAME` | empty | Optional username for MongoDB authentication. Leave both this and `RC_MONGODB_PASSWORD` empty to connect without authentication. |
 | `RC_MONGODB_PASSWORD` | empty | Optional password for MongoDB authentication, paired with `RC_MONGODB_USERNAME`. Authenticated against the `RC_MONGODB_NAME` database (`authSource`). |
 
@@ -54,17 +54,18 @@ Redis is not disposable cache storage in the current design. Production deployme
 
 ## S3-compatible storage
 
-The application uses S3-compatible storage for resource artifacts (character card files, lorebook files, preset files, images, and World Simulation Engine bundles). Any S3 API implementation works (AWS S3, MinIO, Cloudflare R2, etc.).
+The application uses S3-compatible storage for release artifacts, images, WorldSE bundles, and native agentic-roleplay ZIP files. MinIO is the tested local option. Other S3-compatible services may work, but this repository does not test every provider.
 
 | Variable | Default | Description |
 |---|---|---|
-| `RC_S3_ENDPOINT_URL` | `http://127.0.0.1:9000` | S3 API endpoint URL. Set to `https://s3.amazonaws.com` or your provider's endpoint for production. |
+| `RC_S3_ENDPOINT_URL` | empty | Optional S3 API endpoint URL. The supplied Compose environment points it at MinIO. |
 | `RC_S3_REGION` | `us-east-1` | AWS region identifier. Some providers require an empty string instead. |
-| `RC_S3_ACCESS_KEY_ID` | `minioadmin` | S3 access key. |
-| `RC_S3_SECRET_ACCESS_KEY` | `minioadmin` | S3 secret key. |
+| `RC_S3_ACCESS_KEY_ID` | empty | S3 access key. The supplied Compose setup defaults to `minioadmin`. |
+| `RC_S3_SECRET_ACCESS_KEY` | empty | S3 secret key. The supplied Compose setup defaults to `minioadmin`. |
 | `RC_S3_BUCKET` | `roleplay-catalogue` | S3 bucket name. The bucket is created automatically by the Docker Compose initialisation job; for external services ensure it already exists. |
 | `RC_IMAGE_MAX_BYTES` | `20971520` (20 MiB) | Maximum allowed size for image uploads (cover images, standalone images). |
 | `RC_WORLD_BUNDLE_MAX_BYTES` | `104857600` (100 MiB) | Maximum allowed size for World Simulation Engine bundle uploads. |
+| `RC_DSH_WORLD_MAX_BYTES` | `104857600` (100 MiB) | Maximum compressed size for DeepSeek Harness agentic-roleplay world ZIP uploads. The parser also limits expanded content to 512 MiB and 5,000 entries. |
 | `RC_PRESET_MAX_BYTES` | `5242880` (5 MiB) | Maximum allowed size for SillyTavern preset uploads. |
 
 ## SMTP (email)
@@ -116,6 +117,6 @@ The application supports two authentication modes: session cookies (browser logi
 > [!NOTE]
 > In Docker Compose mode, the Nginx sidecar serves the frontend directly. HSTS configuration for `NGINX_HSTS_HEADER` and `NGINX_CONTENT_SECURITY_POLICY` applies to those Nginx responses. Set both the FastAPI env var (for API responses) and the Nginx variable (for the SPA) for a consistent policy.
 
-## CSFR protection
+## CSRF protection
 
-Cross-Site Request Forgery protection is provided by a middleware that requires the `x-csrf-token` header on every unsafe request (GET and OPTIONS requests are exempt). The token itself comes from a previous `SEC_COOKIE_NAME` cookie. API-key authenticated requests are exempt from CSRF checks.
+Cross-Site Request Forgery protection requires the `x-csrf-token` header on unsafe requests. Fetch the token from `GET /auth/csrf`; it is stored in the signed session. `GET`, `HEAD`, `OPTIONS`, and `TRACE` are exempt. A request authenticated only with a Bearer API key is also exempt, while a request with an active browser session still needs the token.

@@ -6,3 +6,4 @@ from .resources import resource_router
 from .resource_versions import resource_version_router
 from .worlds import world_router
 from .presets import preset_router
+from .dsh_worlds import dsh_world_router

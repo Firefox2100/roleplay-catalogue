@@ -23,7 +23,7 @@ Fork 从创建的那一刻起就是你自己的资源 — 你可以编辑、重�
 
 | 字段 | 源 → Fork |
 |---|---|
-| 资源类型 | 完全相同（角色卡、世界书、预设或世界） |
+| 资源类型 | 完全相同（角色卡、世界书、预设、WorldSE 世界或 Agentic Roleplay 世界） |
 | 草稿数据 | 版本数据的完整快照成为你的可编辑草稿 |
 | `forkedFrom` | 记录原始 `resourceId` 和 `versionId` 作为引用链 |
 | 名称 | 默认值：**"Forked from [源名称]"** — 可以自由重命名 |
@@ -66,11 +66,13 @@ releases/{your_resource_id}/{your_version_id}{extension}
 - 预设：`.draft.json`
 - 世界：`.draft.zip`
 
+DeepSeek Harness Agentic Roleplay 世界会从选定的发布 ZIP 创建 Fork，并获得新的原生世界 ID。这样在同一环境安装 Fork 和源世界时不会冲突。
+
 ## 约束条件
 
 | 约束 | 限制 |
 |---|---|
-| 支持的资源类型 | 角色卡、世界书、预设、世界 |
+| 支持的资源类型 | 角色卡、世界书、预设、WorldSE 世界、DeepSeek Harness Agentic Roleplay 世界 |
 | 图片资源 | 不可 Fork（图片数据本质上是单一不可变上传） |
 | 仅已发布版本 | 未发布的草稿更改不包含在内 |
 | Fork 命名 | 默认自动生成；可以自由更改 |

@@ -13,7 +13,7 @@ Worlds function as standalone settings, modules, or expansions that characters c
 1. Open the world editor in the Catalogue.
 2. Click **Upload** and select your `.zip` WorldSE bundle file.
 3. The Catalogue validates the bundle structure and processes it:
-   - Embedded images are extracted and stored as **independent image resources**.
+   - PNG files referenced as `image/png` in `media/manifest.jsonl` are stored as independent image resources.
    - The language is detected automatically from the world's internal data.
    - Tags from the bundle metadata are merged with any additional tags you provide.
 4. Provide a **name** (required, up to 200 characters) and an optional **description** (up to 10,000 characters).
@@ -26,7 +26,7 @@ Worlds function as standalone settings, modules, or expansions that characters c
 2. Use the **"Select cover image"** flow to browse images that were extracted from your world bundle (or any other uploaded images).
 3. Save the world — the cover now points to the selected image.
 
-Images embedded in the uploaded ZIP that qualify as cover-worthy are automatically added to your image library.
+Referenced PNG media from the uploaded ZIP is added to your image library. The world's cover reference selects which of those images becomes the catalogue cover.
 
 ### Importing Tag Data
 
@@ -71,10 +71,10 @@ Every published world records an `artifact_file_name` and `artifact_sha256` hash
 | Maximum bundle size (`world_bundle_max_bytes`) | 100 MiB (104,857,600 bytes) |
 | Accepted format | ZIP bundle with WorldSE data |
 | Export format | ZIP |
-| Content diff | `null` (binary ZIP format has no textual representation) |
+| Content diff | Unified diff of the structured WorldSE data stored by the catalogue |
 | Supported languages | Detected from world data (English and Chinese Simplified) |
 | Artifacts verified by | `artifact_sha256` |
-| Resource type filter | Searchable via `resourceType=world` |
+| Resource type filter | `resourceType=world-simulation-engine/world` |
 
 ## Tips and Notes
 
@@ -83,4 +83,4 @@ Every published world records an `artifact_file_name` and `artifact_sha256` hash
 - **Merge-friendly tags.** Because world data tags and catalogue tags are merged, you can add additional descriptive tags in the Catalogue without losing the tags the world bundle originally shipped with.
 - **Dedup on fork.** When forking a world that references an image already stored in the Catalogue, your fork reuses that image. Only images not yet catalogued are copied, saving storage and keeping downloads fast.
 - **Hash verification.** Always verify the `artifact_sha256` of a downloaded world bundle against the published hash to ensure the file was not corrupted during transfer.
-- **Binary format.** World bundles use a binary ZIP format, so `content_diff` is `null` for all published world versions.
+- **Readable release history.** Downloads are ZIP files, but the catalogue computes `contentDiff` from its structured WorldSE data rather than from the ZIP bytes.

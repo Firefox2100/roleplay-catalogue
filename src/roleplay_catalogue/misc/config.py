@@ -125,6 +125,11 @@ class Settings(BaseSettings):
         ge=1_048_576,
         description='Maximum compressed World bundle upload size.',
     )
+    dsh_world_max_bytes: int = Field(
+        104_857_600,
+        ge=1_048_576,
+        description='Maximum compressed DeepSeek Harness world folder upload size.',
+    )
     preset_max_bytes: int = Field(
         5 * 1024 * 1024,
         ge=1024,

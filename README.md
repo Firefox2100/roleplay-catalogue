@@ -2,7 +2,7 @@
 
 [![License: GPL v3](https://www.gnu.org/graphics/gplv3-88x31.png)](https://www.gnu.org/licenses/gpl-3.0.en.html) [![Quality gate status](https://sonarcloud.io/api/project_badges/measure?project=Firefox2100_roleplay-catalogue&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=Firefox2100_roleplay-catalogue) [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=Firefox2100_roleplay-catalogue&metric=coverage)](https://sonarcloud.io/summary/new_code?id=Firefox2100_roleplay-catalogue) [![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=Firefox2100_roleplay-catalogue&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=Firefox2100_roleplay-catalogue)
 
-An open-source, self-hosted library for managing and sharing SillyTavern character cards, lore books, chat presets, images, and World Simulation Engine worlds.
+An open-source, self-hosted library for managing and sharing SillyTavern character cards, lore books, chat presets, images, World Simulation Engine bundles, and native DeepSeek Harness agentic-roleplay worlds.
 
 ## Purpose
 
@@ -19,12 +19,13 @@ A deployed instance holds no content filtering or included content; the hoster c
 - **SillyTavern character cards** — Upload and download in V3 format (V2 cards auto-convert on upload).
 - **Lore books** — First-class resource type with linking from character cards, reusable across multiple resources.
 - **Chat presets** — Create, share, and download SillyTavern generation presets.
-- **World Simulation Engine** — Upload and serve WorldSE world bundles.
+- World Simulation Engine: import, edit, and export WorldSE v1.0 bundles.
+- DeepSeek Harness worlds: preserve a native agentic-roleplay world folder as an install-ready ZIP, with releases, diffs, covers, and forks.
 - **Images** — Upload, manage, and assign cover images to any resource.
-- **Versioned releases** — Every resource supports draft → publish with numbered version history and unified content diffs (including merged linked lorebooks).
-- **Forking** — Users can fork any public resource to create a derived version while linking back to the original.
+- Versioned releases: publish immutable, numbered snapshots. Text-based formats get unified content diffs; agentic-world releases compare their indexed file manifests.
+- Forking: users can fork a readable published character, lorebook, preset, or world release while keeping a link to the source.
 - **Collaborative editing** — Authors invite co-authors to edit a resource's draft (publish and delete remain author-only).
-- **Search and filtering** — Discover resources by text, tags, type, and author; powered by MongoDB Community Search.
+- Search and filtering: discover resources by text, tags, type, author, recency, and popularity.
 - **Engagement counts** — See anonymous view and download counts on listings and detail pages.
 - **Two auth modes** — Session cookies for browser logins and Bearer API keys for programmatic access.
 - **CSRF protection** — Middleware-enforced token header on unsafe requests; API-key auth is exempt.

@@ -25,6 +25,8 @@ const WorldEditorPage = lazyPage(() => import('./pages/WorldEditorPage.jsx'), 'W
 const WorldDetailPage = lazyPage(() => import('./pages/WorldDetailPage.jsx'), 'WorldDetailPage')
 const PresetEditorPage = lazyPage(() => import('./pages/PresetEditorPage.jsx'), 'PresetEditorPage')
 const PresetDetailPage = lazyPage(() => import('./pages/PresetDetailPage.jsx'), 'PresetDetailPage')
+const DshWorldEditorPage = lazyPage(() => import('./pages/DshWorldEditorPage.jsx'), 'DshWorldEditorPage')
+const DshWorldDetailPage = lazyPage(() => import('./pages/DshWorldDetailPage.jsx'), 'DshWorldDetailPage')
 
 function LazyPageOutlet() {
   const { t } = useTranslation()
@@ -53,11 +55,13 @@ function App() {
             <Route path="lorebooks/:resourceId/edit" element={<LorebookEditorPage />} />
             <Route path="worlds/:resourceId/edit" element={<WorldEditorPage />} />
             <Route path="presets/:resourceId/edit" element={<PresetEditorPage />} />
+            <Route path="agentic-worlds/:resourceId/edit" element={<DshWorldEditorPage />} />
             <Route path="characters/:resourceId" element={<CharacterDetailPage />} />
             <Route path="images/:resourceId" element={<ImageDetailPage />} />
             <Route path="lorebooks/:resourceId" element={<LorebookDetailPage />} />
             <Route path="worlds/:resourceId" element={<WorldDetailPage />} />
             <Route path="presets/:resourceId" element={<PresetDetailPage />} />
+            <Route path="agentic-worlds/:resourceId" element={<DshWorldDetailPage />} />
             <Route path="*" element={<HomePage />} />
           </Route>
         </Route>

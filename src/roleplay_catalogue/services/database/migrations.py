@@ -8,6 +8,7 @@ REVISIONED_COLLECTIONS = (
     'sillytavern_preset_data',
     'image_data',
     'world_data',
+    'dsh_world_data',
 )
 
 

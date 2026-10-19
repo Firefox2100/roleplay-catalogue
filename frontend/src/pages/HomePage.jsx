@@ -11,12 +11,14 @@ const RESOURCE_TABS = [
   { value: 'sillytavern/lorebook', label: 'lorebooks' },
   { value: 'sillytavern/preset', label: 'presets' }, { value: 'core/image', label: 'images' },
   { value: 'world-simulation-engine/world', label: 'worlds' },
+  { value: 'dsh-agentic-roleplay/world', label: 'agenticWorlds' },
 ]
 
 function resourcePath(resource) {
   const prefix = { 'core/image': 'images', 'sillytavern/character': 'characters',
     'sillytavern/lorebook': 'lorebooks', 'sillytavern/preset': 'presets',
-    'world-simulation-engine/world': 'worlds' }[resource.resourceType]
+    'world-simulation-engine/world': 'worlds',
+    'dsh-agentic-roleplay/world': 'agentic-worlds' }[resource.resourceType]
   return prefix ? `/${prefix}/${resource.id}` : '/'
 }
 

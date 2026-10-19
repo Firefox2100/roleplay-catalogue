@@ -1,6 +1,7 @@
 from pydantic import BaseModel
 
 from roleplay_catalogue.components import build_content_diff, render_release_text
+from roleplay_catalogue.models import DshWorldData
 
 
 class Payload(BaseModel):
@@ -16,6 +17,18 @@ def test_render_release_text_is_deterministic_indented_json() -> None:
     text = render_release_text(Payload(name='Example', tags=['a', 'b']))
 
     assert text == '{\n  "name": "Example",\n  "tags": [\n    "a",\n    "b"\n  ]\n}\n'
+
+
+def test_render_release_text_can_hide_storage_only_fields() -> None:
+    payload = DshWorldData(
+        worldId='world', worldName='World', folderName='world',
+        objectKey='internal/draft-key.zip', byteSize=10, sha256='digest', files=(),
+    )
+
+    text = render_release_text(payload, exclude={'object_key'})
+
+    assert 'objectKey' not in text
+    assert 'worldName' in text
 
 
 def test_first_release_diff_is_a_full_creation_against_an_empty_document() -> None:

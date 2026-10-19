@@ -21,6 +21,7 @@ nav = [
     { "聊天预设" = "features/chat-presets.md" },
     { "图片与封面" = "features/images.md" },
     { "WorldSE 数据包" = "features/worlds.md" },
+    { "Agentic Roleplay 世界" = "features/agentic-roleplay-worlds.md" },
     { "版本管理与发布" = "features/versioning.md" },
     { "资源 Fork（衍生）" = "features/forking.md" },
     { "协作者编辑" = "features/collaborative-editing.md" },
