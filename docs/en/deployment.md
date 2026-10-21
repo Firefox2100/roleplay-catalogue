@@ -15,7 +15,7 @@ The Roleplay Catalogue ships a ready-made Docker image and can also be deployed 
 - **Node.js** ≥ 18 (for building the frontend)
 - **MongoDB** running as a **replica set** (single-node replica set is fine for local / small deployments) — mandatory because the app uses multi-document transactions.
 - **Redis** with persistence enabled — stores activation and password-reset credentials plus resource view and download counters.
-- **S3-compatible storage** (MinIO, AWS S3, Cloudflare R2, etc.) — required for uploading character cards, lorebooks, presets, images, and world bundles.
+- **S3-compatible storage** (SeaweedFS, MinIO, AWS S3, Cloudflare R2, etc.) — required for uploading character cards, lorebooks, presets, images, and world bundles.
 
 ---
 
@@ -29,12 +29,15 @@ The provided `compose.yaml` starts five long-running services:
 | `redis` | Persistent activation/reset credentials and resource counters. | `redis:8-alpine` |
 | `mongodb` | MongoDB Community Server, single-node replica set `rs0`, authentication enabled. | `mongodb/mongodb-community-server:latest` |
 | `mongodb-search` (mongot) | MongoDB Community Search for full-text and vector indexes. | `mongodb/mongodb-community-search:latest` |
-| `minio` | S3-compatible object storage on port 9000 (console on 9001). | `minio/minio:latest` |
+| `seaweedfs` | S3-compatible object storage on port 8333. Its Admin UI runs on port 23646 inside the Compose network. | `chrislusf/seaweedfs:4.48` |
 
-Two one-shot initialisation containers (`mongodb-init`, `minio-init`) run once after MongoDB and MinIO become healthy:
+The `mongodb-init` one-shot container runs after MongoDB becomes healthy:
 - `mongodb-init` executes `init-mongodb.sh` (configures the replica set, enables authentication,
   and provisions the mongot search user plus the application's own database user).
-- `minio-init` creates the S3 bucket configured in `RC_S3_BUCKET`.
+
+SeaweedFS runs in `mini` mode for this single-node deployment. It stores its data in the
+`seaweedfs-data` volume and creates the bucket from `RC_S3_BUCKET` during startup. The application
+still speaks S3 and does not depend on SeaweedFS-specific APIs.
 
 MongoDB runs with `security.authorization: enabled` and a generated keyfile (for internal
 replica-set authentication). `mongodb-init` bootstraps a cluster-admin user
@@ -82,6 +85,15 @@ mapped to the container; `RC_SESSION_SECRET`, `MONGOT_PASSWORD`,
 `MONGODB_ROOT_USERNAME`, `MONGODB_ROOT_PASSWORD`, `RC_MONGODB_USERNAME`,
 `RC_MONGODB_PASSWORD`, `RC_PUBLIC_BASE_URL`, SMTP settings, and S3 credentials
 are populated from `.env` before the first start.
+
+### Upgrading from the former MinIO stack
+
+SeaweedFS cannot read the old `minio-data` volume. Copy the bucket through the S3 API before
+retiring MinIO, using `mc mirror`, `rclone`, or another S3 migration tool. Verify the object count
+and a sample of downloads before removing the old volume. Existing installations that keep MinIO
+do not need application changes: leave their `RC_S3_ENDPOINT_URL` and credentials pointed at that
+service. The default Compose credentials remain `minioadmin` for compatibility, but should be
+changed on any exposed deployment.
 
 `RC_MONGODB_USERNAME`/`RC_MONGODB_PASSWORD` can be left blank to run MongoDB
 without authentication — useful when pointing `RC_MONGODB_HOST` at an
@@ -144,7 +156,7 @@ Or run inside a lightweight container:
 ```sh
 docker run --rm -p 9798:9798 \
   -e RC_MONGODB_HOST=mongodb \
-  -e RC_S3_ENDPOINT_URL=http://minio:9000 \
+  -e RC_S3_ENDPOINT_URL=http://seaweedfs:8333 \
   -e RC_API_PREFIX=/api \
   ghcr.io/fk2100/fastapi-uvicorn:latest \
   bash -c "pip install roleplay-catalogue && uvicorn roleplay_catalogue.main:app --host 0.0.0.0 --port 9798"

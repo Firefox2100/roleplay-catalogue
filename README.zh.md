@@ -33,7 +33,7 @@
 
 ## 快速开始
 
-最快的运行方式是使用 Docker Compose。它会启动应用服务器、MongoDB 副本集、Redis、MinIO 对象存储和 MongoDB Community Search。Redis 用于保存限时凭证以及资源浏览和下载统计。
+最快的运行方式是使用 Docker Compose。它会启动应用服务器、MongoDB 副本集、Redis、SeaweedFS 对象存储和 MongoDB Community Search。Redis 用于保存限时凭证以及资源浏览和下载统计。
 
 ### 1. 克隆与配置
 

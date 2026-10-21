@@ -15,7 +15,7 @@
 - **Node.js** ≥ 18（用于构建前端）
 - **MongoDB** 以 **副本集** 模式运行（单节点副本集即可用于本地或小规模部署）——**必须**，因为应用使用多文档事务。
 - **Redis** 并启用持久化——用于保存账号激活和密码重置凭证，以及资源的浏览、下载次数。
-- **S3 兼容存储**（MinIO、AWS S3、Cloudflare R2 等）——用于上传角色卡、世界书、预设、图片和世界数据包。
+- **S3 兼容存储**（SeaweedFS、MinIO、AWS S3、Cloudflare R2 等）——用于上传角色卡、世界书、预设、图片和世界数据包。
 
 ---
 
@@ -29,12 +29,15 @@
 | `redis` | 持久保存限时凭证以及资源浏览、下载次数。 | `redis:8-alpine` |
 | `mongodb` | MongoDB Community Server，单节点副本集 `rs0`，已启用认证。 | `mongodb/mongodb-community-server:latest` |
 | `mongodb-search`（mongot） | MongoDB Community Search，提供全文和向量索引。 | `mongodb/mongodb-community-search:latest` |
-| `minio` | 9000 端口的 S3 兼容对象存储（控制台在 9001）。 | `minio/minio:latest` |
+| `seaweedfs` | 8333 端口的 S3 兼容对象存储；管理界面在 Compose 网络内使用 23646 端口。 | `chrislusf/seaweedfs:4.48` |
 
-两个一次性初始化容器（`mongodb-init`、`minio-init`）在 MongoDB 和 MinIO 健康后各运行一次：
+MongoDB 健康后，一次性容器 `mongodb-init` 会运行：
 
 - `mongodb-init` 执行 `init-mongodb.sh`（配置副本集、启用认证，并创建 mongot 搜索用户和应用自己的数据库用户）。
-- `minio-init` 创建在 `RC_S3_BUCKET` 中配置的 S3 存储桶。
+
+此单节点部署以 `mini` 模式运行 SeaweedFS。数据保存在 `seaweedfs-data` 数据卷中，
+`RC_S3_BUCKET` 指定的存储桶会在启动时创建。应用仍通过 S3 API 操作对象，
+不依赖 SeaweedFS 专用接口。
 
 MongoDB 启用了 `security.authorization: enabled` 以及一个自动生成的 keyfile（用于副本集内部认证）。
 `mongodb-init` 会先创建一个集群管理员用户（`MONGODB_ROOT_USERNAME` / `MONGODB_ROOT_PASSWORD`，仅在初始化过程中使用），
@@ -78,6 +81,14 @@ docker compose logs -f catalogue   # 跟踪应用日志
 `MONGOT_PASSWORD`、`MONGODB_ROOT_USERNAME`、`MONGODB_ROOT_PASSWORD`、
 `RC_MONGODB_USERNAME`、`RC_MONGODB_PASSWORD`、`RC_PUBLIC_BASE_URL`、
 SMTP 设置和 S3 凭证在首次启动前从 `.env` 填充。
+
+### 从旧版 MinIO 环境升级
+
+SeaweedFS 无法直接读取旧的 `minio-data` 数据卷。停用 MinIO 前，请通过 S3 API 使用
+`mc mirror`、`rclone` 或其他 S3 迁移工具复制存储桶。核对对象数量并抽查下载后，
+再删除旧数据卷。如果继续使用已有的 MinIO，只需保留原来的 `RC_S3_ENDPOINT_URL`
+和凭证，应用无需改动。Compose 为兼容旧安装仍使用 `minioadmin` 作为默认凭证；
+任何对外部署都应修改它。
 
 `RC_MONGODB_USERNAME`/`RC_MONGODB_PASSWORD` 可以留空以不使用认证连接 MongoDB——
 适用于将 `RC_MONGODB_HOST` 指向一个已经自行管理好安全性的外部 MongoDB 的情况。
@@ -137,7 +148,7 @@ uvicorn roleplay_catalogue.main:app --host 0.0.0.0 --port 9798
 ```sh
 docker run --rm -p 9798:9798 \
   -e RC_MONGODB_HOST=mongodb \
-  -e RC_S3_ENDPOINT_URL=http://minio:9000 \
+  -e RC_S3_ENDPOINT_URL=http://seaweedfs:8333 \
   -e RC_API_PREFIX=/api \
   ghcr.io/fk2100/fastapi-uvicorn:latest \
   bash -c "pip install roleplay-catalogue && uvicorn roleplay_catalogue.main:app --host 0.0.0.0 --port 9798"

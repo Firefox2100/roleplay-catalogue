@@ -1,6 +1,6 @@
 # 快速开始
 
-启动角色扮演资源库最简单的方式是使用 `docker compose`。它会同时启动应用、单节点 MongoDB 副本集、MongoDB Community Search、Redis 和 MinIO 对象存储。
+启动角色扮演资源库最简单的方式是使用 `docker compose`。它会同时启动应用、单节点 MongoDB 副本集、MongoDB Community Search、Redis 和 SeaweedFS 对象存储。
 
 ## 前提条件
 
@@ -30,7 +30,7 @@
    docker compose up -d
    ```
 
-   首次运行时，Docker 会拉取镜像、启动各项服务，并完成 MongoDB 与对象存储的初始化。这可能需要一至两分钟。
+   首次运行时，Docker 会拉取镜像、启动各项服务并初始化 MongoDB。SeaweedFS 会在启动时创建配置的存储桶。这可能需要一至两分钟。
 
 4. **打开资源库**
 
@@ -69,4 +69,4 @@ docker compose up -d
 > MongoDB 副本集是事务的必要条件。单节点副本集足以用于开发环境；生产环境建议使用多节点副本集以获得高可用性。
 
 > [!NOTE]
-> 端口说明：应用容器监听 `8080`，并映射到 `CATALOGUE_PORT`（默认也是 `8080`）。使用 Compose 时，MinIO 管理控制台位于 `9001` 端口。Redis 和 MongoDB 默认不对宿主机开放端口。
+> 端口说明：应用容器监听 `8080`，并映射到 `CATALOGUE_PORT`（默认也是 `8080`）。主 Compose 环境不会向宿主机开放 SeaweedFS。开发环境会在 `19798` 端口开放 S3 API，在 `19799` 端口开放管理界面。Redis 和 MongoDB 默认不对宿主机开放端口。

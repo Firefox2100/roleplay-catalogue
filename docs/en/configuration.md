@@ -54,15 +54,15 @@ Redis is not disposable cache storage in the current design. Production deployme
 
 ## S3-compatible storage
 
-The application uses S3-compatible storage for release artifacts, images, WorldSE bundles, and native agentic-roleplay ZIP files. MinIO is the tested local option. Other S3-compatible services may work, but this repository does not test every provider.
+The application uses S3-compatible storage for release artifacts, images, WorldSE bundles, and native agentic-roleplay ZIP files. The integration suite and supplied Compose files use SeaweedFS. MinIO remains compatible with the same application settings, as do AWS S3 and other implementations that support the operations used by the catalogue.
 
 | Variable | Default | Description |
 |---|---|---|
-| `RC_S3_ENDPOINT_URL` | empty | Optional S3 API endpoint URL. The supplied Compose environment points it at MinIO. |
+| `RC_S3_ENDPOINT_URL` | empty | Optional S3 API endpoint URL. The supplied Compose environment points it at SeaweedFS. |
 | `RC_S3_REGION` | `us-east-1` | AWS region identifier. Some providers require an empty string instead. |
-| `RC_S3_ACCESS_KEY_ID` | empty | S3 access key. The supplied Compose setup defaults to `minioadmin`. |
-| `RC_S3_SECRET_ACCESS_KEY` | empty | S3 secret key. The supplied Compose setup defaults to `minioadmin`. |
-| `RC_S3_BUCKET` | `roleplay-catalogue` | S3 bucket name. The bucket is created automatically by the Docker Compose initialisation job; for external services ensure it already exists. |
+| `RC_S3_ACCESS_KEY_ID` | empty | S3 access key. The supplied Compose setup retains `minioadmin` as its development default for compatibility with earlier installations. |
+| `RC_S3_SECRET_ACCESS_KEY` | empty | S3 secret key. The supplied Compose setup retains `minioadmin` as its development default. Change it outside local development. |
+| `RC_S3_BUCKET` | `roleplay-catalogue` | S3 bucket name. SeaweedFS creates it when the supplied Compose service starts; for external services ensure it already exists. |
 | `RC_IMAGE_MAX_BYTES` | `20971520` (20 MiB) | Maximum allowed size for image uploads (cover images, standalone images). |
 | `RC_WORLD_BUNDLE_MAX_BYTES` | `104857600` (100 MiB) | Maximum allowed size for World Simulation Engine bundle uploads. |
 | `RC_DSH_WORLD_MAX_BYTES` | `104857600` (100 MiB) | Maximum compressed size for DeepSeek Harness agentic-roleplay world ZIP uploads. The parser also limits expanded content to 512 MiB and 5,000 entries. |

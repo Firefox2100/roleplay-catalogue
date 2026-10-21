@@ -1,6 +1,6 @@
 # 配置选项
 
-角色扮演资源库的所有配置均通过环境变量完成。每个变量都使用 `RC_` 前缀（外部服务如 MongoDB、MinIO 等除外）。完整参考是仓库根目录下的 `example.env`——首次使用前请将其复制为 `.env`。
+角色扮演资源库的所有配置均通过环境变量完成。每个变量都使用 `RC_` 前缀（外部服务如 MongoDB、SeaweedFS 等除外）。完整参考是仓库根目录下的 `example.env`，首次使用前请将其复制为 `.env`。
 
 所有配置在启动时通过 [Pydantic Settings](https://docs.pydantic.dev/latest/concepts/pydantic_settings/) 模型进行验证。无效值会导致容器启动失败并输出错误信息。
 
@@ -55,15 +55,15 @@ MongoDB 事务对原子多文档操作（例如在一次写入中创建资源、
 
 ## S3 兼容存储
 
-应用使用 S3 兼容存储来保存资源工件（角色卡文件、世界书文件、预设文件、图片和世界模拟数据包）。任何 S3 API 实现均可使用（AWS S3、MinIO、Cloudflare R2 等）。
+应用使用 S3 兼容存储来保存资源工件（角色卡文件、世界书文件、预设文件、图片和世界模拟数据包）。集成测试和项目提供的 Compose 文件使用 SeaweedFS。MinIO 仍可沿用相同的应用配置；AWS S3 和其他支持本项目所用操作的实现也可以使用。
 
 | 变量 | 默认值 | 说明 |
 |---|---|---|
-| `RC_S3_ENDPOINT_URL` | 空 | 可选的 S3 API 端点 URL。项目提供的 Compose 环境会指向 MinIO。 |
+| `RC_S3_ENDPOINT_URL` | 空 | 可选的 S3 API 端点 URL。项目提供的 Compose 环境会指向 SeaweedFS。 |
 | `RC_S3_REGION` | `us-east-1` | AWS 区域标识符。部分提供商要求为空字符串。 |
-| `RC_S3_ACCESS_KEY_ID` | 空 | S3 访问密钥。Compose 配置默认为 `minioadmin`。 |
-| `RC_S3_SECRET_ACCESS_KEY` | 空 | S3 秘密密钥。Compose 配置默认为 `minioadmin`。 |
-| `RC_S3_BUCKET` | `roleplay-catalogue` | S3 存储桶名称。Docker Compose 初始化任务会自动创建。外部服务请确保已存在。 |
+| `RC_S3_ACCESS_KEY_ID` | 空 | S3 访问密钥。为了兼容已有安装，Compose 的开发默认值仍为 `minioadmin`。 |
+| `RC_S3_SECRET_ACCESS_KEY` | 空 | S3 秘密密钥。Compose 的开发默认值仍为 `minioadmin`，非本地环境请修改。 |
+| `RC_S3_BUCKET` | `roleplay-catalogue` | S3 存储桶名称。SeaweedFS Compose 服务会在启动时创建。使用外部服务时请确保它已存在。 |
 | `RC_IMAGE_MAX_BYTES` | `20971520`（20 MiB） | 图片上传的最大大小（封面图、独立图片）。 |
 | `RC_WORLD_BUNDLE_MAX_BYTES` | `104857600`（100 MiB） | 世界模拟数据包上传的最大大小。 |
 | `RC_DSH_WORLD_MAX_BYTES` | `104857600`（100 MiB） | DeepSeek Harness Agentic Roleplay 世界 ZIP 的最大压缩大小。解包后内容上限为 512 MiB，最多 5,000 个条目。 |

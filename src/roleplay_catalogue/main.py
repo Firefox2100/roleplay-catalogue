@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 import logging
 import aioboto3
 from aiosmtplib import SMTP
+from botocore.config import Config
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from jinja2 import Environment, PackageLoader, select_autoescape
@@ -89,6 +90,7 @@ async def lifespan(application: FastAPI):
             region_name=CONFIG.s3_region,
             aws_access_key_id=CONFIG.s3_access_key_id,
             aws_secret_access_key=CONFIG.s3_secret_access_key,
+            config=Config(signature_version='s3v4'),
     ) as storage_client:
         storage_service = StorageService(
             storage_client,

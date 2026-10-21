@@ -1,6 +1,6 @@
 # Quick Start
 
-The fastest way to run Roleplay Catalogue is with `docker compose`. It starts the application, a single-node MongoDB replica set, MongoDB Community Search, Redis, and MinIO object storage.
+The fastest way to run Roleplay Catalogue is with `docker compose`. It starts the application, a single-node MongoDB replica set, MongoDB Community Search, Redis, and SeaweedFS object storage.
 
 ## Prerequisites
 
@@ -30,7 +30,7 @@ The fastest way to run Roleplay Catalogue is with `docker compose`. It starts th
    docker compose up -d
    ```
 
-   On first run Docker pulls the images, starts the services, and runs the MongoDB and storage initialisation jobs. This may take a minute or two.
+   On first run Docker pulls the images, starts the services, and initialises MongoDB. SeaweedFS creates the configured bucket as it starts. This may take a minute or two.
 
 4. **Open the catalogue**
 
@@ -69,4 +69,4 @@ docker compose up -d
 > The MongoDB replica set is required for database transactions. A single-node replica set is sufficient for development; production deployments should use a multi-node replica set for high availability.
 
 > [!NOTE]
-> Ports: the catalogue listens on `8080` inside the container, mapped to `CATALOGUE_PORT` (default `8080`). MinIO Console is available on port `9001` when running the compose stack.
+> Ports: the catalogue listens on `8080` inside the container, mapped to `CATALOGUE_PORT` (default `8080`). The main Compose stack does not expose SeaweedFS to the host. The development stack exposes its S3 endpoint on `19798` and Admin UI on `19799`.

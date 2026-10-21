@@ -1,4 +1,4 @@
-"""Docker-backed fixtures: MongoDB, MinIO, Mailpit. Skip (not fail) if Docker is unreachable."""
+"""Docker-backed MongoDB, SeaweedFS, Redis, and Mailpit fixtures."""
 
 import uuid
 
@@ -6,6 +6,7 @@ import aioboto3
 import httpx
 import pytest
 from aiosmtplib import SMTP
+from botocore.config import Config
 from jinja2 import DictLoader, Environment, select_autoescape
 from pymongo import AsyncMongoClient
 from redis.asyncio import Redis
@@ -113,39 +114,43 @@ async def cache_service(redis_url: str):
         await service.close()
 
 
-# MinIO: S3-compatible storage backend, matching compose.yaml
+# SeaweedFS: S3-compatible storage backend, matching compose.yaml
 
-MINIO_ACCESS_KEY = 'integration-test'
-MINIO_SECRET_KEY = 'integration-test-secret'
+S3_ACCESS_KEY = 'integration-test'
+S3_SECRET_KEY = 'integration-test-secret'
+SEAWEEDFS_IMAGE = 'chrislusf/seaweedfs:4.48'
 
 
 @pytest.fixture(scope='session')
-def minio_endpoint(_require_docker) -> str:
-    container = DockerContainer('minio/minio')
-    container.with_command('server /data')
-    container.with_env('MINIO_ROOT_USER', MINIO_ACCESS_KEY)
-    container.with_env('MINIO_ROOT_PASSWORD', MINIO_SECRET_KEY)
-    container.with_exposed_ports(9000)
-    container.waiting_for(LogMessageWaitStrategy('API:').with_startup_timeout(30))
+def seaweedfs_endpoint(_require_docker) -> str:
+    container = DockerContainer(SEAWEEDFS_IMAGE)
+    container.with_command('mini -dir=/data -master.telemetry=false')
+    container.with_env('AWS_ACCESS_KEY_ID', S3_ACCESS_KEY)
+    container.with_env('AWS_SECRET_ACCESS_KEY', S3_SECRET_KEY)
+    container.with_exposed_ports(8333)
+    container.waiting_for(
+        LogMessageWaitStrategy('Start Seaweed S3 API Server').with_startup_timeout(30)
+    )
     container.start()
     try:
         host = container.get_container_host_ip()
-        port = container.get_exposed_port(9000)
+        port = container.get_exposed_port(8333)
         yield f'http://{host}:{port}'
     finally:
         container.stop()
 
 
 @pytest.fixture
-async def storage_service(minio_endpoint: str):
+async def storage_service(seaweedfs_endpoint: str):
     bucket = f'rc-test-{uuid.uuid4().hex}'
     session = aioboto3.Session()
     async with session.client(
             's3',
-            endpoint_url=minio_endpoint,
+            endpoint_url=seaweedfs_endpoint,
             region_name='us-east-1',
-            aws_access_key_id=MINIO_ACCESS_KEY,
-            aws_secret_access_key=MINIO_SECRET_KEY,
+            aws_access_key_id=S3_ACCESS_KEY,
+            aws_secret_access_key=S3_SECRET_KEY,
+            config=Config(signature_version='s3v4'),
     ) as client:
         await client.create_bucket(Bucket=bucket)
         yield StorageService(client, bucket, signed_url_expiry=60)
