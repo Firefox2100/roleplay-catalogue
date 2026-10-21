@@ -32,7 +32,7 @@ function UserMenu({ username }) {
     try {
       await logout()
       setIsOpen(false)
-      navigate('/')
+      void navigate('/')
     } finally {
       setIsLoggingOut(false)
     }

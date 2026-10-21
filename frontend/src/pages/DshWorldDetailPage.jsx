@@ -19,9 +19,9 @@ export function DshWorldDetailPage() {
   if (!resource || !document) return <div className="page-loading" role="status">{t('dshWorld.loading')}</div>
   const version = versions.find((item) => item.id === selected); const data = document.data
   async function fork() {
-    if (!user) { navigate('/login', { state: { from: location.pathname } }); return }
+    if (!user) { void navigate('/login', { state: { from: location.pathname } }); return }
     setIsForking(true); setError('')
-    try { const created = await forkResourceVersion(selected); navigate(`/agentic-worlds/${created.id}/edit`, { state: { resource: created } }) }
+    try { const created = await forkResourceVersion(selected); void navigate(`/agentic-worlds/${created.id}/edit`, { state: { resource: created } }) }
     catch { setError(t('details.forkFailed')); setIsForking(false) }
   }
   return <section className="character-editor-page"><div className="character-editor"><header className="editor-toolbar"><div><span className="eyebrow">{t('dshWorld.publishedWorld')}</span><h1>{resource.metadata.name}</h1></div><div className="detail-version-actions"><select value={selected} onChange={(event) => { setDocument(null); setSelected(event.target.value) }}>{versions.map((item) => <option key={item.id} value={item.id}>{item.version}</option>)}</select><a className="save-button" href={versionDownloadUrl(selected)}>{t('details.download')}</a><button type="button" disabled={isForking} onClick={fork}>{isForking ? t('details.forking') : t('details.fork')}</button>{user?.id === resource.authorId && <Link className="save-button" to={`/agentic-worlds/${resource.id}/edit`}>{t('dshWorld.edit')}</Link>}</div></header>

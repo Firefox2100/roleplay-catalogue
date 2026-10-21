@@ -260,7 +260,7 @@ export function CharacterEditorPage() {
 
   async function removeResource() {
     if (!window.confirm(t('editor.deleteConfirm'))) return
-    try { await deleteResource(resourceId, resource.resourceType); navigate('/resources/mine', { replace: true }) }
+    try { await deleteResource(resourceId, resource.resourceType); void navigate('/resources/mine', { replace: true }) }
     catch { setError(t('editor.deleteFailed')) }
   }
 

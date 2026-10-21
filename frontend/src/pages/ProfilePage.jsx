@@ -89,7 +89,7 @@ export function ProfilePage() {
     setDeleteError(''); setIsDeleting(true)
     try {
       await deleteAccount(deletePassword)
-      navigate('/', { replace: true })
+      void navigate('/', { replace: true })
     } catch (error) {
       setDeleteError(error.status === 401
         ? t('profile.currentPasswordIncorrect') : t('profile.deleteFailed'))
@@ -99,7 +99,7 @@ export function ProfilePage() {
   function selectLocale(event) {
     const selected = event.target.value
     setLocale(selected)
-    changeLocale(selected)
+    void changeLocale(selected)
   }
 
   async function submitApiKey(event) {

@@ -44,7 +44,7 @@ export function LoginPage() {
     setIsSubmitting(true)
     try {
       await login(username, password)
-      navigate(destination, { replace: true })
+      void navigate(destination, { replace: true })
     } catch (requestError) {
       setError(requestError.status === 401
         ? t('auth.invalidCredentials')
@@ -77,7 +77,7 @@ export function LoginPage() {
     setIsSubmitting(true)
     try {
       await confirmPasswordReset(resetUserId, resetToken, newPassword)
-      navigate('/login?reset=success', { replace: true })
+      void navigate('/login?reset=success', { replace: true })
       setResetMode('login'); setNewPassword(''); setConfirmPassword('')
     } catch (requestError) {
       setError(requestError.status === 400 ? t('auth.resetInvalid') : t('auth.resetFailed'))
@@ -125,7 +125,7 @@ export function LoginPage() {
           </button>
         </form>
         <button className="auth-text-button" type="button"
-          onClick={() => navigate('/login', { replace: true })}>{t('auth.backToLogin')}</button>
+          onClick={() => { void navigate('/login', { replace: true }) }}>{t('auth.backToLogin')}</button>
       </div></section>
     )
   }

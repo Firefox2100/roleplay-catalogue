@@ -66,7 +66,7 @@ export function CreateResourcePage() {
           : resource.resourceType === 'world-simulation-engine/world'
             ? `/worlds/${resource.id}/edit`
             : `/resources/${resource.id}/edit`
-        navigate(editorPath, { replace: true, state: { resource } })
+        void navigate(editorPath, { replace: true, state: { resource } })
         return
       }
       setCreatedResource(resource)

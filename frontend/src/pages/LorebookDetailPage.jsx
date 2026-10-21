@@ -71,11 +71,11 @@ export function LorebookDetailPage() {
   }
 
   async function fork() {
-    if (!user) { navigate('/login', { state: { from: location.pathname } }); return }
+    if (!user) { void navigate('/login', { state: { from: location.pathname } }); return }
     setIsForking(true)
     try {
       const created = await forkResourceVersion(selectedId)
-      navigate(`/lorebooks/${created.id}/edit`, { state: { resource: created } })
+      void navigate(`/lorebooks/${created.id}/edit`, { state: { resource: created } })
     } catch { setError(t('details.forkFailed')); setIsForking(false) }
   }
 

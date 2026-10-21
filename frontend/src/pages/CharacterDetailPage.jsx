@@ -96,14 +96,14 @@ export function CharacterDetailPage() {
 
   async function forkVersion() {
     if (!user) {
-      navigate('/login', { state: { from: location.pathname } })
+      void navigate('/login', { state: { from: location.pathname } })
       return
     }
     setError('')
     setIsForking(true)
     try {
       const fork = await forkResourceVersion(selectedId)
-      navigate(`/resources/${fork.id}/edit`, { state: { resource: fork } })
+      void navigate(`/resources/${fork.id}/edit`, { state: { resource: fork } })
     } catch {
       setError(t('details.forkFailed'))
       setIsForking(false)

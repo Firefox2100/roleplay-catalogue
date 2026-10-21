@@ -588,7 +588,7 @@ localStorage.setItem(LOCALE_STORAGE_KEY, initialLocale)
 document.documentElement.lang = initialLocale
 const i18nLocale = initialLocale === CHINESE ? 'zh' : 'en'
 
-i18n.use(initReactI18next).init({
+void i18n.use(initReactI18next).init({
   resources: {
     en: translations[ENGLISH],
     zh: translations[CHINESE],
