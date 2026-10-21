@@ -192,7 +192,7 @@ export function ProfilePage() {
                 <option value="never">{t('profile.apiKeyLifetimes.never')}</option>
               </select>
             </label>
-            <button className="primary-button" disabled={isCreatingApiKey}>
+            <button className="primary-button" type="submit" disabled={isCreatingApiKey}>
               {isCreatingApiKey ? t('profile.creatingApiKey') : t('profile.createApiKey')}
             </button>
           </form>
@@ -246,7 +246,7 @@ export function ProfilePage() {
               <li>{t('profile.deleteIrreversible')}</li>
             </ul>
             <form onSubmit={confirmDelete}>
-              <label>{t('profile.confirmWithPassword')}<input autoFocus type="password"
+              <label>{t('profile.confirmWithPassword')}<input type="password"
                 autoComplete="current-password" value={deletePassword}
                 onChange={(event) => setDeletePassword(event.target.value)} required /></label>
               {deleteError && <p className="form-error" role="alert">{deleteError}</p>}

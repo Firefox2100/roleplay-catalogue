@@ -97,7 +97,7 @@ export function CoAuthorEditor({ resourceId, authorId, currentUserId, onChange }
             placeholder={t('editor.coAuthorUsernamePlaceholder')}
             onChange={(event) => setUsername(event.target.value)}
             onKeyDown={(event) => {
-              if (event.key === 'Enter') { event.preventDefault(); submitAdd() }
+              if (event.key === 'Enter') { event.preventDefault(); void submitAdd() }
             }} />
           <button type="button" disabled={isAdding || !username.trim()} onClick={submitAdd}>
             {isAdding ? t('editor.addingCoAuthor') : t('editor.addCoAuthor')}

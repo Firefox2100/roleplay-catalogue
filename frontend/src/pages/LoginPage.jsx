@@ -93,7 +93,7 @@ export function LoginPage() {
           <form onSubmit={submitResetRequest}>
             <label htmlFor="reset-email">{t('auth.email')}</label>
             <input id="reset-email" type="email" autoComplete="email" value={resetEmail}
-              onChange={(event) => setResetEmail(event.target.value)} required autoFocus />
+              onChange={(event) => setResetEmail(event.target.value)} required />
             {error && <p className="form-error" role="alert">{error}</p>}
             <button className="primary-button" type="submit" disabled={isSubmitting}>
               {isSubmitting ? t('auth.sendingReset') : t('auth.sendReset')}
@@ -115,7 +115,7 @@ export function LoginPage() {
         <form onSubmit={submitResetConfirmation}>
           <label htmlFor="new-password">{t('auth.newPassword')}</label>
           <input id="new-password" type="password" autoComplete="new-password" minLength={8} maxLength={128}
-            value={newPassword} onChange={(event) => setNewPassword(event.target.value)} required autoFocus />
+            value={newPassword} onChange={(event) => setNewPassword(event.target.value)} required />
           <label htmlFor="confirm-password">{t('auth.confirmPassword')}</label>
           <input id="confirm-password" type="password" autoComplete="new-password" minLength={8} maxLength={128}
             value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} required />
@@ -156,7 +156,6 @@ export function LoginPage() {
             value={username}
             onChange={(event) => setUsername(event.target.value)}
             required
-            autoFocus
           />
           <label htmlFor="password">{t('auth.password')}</label>
           <input

@@ -2,7 +2,7 @@
 FROM node:22-alpine AS frontend-build
 WORKDIR /build/frontend
 COPY frontend/package.json frontend/package-lock.json ./
-RUN npm ci
+RUN npm ci --ignore-scripts
 COPY frontend/ ./
 RUN npm run build
 
@@ -13,7 +13,7 @@ ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 WORKDIR /build
 COPY pyproject.toml README.md LICENSE ./
 COPY src/ ./src/
-RUN pip install --no-cache-dir --upgrade pip build \
+RUN pip install --no-cache-dir --only-binary=:all: build==1.6.1 \
     && python -m build --wheel --outdir /wheels \
     && pip wheel --no-cache-dir --wheel-dir /wheels /wheels/roleplay_catalogue-*.whl
 
@@ -38,6 +38,7 @@ COPY deploy/nginx.conf /etc/nginx/nginx.conf.template
 COPY deploy/supervisord.conf /etc/supervisor/conf.d/roleplay-catalogue.conf
 COPY deploy/entrypoint.sh /usr/local/bin/roleplay-catalogue-entrypoint
 RUN chmod 755 /usr/local/bin/roleplay-catalogue-entrypoint
+USER www-data
 EXPOSE 8080
 STOPSIGNAL SIGTERM
 ENTRYPOINT ["/usr/local/bin/roleplay-catalogue-entrypoint"]

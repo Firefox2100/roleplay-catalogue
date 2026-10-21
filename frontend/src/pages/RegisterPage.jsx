@@ -80,7 +80,6 @@ export function RegisterPage() {
                 value={username}
                 onChange={(event) => setUsername(event.target.value)}
                 required
-                autoFocus
               />
               <label htmlFor="email">{t('auth.email')}</label>
               <input

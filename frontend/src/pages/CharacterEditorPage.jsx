@@ -675,10 +675,10 @@ export function CharacterEditorPage() {
                   onClick={() => setIsPublishOpen(false)}>×</button>
               </div>
               <label>{t('editor.releaseVersion')}
-                <input autoFocus value={releaseVersion} maxLength={100} placeholder="v1.0.0"
+                <input value={releaseVersion} maxLength={100} placeholder="v1.0.0"
                   onChange={(event) => setReleaseVersion(event.target.value)}
                   onKeyDown={(event) => {
-                    if (event.key === 'Enter') { event.preventDefault(); publishCurrentDraft() }
+                    if (event.key === 'Enter') { event.preventDefault(); void publishCurrentDraft() }
                   }} />
               </label>
               <button className="save-button" type="button"

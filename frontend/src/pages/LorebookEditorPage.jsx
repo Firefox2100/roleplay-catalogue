@@ -418,7 +418,7 @@ export function LorebookEditorPage() {
           <section className="publish-dialog" role="dialog" aria-modal="true">
             <div className="cover-picker-heading"><div><h2>{t('lorebookEditor.publishTitle')}</h2>
               <p>{t('editor.publishHelp')}</p></div><button type="button" onClick={() => setIsPublishOpen(false)}>×</button></div>
-            <label>{t('editor.releaseVersion')}<input autoFocus value={releaseVersion} placeholder="v1.0.0"
+            <label>{t('editor.releaseVersion')}<input value={releaseVersion} placeholder="v1.0.0"
               onChange={(event) => setReleaseVersion(event.target.value)} /></label>
             <button className="save-button" type="button" disabled={!releaseVersion.trim() || busy === 'publish'} onClick={publish}>{t('editor.publish')}</button>
           </section>

@@ -122,7 +122,6 @@ export function CreateResourcePage() {
                 onChange={(event) => setName(event.target.value)}
                 maxLength={200}
                 required
-                autoFocus
               />
 
               <label htmlFor="resource-type">{t('resource.type')}</label>
