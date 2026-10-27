@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { beforeEach, expect, it, vi } from 'vitest'
 import {
+  deleteResource,
   getResource,
   getResourceData,
   listResources,
@@ -78,6 +79,18 @@ beforeEach(() => {
   listResources.mockReset().mockResolvedValue({ items: [] })
   updateResource.mockReset().mockResolvedValue({ revision: 'rev-2' })
   saveResourceData.mockReset().mockResolvedValue({ revision: 'data-2', data: { entries: [] } })
+  deleteResource.mockReset().mockResolvedValue()
+})
+
+it('deletes the lorebook after confirmation', async () => {
+  vi.spyOn(window, 'confirm').mockReturnValue(true)
+  const user = userEvent.setup()
+  renderPage()
+  await user.click(await screen.findByRole('button', { name: 'Delete' }))
+  await waitFor(() => expect(deleteResource).toHaveBeenCalledWith(
+    'lorebook-1', 'sillytavern/lorebook',
+  ))
+  expect(screen.getByTestId('location')).toHaveTextContent('/resources/mine')
 })
 
 it('loads lorebook draft data and saves changes', async () => {
@@ -102,4 +115,3 @@ it('redirects anonymous users to login', () => {
   renderPage()
   expect(screen.getByTestId('location')).toHaveTextContent('/login')
 })
-

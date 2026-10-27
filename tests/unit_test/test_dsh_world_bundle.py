@@ -1,6 +1,7 @@
 from io import BytesIO
 import json
-from zipfile import ZipFile
+import stat
+from zipfile import ZipFile, ZipInfo
 
 import pytest
 
@@ -82,3 +83,80 @@ def test_fork_normalization_assigns_a_new_world_identity():
     assert parsed.data.world_id != 'original'
     with ZipFile(BytesIO(parsed.payload)) as archive:
         assert json.loads(archive.read('harbour/world.json'))['id'] == parsed.data.world_id
+
+
+@pytest.mark.parametrize('path,content,message', [
+    ('harbour/character.json', b'{bad', 'valid UTF-8 JSON'),
+    ('harbour/memory.jsonl', b'{"ok":true}\nnot-json', 'memory.jsonl:2'),
+    ('harbour/memory.jsonl', b'\xff', 'valid UTF-8 JSON lines'),
+])
+def test_rejects_malformed_native_documents(path, content, message):
+    with pytest.raises(DshWorldBundleError, match=message):
+        parse_dsh_world_bundle(world_zip({
+            'harbour/world.json': b'{"name":"Harbour"}',
+            path: content,
+        }), 'drafts/world.zip')
+
+
+def test_extracts_the_native_cover_from_the_media_manifest():
+    cover = b'png-image'
+    parsed = parse_dsh_world_bundle(world_zip({
+        'harbour/world.json': b'{"name":"Harbour","cover_media_id":"cover"}',
+        'harbour/media/manifest.jsonl': (
+            b'\n{"id":"other","file":"media/other.png"}\n'
+            b'{"id":"cover","file":"media/cover.png"}\n'
+        ),
+        'harbour/media/cover.png': cover,
+        'harbour/media/other.png': b'other',
+    }), 'drafts/world.zip')
+
+    assert parsed.cover == cover
+
+
+@pytest.mark.parametrize('files,message', [
+    ({}, 'manifest.jsonl is missing'),
+    ({'harbour/media/manifest.jsonl': b'{"id":"other","file":"media/x.png"}'},
+     'missing from media/manifest.jsonl'),
+    ({'harbour/media/manifest.jsonl': b'{"id":"cover"}'}, 'has no file'),
+    ({'harbour/media/manifest.jsonl': b'{"id":"cover","file":"media/cover.svg"}',
+      'harbour/media/cover.svg': b'<svg/>'}, 'supported raster image'),
+    ({'harbour/media/manifest.jsonl': b'{"id":"cover","file":"media/missing.png"}'},
+     'cover file is missing'),
+])
+def test_rejects_invalid_cover_references(files, message):
+    with pytest.raises(DshWorldBundleError, match=message):
+        parse_dsh_world_bundle(world_zip({
+            'harbour/world.json': b'{"name":"Harbour","cover_media_id":"cover"}',
+            **files,
+        }), 'drafts/world.zip')
+
+
+def test_rejects_symbolic_links_and_case_colliding_paths():
+    output = BytesIO()
+    with ZipFile(output, 'w') as archive:
+        archive.writestr('harbour/world.json', b'{"name":"Harbour"}')
+        link = ZipInfo('harbour/link')
+        link.external_attr = (stat.S_IFLNK | 0o777) << 16
+        archive.writestr(link, 'target')
+    with pytest.raises(DshWorldBundleError, match='Symbolic links'):
+        parse_dsh_world_bundle(output.getvalue(), 'drafts/world.zip')
+
+    with pytest.raises(DshWorldBundleError, match='case-colliding'):
+        parse_dsh_world_bundle(world_zip({
+            'harbour/world.json': b'{"name":"Harbour"}',
+            'harbour/Notes.txt': b'a',
+            'harbour/notes.txt': b'b',
+        }), 'drafts/world.zip')
+
+
+@pytest.mark.parametrize('folder,world,message', [
+    ('unsafe folder', {'name': 'Harbour'}, 'unsupported name'),
+    ('harbour', {'name': 'Harbour', 'id': 3}, 'non-empty string'),
+    ('harbour', {'name': 'Harbour', 'metadata': {'tags': 'sea'}}, 'list of strings'),
+    ('harbour', {'name': 'Harbour', 'description': 3}, 'description must be text'),
+])
+def test_rejects_invalid_world_metadata(folder, world, message):
+    with pytest.raises(DshWorldBundleError, match=message):
+        parse_dsh_world_bundle(world_zip({
+            f'{folder}/world.json': json.dumps(world).encode(),
+        }), 'drafts/world.zip')

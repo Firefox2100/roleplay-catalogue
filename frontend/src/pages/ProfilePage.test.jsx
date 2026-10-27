@@ -5,6 +5,7 @@ import { beforeEach, expect, it, vi } from 'vitest'
 import { changePassword, createApiKey, listApiKeys, revokeApiKey } from '../api/auth.js'
 import { useAuth } from '../auth/useAuth.js'
 import { ProfilePage } from './ProfilePage.jsx'
+import { changeLocale } from '../i18n.js'
 
 vi.mock('../auth/useAuth.js', () => ({ useAuth: vi.fn() }))
 vi.mock('../api/auth.js', () => ({
@@ -39,6 +40,25 @@ beforeEach(() => {
   createApiKey.mockReset()
   listApiKeys.mockReset().mockResolvedValue([])
   revokeApiKey.mockReset()
+  changeLocale.mockReset().mockResolvedValue()
+})
+
+it('changes locale and deletes the account after password confirmation', async () => {
+  const deleteAccount = vi.fn().mockResolvedValue()
+  useAuth.mockReturnValue({
+    user: { id: 'user-1', username: 'alice' }, isLoading: false, deleteAccount,
+  })
+  const user = userEvent.setup()
+  renderPage()
+
+  await user.selectOptions(screen.getByLabelText('Display language'), 'zh-cn')
+  expect(changeLocale).toHaveBeenCalledWith('zh-cn')
+
+  await user.click(screen.getByRole('button', { name: 'Delete account' }))
+  await user.type(screen.getByLabelText('Enter your current password to continue'), 'current-password')
+  await user.click(screen.getByRole('button', { name: 'Delete everything' }))
+  await waitFor(() => expect(deleteAccount).toHaveBeenCalledWith('current-password'))
+  expect(screen.getByTestId('location')).toHaveTextContent('/')
 })
 
 it('redirects anonymous users to login', () => {

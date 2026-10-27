@@ -90,3 +90,11 @@ it('redirects anonymous users to login', () => {
   expect(screen.getByTestId('location')).toHaveTextContent('/login')
 })
 
+it('deletes the image after confirmation', async () => {
+  vi.spyOn(window, 'confirm').mockReturnValue(true)
+  const user = userEvent.setup()
+  renderPage()
+  await user.click(await screen.findByRole('button', { name: 'Delete' }))
+  await waitFor(() => expect(deleteResource).toHaveBeenCalledWith('image-1', 'core/image'))
+  expect(screen.getByTestId('location')).toHaveTextContent('/resources/mine')
+})

@@ -3,11 +3,13 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { beforeEach, expect, it, vi } from 'vitest'
 import {
+  deleteResource,
   getResource,
   getResourceData,
   importCharacterCard,
   listResources,
   listResourceVersions,
+  publishResource,
   saveResourceData,
   updateResource,
 } from '../api/resources.js'
@@ -107,6 +109,30 @@ beforeEach(() => {
   updateResource.mockReset().mockResolvedValue({ revision: 'rev-2' })
   saveResourceData.mockReset().mockResolvedValue({ revision: 'data-2', data: { name: 'Aster' } })
   importCharacterCard.mockReset()
+  deleteResource.mockReset().mockResolvedValue()
+  publishResource.mockReset().mockResolvedValue({
+    id: 'version-2', version: 'v2.0.0', versionNumber: 2, visibility: 'private',
+  })
+})
+
+it('deletes the character after confirmation', async () => {
+  vi.spyOn(window, 'confirm').mockReturnValue(true)
+  const user = userEvent.setup()
+  renderPage()
+  await user.click(await screen.findByRole('button', { name: 'Delete' }))
+  await waitFor(() => expect(deleteResource).toHaveBeenCalledWith(
+    'character-1', 'sillytavern/character',
+  ))
+  expect(screen.getByTestId('location')).toHaveTextContent('/resources/mine')
+})
+
+it('publishes from the release version field with Enter', async () => {
+  const user = userEvent.setup()
+  renderPage()
+  await user.click(await screen.findByRole('button', { name: 'Publish' }))
+  const version = screen.getByPlaceholderText('v1.0.0')
+  await user.type(version, 'v2.0.0{Enter}')
+  await waitFor(() => expect(publishResource).toHaveBeenCalledWith('character-1', 'v2.0.0'))
 })
 
 it('loads character draft/editor state and saves draft changes', async () => {

@@ -62,6 +62,8 @@ describe('LoginPage', () => {
     await user.click(screen.getByRole('button', { name: 'Send reset link' }))
     expect(requestPasswordReset).toHaveBeenCalledWith('alice@example.com')
     expect(await screen.findByRole('status')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Back to login' }))
+    expect(screen.getByRole('button', { name: 'Log in' })).toBeInTheDocument()
   })
 
   it('validates and confirms a password-reset link', async () => {
@@ -81,5 +83,12 @@ describe('LoginPage', () => {
       'user-1', 'reset-token', 'NewPassword1!',
     ))
     await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/login?reset=success'))
+  })
+
+  it('returns from password reset confirmation to login', async () => {
+    const user = userEvent.setup()
+    renderLogin('/reset-password?userId=user-1&token=reset-token')
+    await user.click(screen.getByRole('button', { name: 'Back to login' }))
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/login'))
   })
 })

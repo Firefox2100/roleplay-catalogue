@@ -37,7 +37,7 @@ async def import_dsh_world(resource_id: str,
     )
     payload = await file.read(CONFIG.dsh_world_max_bytes + 1)
     if len(payload) > CONFIG.dsh_world_max_bytes:
-        raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, 'World ZIP is too large')
+        raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, 'World ZIP is too large')
     object_key = f'drafts/dsh-worlds/{resource.id}/{uuid4()}.zip'
     try:
         parsed = parse_dsh_world_bundle(payload, object_key)
